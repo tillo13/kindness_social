@@ -1,0 +1,12 @@
+Rate the kindness of this social media comment.
+
+Comment: "{comment}"
+
+Context: {context}
+
+Rate 1-10 where:
+1 = Cruel, attacking
+5 = Neutral
+10 = Exceptionally kind
+
+Return ONLY a number 1-10:

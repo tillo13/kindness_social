@@ -1,0 +1,46 @@
+experiment:
+  hours: 168
+  threads_per_hour: 2
+  participants_per_thread: 10
+  random_seed: null
+  verbose: true
+  save_frequency: 10
+lm_studio:
+  host: localhost
+  port: 1234
+  model: auto-detect
+  temperature: 0.3
+  max_tokens: 500
+  eval_max_tokens: 10
+  timeout: 60
+  retry_attempts: 3
+  track_performance: true
+rewards:
+  kindness_base: 30
+  bridge_building_base: 50
+  toxicity_base: 2
+  empathy_base: 25
+  multipliers:
+    empathy_shown: 1.5
+    changed_mind: 3.0
+    cascade_effect: 5.0
+    first_bridge_today: 2.0
+    broke_tension: 1.5
+  decay:
+    toxicity_satisfaction: 0.5
+    kindness_satisfaction: 0.9
+thresholds:
+  kindness_positive: 7
+  toxicity_negative: 7
+  bridge_qualifying: 7
+  significant_change: 0.3
+  political_distance_for_bridge: 0.5
+personality_distribution:
+  angry_personas: 5
+  moderate_personas: 10
+  kind_personas: 5
+tracking:
+  log_every_interaction: true
+  log_personality_changes: true
+  log_hourly_summaries: true
+  calculate_statistics: true

@@ -1,0 +1,136 @@
+{
+  "controversial": [
+    {
+      "id": "immigration_1",
+      "post": "City council approved $2M for new immigrant resource center. Some say it helps integration, others say it's misusing taxpayer money. Thoughts?",
+      "controversy_level": 8,
+      "keywords": [
+        "immigration",
+        "taxes",
+        "resources"
+      ]
+    },
+    {
+      "id": "min_wage_1",
+      "post": "Small business owner says raising minimum wage to $20/hr will force layoffs. Workers say they can't survive on less. Where's the balance?",
+      "controversy_level": 7,
+      "keywords": [
+        "economy",
+        "wages",
+        "business"
+      ]
+    },
+    {
+      "id": "police_1",
+      "post": "After recent incidents, should we increase police funding for training or redirect funds to social services? Community is divided.",
+      "controversy_level": 9,
+      "keywords": [
+        "police",
+        "safety",
+        "reform"
+      ]
+    },
+    {
+      "id": "schools_1",
+      "post": "Parents upset about new sex education curriculum starting in grade 3. School board says it's age-appropriate safety education. Your view?",
+      "controversy_level": 8,
+      "keywords": [
+        "education",
+        "children",
+        "parents"
+      ]
+    },
+    {
+      "id": "climate_1",
+      "post": "Gas prices hit $6/gallon. Environmentalists say good for planet, working families say they can't afford to get to work. Solutions?",
+      "controversy_level": 7,
+      "keywords": [
+        "climate",
+        "economy",
+        "energy"
+      ]
+    },
+    {
+      "id": "housing_1",
+      "post": "Developers want to build affordable housing in wealthy neighborhood. Residents worried about property values. What's fair?",
+      "controversy_level": 6,
+      "keywords": [
+        "housing",
+        "inequality",
+        "nimby"
+      ]
+    },
+    {
+      "id": "guns_1",
+      "post": "After recent tragedy, some call for assault weapon ban, others say it's mental health not guns. How do we protect people?",
+      "controversy_level": 9,
+      "keywords": [
+        "guns",
+        "safety",
+        "rights"
+      ]
+    },
+    {
+      "id": "trans_sports_1",
+      "post": "High school allowing trans athletes to compete in their identified gender's sports. Some parents threatening to pull kids. Thoughts?",
+      "controversy_level": 9,
+      "keywords": [
+        "trans",
+        "sports",
+        "fairness"
+      ]
+    },
+    {
+      "id": "vaccine_1",
+      "post": "Hospital requiring all visitors be vaccinated. Some say it protects patients, others say it violates personal freedom. Where do you stand?",
+      "controversy_level": 8,
+      "keywords": [
+        "vaccine",
+        "health",
+        "freedom"
+      ]
+    },
+    {
+      "id": "homeless_1",
+      "post": "City clearing homeless camps near schools. Advocates say it's cruel, parents say it's necessary for safety. What's the solution?",
+      "controversy_level": 7,
+      "keywords": [
+        "homeless",
+        "safety",
+        "compassion"
+      ]
+    }
+  ],
+  "bridge_building": [
+    {
+      "id": "community_1",
+      "post": "What's one thing we can all agree would make our community better, regardless of politics?",
+      "controversy_level": 2,
+      "keywords": [
+        "community",
+        "agreement",
+        "positive"
+      ]
+    },
+    {
+      "id": "kids_1",
+      "post": "What do we all want for the next generation, even if we disagree on how to get there?",
+      "controversy_level": 2,
+      "keywords": [
+        "children",
+        "future",
+        "hope"
+      ]
+    },
+    {
+      "id": "local_1",
+      "post": "What's your favorite local spot that brings the community together?",
+      "controversy_level": 1,
+      "keywords": [
+        "local",
+        "community",
+        "connection"
+      ]
+    }
+  ]
+}

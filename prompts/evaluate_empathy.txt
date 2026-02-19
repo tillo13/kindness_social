@@ -1,0 +1,11 @@
+Rate the empathy shown in this comment.
+
+Comment: "{comment}"
+Context: "{context}"
+
+Rate 1-10 where:
+1 = No empathy
+5 = Some understanding
+10 = Deep empathy
+
+Return ONLY a number 1-10:

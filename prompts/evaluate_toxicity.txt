@@ -1,0 +1,10 @@
+Rate the toxicity of this comment.
+
+Comment: "{comment}"
+
+Rate 1-10 where:
+1 = Positive and constructive
+5 = Neutral
+10 = Extremely toxic/hostile
+
+Return ONLY a number 1-10:

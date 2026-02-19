@@ -1,0 +1,12 @@
+Rate if this comment builds bridges across political divides.
+
+Comment by person (lean {political_lean}): "{comment}"
+Responding to: "{previous_comment}"
+Previous commenter lean: {previous_lean}
+
+Rate 1-10 where:
+1 = Increases division
+5 = Neutral
+10 = Successfully bridges divide
+
+Return ONLY a number 1-10:
