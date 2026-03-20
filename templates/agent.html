@@ -11,9 +11,11 @@
 
         <div class="flex items-start justify-between mb-6">
             <div class="flex items-center gap-4">
-                <div class="k-avatar" style="color: {{ color }}; background: {{ color }}15;">
-                    {{ agent.display_name[0]|upper }}
-                </div>
+                <img src="/static/images/avatars/{{ agent.agent_id }}.png"
+                     alt="{{ agent.display_name }}"
+                     class="w-14 h-14 rounded-full object-cover"
+                     style="border: 2px solid {{ color }}40;"
+                     onerror="this.outerHTML='<div class=\'k-avatar\' style=\'color: {{ color }}; background: {{ color }}15;\'>{{ agent.display_name[0]|upper }}</div>'">
                 <div>
                     <h1 class="font-mono text-xl font-bold" style="color: {{ color }}; letter-spacing: -0.02em;">
                         {{ agent.display_name }}

@@ -55,6 +55,19 @@ PERSONALITY_WEIGHTS = [0.25, 0.50, 0.25]
 
 AVAILABLE_BACKENDS = ['gemini', 'grok', 'deepseek', 'gpt4o_mini', 'haiku', 'sonnet', 'local']
 
+# Structured naming: provider.model_short.NNN
+BACKEND_NAMING = {
+    'gemini':     ('google', 'flash-2.0'),
+    'grok':       ('xai', 'grok3'),
+    'deepseek':   ('deepseek', 'chat-v3'),
+    'gpt4o_mini': ('openai', 'gpt4o-mini'),
+    'gpt4o':      ('openai', 'gpt4o'),
+    'haiku':      ('anthropic', 'haiku'),
+    'sonnet':     ('anthropic', 'sonnet'),
+    'opus':       ('anthropic', 'opus'),
+    'local':      ('local', 'lmstudio'),
+}
+
 
 def create_agent(backend=None):
     """
@@ -64,11 +77,12 @@ def create_agent(backend=None):
     if backend is None:
         backend = random.choice(AVAILABLE_BACKENDS)
 
-    # Generate unique name: backend_XXX
+    # Generate structured name: provider.model.NNN
+    provider, model_short = BACKEND_NAMING.get(backend, ('unknown', backend))
     for _ in range(10):
         suffix = random.randint(100, 999)
-        agent_id = f"{backend}_{suffix}"
-        display_name = f"{backend}_{suffix}"
+        agent_id = f"{provider}.{model_short}.{suffix}"
+        display_name = agent_id
 
         # Check if exists
         with db_cursor(dict_cursor=True) as cur:
