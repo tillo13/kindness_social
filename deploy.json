@@ -2,5 +2,14 @@
     "project_id": "kindness-io",
     "app_name": "Kindness Social",
     "github_repo": "kindness_social",
-    "cron_yaml": true
+    "cron_yaml": true,
+    "cloud_run_services": [
+        {
+            "name": "kindness-worker",
+            "source": ".",
+            "dockerfile": "worker/Dockerfile",
+            "memory": "512Mi",
+            "timeout": "900"
+        }
+    ]
 }

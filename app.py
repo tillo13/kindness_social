@@ -322,35 +322,37 @@ def admin_test_all_backends():
 
 @app.route('/api/admin/test-worker', methods=['POST'])
 def admin_test_worker():
-    """Test Cloud Run worker health and grok/deepseek backends."""
+    """Test Cloud Run worker health + quick grok/deepseek test."""
     if not is_admin_request():
         return jsonify({'error': 'Forbidden'}), 403
 
     import requests as http_req
     import time
 
-    # Health check
+    results = {}
+
+    # Health check (fast — just proves worker is alive)
     try:
         start = time.time()
         resp = http_req.get(f'{CLOUD_RUN_WORKER_URL}/health', timeout=30)
         health_ms = int((time.time() - start) * 1000)
-        health = {'status': 'ok', 'time_ms': health_ms, 'response': resp.json()}
+        results['health'] = {'status': 'ok', 'time_ms': health_ms, 'response': resp.json()}
     except Exception as e:
-        health = {'status': 'error', 'error': str(e)[:200]}
+        results['health'] = {'status': 'error', 'error': str(e)[:200]}
 
-    # Test all models via worker
+    # Quick grok + deepseek test (targeted, not all 111 models)
     try:
         start = time.time()
-        resp = http_req.post(f'{CLOUD_RUN_WORKER_URL}/test-all-models', json={}, timeout=110)
+        resp = http_req.post(f'{CLOUD_RUN_WORKER_URL}/test-quick', json={}, timeout=110)
         test_ms = int((time.time() - start) * 1000)
         if resp.ok:
-            models = {'status': 'ok', 'time_ms': test_ms, 'response': resp.json()}
+            results['backends'] = {'status': 'ok', 'time_ms': test_ms, 'results': resp.json()}
         else:
-            models = {'status': 'error', 'http_code': resp.status_code, 'time_ms': test_ms}
+            results['backends'] = {'status': 'error', 'http_code': resp.status_code, 'time_ms': test_ms}
     except Exception as e:
-        models = {'status': 'error', 'error': str(e)[:200]}
+        results['backends'] = {'status': 'error', 'error': str(e)[:200]}
 
-    return jsonify({'health': health, 'models': models})
+    return jsonify(results)
 
 
 @app.route('/api/admin/kick-thread', methods=['POST'])

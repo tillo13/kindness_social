@@ -154,6 +154,32 @@ def _test_deepseek(model_id):
     return text.strip()
 
 
+@app.route('/test-quick', methods=['POST'])
+def test_quick():
+    """Quick test of grok + deepseek — just prove they respond."""
+    results = {}
+
+    # Grok
+    try:
+        start = time.time()
+        text = _test_grok('grok-3-fast')
+        elapsed = int((time.time() - start) * 1000)
+        results['grok'] = {'status': 'ok', 'response': text[:80], 'time_ms': elapsed}
+    except Exception as e:
+        results['grok'] = {'status': 'error', 'error': str(e)[:150]}
+
+    # DeepSeek
+    try:
+        start = time.time()
+        text = _test_deepseek('deepseek-chat')
+        elapsed = int((time.time() - start) * 1000)
+        results['deepseek'] = {'status': 'ok', 'response': text[:80], 'time_ms': elapsed}
+    except Exception as e:
+        results['deepseek'] = {'status': 'error', 'error': str(e)[:150]}
+
+    return jsonify(results)
+
+
 @app.route('/generate-thread', methods=['POST'])
 def generate_thread():
     """Generate a discussion thread. Called by App Engine cron."""
