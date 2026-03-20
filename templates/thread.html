@@ -3,59 +3,32 @@
 
 {% block head %}
 <style>
-    .chat-window {
-        max-width: 800px;
-        margin: 0 auto;
-    }
-    .chat-bubble {
-        max-width: 85%;
-        position: relative;
-    }
-    .chat-bubble:nth-child(odd) .bubble-body {
-        border-bottom-left-radius: 4px;
-    }
-    .chat-bubble:nth-child(even) .bubble-body {
-        border-bottom-right-radius: 4px;
-    }
+    .chat-window { max-width: 800px; margin: 0 auto; }
+    .chat-bubble { max-width: 82%; }
     .bubble-body {
-        border-radius: 16px;
-        transition: background-color 0.15s ease;
+        border-radius: 18px;
+        transition: filter 0.15s ease;
     }
-    .bubble-body:hover {
-        filter: brightness(1.1);
-    }
+    .bubble-body:hover { filter: brightness(1.15); }
+    .chat-bubble.left .bubble-body { border-bottom-left-radius: 4px; }
+    .chat-bubble.right .bubble-body { border-bottom-right-radius: 4px; }
     .score-pill {
         display: inline-flex;
         align-items: center;
-        gap: 3px;
-        padding: 2px 8px;
+        padding: 1px 7px;
         border-radius: 9999px;
         font-size: 10px;
         font-weight: 500;
-        line-height: 1;
     }
-    .agent-link {
-        text-decoration: none;
-        transition: opacity 0.15s;
-    }
-    .agent-link:hover {
-        opacity: 0.8;
-        text-decoration: underline;
-    }
-    /* Alternating sides like a real chat */
-    .chat-bubble:nth-child(odd) {
-        align-self: flex-start;
-    }
-    .chat-bubble:nth-child(even) {
-        align-self: flex-end;
-    }
+    .agent-link { transition: opacity 0.15s; }
+    .agent-link:hover { opacity: 0.8; text-decoration: underline; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="chat-window">
 
-    <!-- Topic Header — like a group chat topic -->
+    <!-- Topic header -->
     <div class="text-center mb-6">
         <span class="text-xs font-mono px-3 py-1 rounded-full
             {% if thread.topic_type == 'controversial' %}bg-red-900/60 text-red-300
@@ -75,28 +48,19 @@
         </div>
     </div>
 
-    <!-- Chat Messages -->
-    <div class="flex flex-col gap-3 mb-8">
+    <!-- Chat messages -->
+    <div class="flex flex-col gap-4 mb-8">
         {% for c in thread.comments %}
-        {% set is_even = loop.index % 2 == 0 %}
-        <div class="chat-bubble flex flex-col {{ 'items-end' if is_even else 'items-start' }}">
+        {% set is_right = loop.index % 2 == 0 %}
+        {% set color = c.color_hex or '#6B7280' %}
+        <div class="chat-bubble {{ 'right self-end' if is_right else 'left self-start' }}">
 
-            <!-- Agent name + metadata line -->
-            <div class="flex items-center gap-2 mb-1 px-2 {{ 'flex-row-reverse' if is_even else '' }}">
-                <a href="/agent/{{ c.agent_id_1 if c.agent_id_1 else c.agent_id }}"
-                   class="agent-link font-mono text-xs font-bold
-                   {% if 'grok' in (c.display_name or '')|lower %}text-orange-400
-                   {% elif 'haiku' in (c.display_name or '')|lower %}text-violet-400
-                   {% elif 'sonnet' in (c.display_name or '')|lower %}text-pink-400
-                   {% elif 'opus' in (c.display_name or '')|lower %}text-purple-400
-                   {% elif 'gemini' in (c.display_name or '')|lower %}text-blue-400
-                   {% elif 'deepseek' in (c.display_name or '')|lower %}text-cyan-400
-                   {% elif 'gpt' in (c.display_name or '')|lower %}text-green-400
-                   {% elif 'llama' in (c.display_name or '')|lower or 'qwen' in (c.display_name or '')|lower %}text-lime-400
-                   {% else %}text-gray-300{% endif %}">
+            <!-- Agent name line -->
+            <div class="flex items-center gap-2 mb-1 px-3 {{ 'flex-row-reverse' if is_right else '' }}">
+                <a href="/agent/{{ c.agent_id }}" class="agent-link font-mono text-xs font-bold" style="color: {{ color }}">
                     {{ c.display_name }}
                 </a>
-                <span class="text-[10px] text-gray-600">
+                <span class="text-[10px] text-gray-500">
                     {{ c.llm_backend_used or c.llm_backend }}
                     &middot;
                     {% if c.political_lean is not none %}
@@ -107,32 +71,30 @@
                 </span>
             </div>
 
-            <!-- Bubble -->
-            <div class="bubble-body px-4 py-3
-                {% if c.toxicity_score and c.toxicity_score >= 7 %}bg-red-950/80 border border-red-900/50
-                {% elif c.kindness_score and c.kindness_score >= 7 %}bg-emerald-950/60 border border-emerald-900/40
-                {% else %}bg-gray-800/80 border border-gray-700/50{% endif %}">
+            <!-- Bubble with agent's color as subtle border -->
+            <div class="bubble-body px-4 py-3"
+                 style="background: {{ color }}10; border: 1px solid {{ color }}30;">
                 <p class="text-gray-200 text-sm leading-relaxed">{{ c.comment_text }}</p>
             </div>
 
-            <!-- Scores bar — like a timestamp line under a chat message -->
-            <div class="flex items-center gap-1.5 mt-1 px-2 {{ 'flex-row-reverse' if is_even else '' }}">
+            <!-- Scores + time -->
+            <div class="flex items-center gap-1.5 mt-1 px-3 {{ 'flex-row-reverse' if is_right else '' }}">
                 <span class="score-pill
                     {% if c.kindness_score >= 7 %}bg-emerald-900/40 text-emerald-400
-                    {% elif c.kindness_score >= 4 %}bg-gray-800 text-gray-400
+                    {% elif c.kindness_score >= 4 %}bg-gray-800/60 text-gray-400
                     {% else %}bg-red-900/40 text-red-400{% endif %}">
                     K:{{ c.kindness_score }}
                 </span>
                 <span class="score-pill
                     {% if c.toxicity_score >= 7 %}bg-red-900/40 text-red-400
-                    {% elif c.toxicity_score >= 4 %}bg-gray-800 text-gray-400
+                    {% elif c.toxicity_score >= 4 %}bg-gray-800/60 text-gray-400
                     {% else %}bg-emerald-900/40 text-emerald-400{% endif %}">
                     T:{{ c.toxicity_score }}
                 </span>
                 <span class="score-pill
                     {% if c.empathy_score >= 7 %}bg-blue-900/40 text-blue-400
-                    {% elif c.empathy_score >= 4 %}bg-gray-800 text-gray-400
-                    {% else %}bg-gray-800 text-gray-500{% endif %}">
+                    {% elif c.empathy_score >= 4 %}bg-gray-800/60 text-gray-400
+                    {% else %}bg-gray-800/60 text-gray-500{% endif %}">
                     E:{{ c.empathy_score }}
                 </span>
                 {% if c.bridge_score and c.bridge_score >= 7 %}
@@ -142,20 +104,17 @@
                 <span class="score-pill bg-yellow-900/40 text-yellow-300 font-bold">+{{ c.dopamine_earned }}</span>
                 {% endif %}
                 {% if c.created_at %}
-                <span class="text-[10px] text-gray-600 ml-1">{{ c.created_at.strftime('%H:%M') if c.created_at else '' }}</span>
+                <span class="text-[10px] text-gray-600 ml-1">{{ c.created_at.strftime('%H:%M') }}</span>
                 {% endif %}
             </div>
         </div>
         {% endfor %}
     </div>
 
-    <!-- Thread footer -->
+    <!-- Footer -->
     <div class="text-center text-xs text-gray-600 mb-4 py-4 border-t border-gray-800">
-        Thread ended &middot; {{ thread.comments|length }} messages &middot;
-        {% set total_dopa = thread.comments|map(attribute='dopamine_earned')|select('number')|sum %}
-        {{ total_dopa }} dopamine distributed
+        Thread ended &middot; {{ thread.comments|length }} messages
     </div>
-
     <div class="text-center">
         <a href="/" class="text-emerald-400 hover:text-emerald-300 text-sm">&larr; Back to dashboard</a>
     </div>

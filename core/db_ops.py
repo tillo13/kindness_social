@@ -38,6 +38,11 @@ def create_tables():
                 toxicity_streak INTEGER DEFAULT 0,
                 total_interactions INTEGER DEFAULT 0,
                 vote_willingness FLOAT DEFAULT 0.5,
+                humor FLOAT DEFAULT 5.0,
+                patience FLOAT DEFAULT 5.0,
+                curiosity FLOAT DEFAULT 5.0,
+                defensiveness FLOAT DEFAULT 5.0,
+                agreeableness FLOAT DEFAULT 5.0,
                 total_kudos_given INTEGER DEFAULT 0,
                 total_kudos_received INTEGER DEFAULT 0,
                 created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -368,7 +373,8 @@ def get_thread_with_comments(thread_id):
         # Get comments with agent info
         cur.execute("""
             SELECT c.*, a.agent_id, a.display_name, a.llm_backend,
-                   a.political_lean, a.current_toxicity, a.current_empathy
+                   a.political_lean, a.current_toxicity, a.current_empathy,
+                   a.color_hex
             FROM kindness_comments c
             JOIN kindness_agents a ON c.agent_id = a.id
             WHERE c.thread_id = %s
