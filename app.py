@@ -480,7 +480,14 @@ def init_tables():
 
 @app.route('/api/health')
 def health():
-    return jsonify({'status': 'ok', 'app': 'kindness-social'})
+    # Include admin key availability check (not the key itself)
+    key = _get_admin_key()
+    return jsonify({
+        'status': 'ok',
+        'app': 'kindness-social',
+        'admin_key_loaded': bool(key),
+        'admin_key_len': len(key) if key else 0,
+    })
 
 
 # ============================================================================
