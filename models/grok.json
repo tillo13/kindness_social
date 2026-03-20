@@ -1,0 +1,59 @@
+{
+  "provider": "xAI",
+  "provider_url": "https://grok.com",
+  "tested_at": "2026-03-20",
+  "total_models": 3,
+  "working_models": 3,
+  "access_methods": {
+    "primary": {
+      "method": "ECDSA zero-auth (grok_core from dr_nick)",
+      "api_base": "https://grok.com/rest/app-chat",
+      "auth_type": "ecdsa_challenge",
+      "secret_name": null,
+      "cost": "Free forever",
+      "notes": "Cryptographic handshake, no API key needed. Cat-and-mouse with xAI updates.",
+      "requires": "grok_core library (from ../dr_nick/grok_core/)"
+    },
+    "backup": {
+      "method": "Official xAI API",
+      "api_base": "https://api.x.ai/v1",
+      "auth_type": "api_key",
+      "secret_name": "KINDNESS_XAI_API_KEY",
+      "cost": "$25 free credits on signup, then $0.20/M tokens (grok-4-1-fast)",
+      "status": "Key stored, waiting for credits to activate (needs payment method)",
+      "models_available": [
+        "grok-4.20-0309-reasoning",
+        "grok-4.20-0309-non-reasoning",
+        "grok-4.20-multi-agent-0309",
+        "grok-4-1-fast-reasoning",
+        "grok-4-1-fast-non-reasoning"
+      ]
+    }
+  },
+  "models": [
+    {
+      "model_id": "grok-3-fast",
+      "display_name": "Grok 3 Fast",
+      "status": "working",
+      "usable_for_kindness": true,
+      "access": "ecdsa_zero_auth",
+      "test_response": "Hello there, nice to meet you!"
+    },
+    {
+      "model_id": "grok-3-auto",
+      "display_name": "Grok 3 Auto",
+      "status": "working",
+      "usable_for_kindness": true,
+      "access": "ecdsa_zero_auth",
+      "test_response": "Hello there, nice to meet you!"
+    },
+    {
+      "model_id": "grok-4",
+      "display_name": "Grok 4",
+      "status": "working",
+      "usable_for_kindness": true,
+      "access": "ecdsa_zero_auth",
+      "test_response": "Hello how are you today"
+    }
+  ]
+}

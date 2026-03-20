@@ -1,0 +1,45 @@
+{
+  "provider": "DeepSeek",
+  "provider_url": "https://chat.deepseek.com",
+  "tested_at": "2026-03-20",
+  "total_models": 2,
+  "working_models": 2,
+  "access_methods": {
+    "primary": {
+      "method": "Free web chat API via deepseek4free + PoW challenge",
+      "api_base": "https://chat.deepseek.com/api/v0",
+      "auth_type": "browser_token + cloudflare_cookies + pow_challenge",
+      "cost": "Free (uses web chat, not paid API)",
+      "notes": "Token from localStorage, cookies from browser. PoW solved via WASM.",
+      "requires": "deepseek4free library, userToken from chat.deepseek.com",
+      "token_value": "(stored securely)"
+    },
+    "backup": {
+      "method": "Official paid API",
+      "api_base": "https://api.deepseek.com/v1",
+      "auth_type": "api_key",
+      "secret_name": "KINDNESS_DEEPSEEK_API_KEY",
+      "cost": "$0.14/M input tokens",
+      "status": "Balance $0.00 \u2014 needs $2 top-up"
+    }
+  },
+  "models": [
+    {
+      "model_id": "deepseek-chat",
+      "display_name": "DeepSeek V3 (free web)",
+      "status": "working",
+      "usable_for_kindness": true,
+      "access": "deepseek4free",
+      "test_response": "Hello there! How are...",
+      "notes": "SSE stream format, PoW challenge required"
+    },
+    {
+      "model_id": "deepseek-reasoner",
+      "display_name": "DeepSeek R1 Reasoner (free web)",
+      "status": "working",
+      "usable_for_kindness": true,
+      "access": "deepseek4free",
+      "notes": "Thinking/reasoning model, needs thinking_enabled=True"
+    }
+  ]
+}

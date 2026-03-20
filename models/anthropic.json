@@ -1,0 +1,53 @@
+{
+  "provider": "Anthropic",
+  "provider_url": "https://console.anthropic.com",
+  "api_base": "https://api.anthropic.com/v1",
+  "auth_type": "api_key",
+  "secret_name": "KUMORI_ANTHROPIC_API_KEY",
+  "pricing": {
+    "tier": "paid",
+    "free_tier": "Via Claude Max plan",
+    "notes": "Haiku/Sonnet/Opus tiers"
+  },
+  "tested_at": "2026-03-20",
+  "total_models": 5,
+  "working_models": 3,
+  "models": [
+    {
+      "model_id": "claude-haiku-4-5-20251001",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello, how are you today?",
+      "input_tokens": 14,
+      "output_tokens": 10
+    },
+    {
+      "model_id": "claude-sonnet-4-5-20250929",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello, how are you today?",
+      "input_tokens": 14,
+      "output_tokens": 10
+    },
+    {
+      "model_id": "claude-opus-4-5-20251101",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello there, my dear friend!",
+      "input_tokens": 14,
+      "output_tokens": 10
+    },
+    {
+      "model_id": "claude-3-5-haiku-20241022",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_message": "Error code: 404 - {'type': 'error', 'error': {'type': 'not_found_error', 'message': 'model: claude-3"
+    },
+    {
+      "model_id": "claude-3-5-sonnet-20241022",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_message": "Error code: 404 - {'type': 'error', 'error': {'type': 'not_found_error', 'message': 'model: claude-3"
+    }
+  ]
+}

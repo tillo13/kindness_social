@@ -43,7 +43,7 @@ def chat(messages, max_tokens=500, temperature=0.3, system=None):
             contents.append({"role": "model", "parts": [msg['content']]})
 
     model = genai.GenerativeModel(
-        'gemini-2.0-flash',
+        'gemini-2.5-flash',
         system_instruction=system_text if system_text else None,
         generation_config=genai.types.GenerationConfig(
             max_output_tokens=max_tokens,

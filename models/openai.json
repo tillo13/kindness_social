@@ -1,0 +1,389 @@
+{
+  "provider": "OpenAI",
+  "provider_url": "https://platform.openai.com",
+  "api_base": "https://api.openai.com/v1",
+  "auth_type": "api_key",
+  "secret_name": "KINDNESS_OPENAI_API_KEY",
+  "pricing": {
+    "tier": "free_credits",
+    "free_tier": "$5 free credits on signup",
+    "notes": "No credit card for first $5"
+  },
+  "tested_at": "2026-03-20",
+  "total_models": 50,
+  "working_models": 28,
+  "models": [
+    {
+      "model_id": "chatgpt-image-latest",
+      "owned_by": "system",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 500,
+      "error_message": "The server had an error while processing your request. Sorry about that!"
+    },
+    {
+      "model_id": "gpt-3.5-turbo",
+      "owned_by": "openai",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Greetings, how are you doing?"
+    },
+    {
+      "model_id": "gpt-3.5-turbo-0125",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello, greetings, hi, hey, hola."
+    },
+    {
+      "model_id": "gpt-3.5-turbo-1106",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hey there, how's it going?"
+    },
+    {
+      "model_id": "gpt-3.5-turbo-16k",
+      "owned_by": "openai-internal",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Greetings, hello, hi, hey, yo."
+    },
+    {
+      "model_id": "gpt-3.5-turbo-instruct",
+      "owned_by": "system",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 404,
+      "error_message": "This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to"
+    },
+    {
+      "model_id": "gpt-3.5-turbo-instruct-0914",
+      "owned_by": "system",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 404,
+      "error_message": "This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to"
+    },
+    {
+      "model_id": "gpt-4",
+      "owned_by": "openai",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "\"Hello, how are you today?\""
+    },
+    {
+      "model_id": "gpt-4-0125-preview",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Greetings, how are you today?"
+    },
+    {
+      "model_id": "gpt-4-0314",
+      "owned_by": "openai",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Greetings to you, dear friend!"
+    },
+    {
+      "model_id": "gpt-4-0613",
+      "owned_by": "openai",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "\"Hello, how are you today?\""
+    },
+    {
+      "model_id": "gpt-4-1106-preview",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Greetings to you, kind soul."
+    },
+    {
+      "model_id": "gpt-4-turbo",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello, pleased to meet you!"
+    },
+    {
+      "model_id": "gpt-4-turbo-2024-04-09",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello there, how are you?"
+    },
+    {
+      "model_id": "gpt-4-turbo-preview",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Greetings to you my friend."
+    },
+    {
+      "model_id": "gpt-4.1",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello, how are you today?"
+    },
+    {
+      "model_id": "gpt-4.1-2025-04-14",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello! How are you today?"
+    },
+    {
+      "model_id": "gpt-4.1-mini",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello! Hope you're doing well."
+    },
+    {
+      "model_id": "gpt-4.1-mini-2025-04-14",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello! Hope you're doing well!"
+    },
+    {
+      "model_id": "gpt-4.1-nano",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello, how are you today?"
+    },
+    {
+      "model_id": "gpt-4.1-nano-2025-04-14",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello! Hope you're having a great day!"
+    },
+    {
+      "model_id": "gpt-4o",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello! Hope you are well!"
+    },
+    {
+      "model_id": "gpt-4o-2024-05-13",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello, how are you today?"
+    },
+    {
+      "model_id": "gpt-4o-2024-08-06",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello! I hope you're well."
+    },
+    {
+      "model_id": "gpt-4o-2024-11-20",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello! Hi there, what's up?"
+    },
+    {
+      "model_id": "gpt-4o-mini",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello, how are you today?"
+    },
+    {
+      "model_id": "gpt-4o-mini-2024-07-18",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello! How are you today?"
+    },
+    {
+      "model_id": "gpt-4o-mini-search-preview",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Certainly! Here are five different ways to say \"hello\" in English:\n\n1. **Hi ther"
+    },
+    {
+      "model_id": "gpt-4o-mini-search-preview-2025-03-11",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Certainly! Here are five different ways to say \"hello\" in English:\n\n1. **Hi ther"
+    },
+    {
+      "model_id": "gpt-4o-mini-tts",
+      "owned_by": "system",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 404,
+      "error_message": "This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to"
+    },
+    {
+      "model_id": "gpt-4o-mini-tts-2025-03-20",
+      "owned_by": "system",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 404,
+      "error_message": "This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to"
+    },
+    {
+      "model_id": "gpt-4o-mini-tts-2025-12-15",
+      "owned_by": "system",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 404,
+      "error_message": "This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to"
+    },
+    {
+      "model_id": "gpt-4o-search-preview",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello! Here are five ways to say \"hello\" in different languages:\n\n1. **Bonjour**"
+    },
+    {
+      "model_id": "gpt-4o-search-preview-2025-03-11",
+      "owned_by": "system",
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello! Here are five ways to say \"hello\":\n\n1. **Hi**\n2. **Hey**\n3. **Howdy**\n4. "
+    },
+    {
+      "model_id": "o1",
+      "owned_by": "system",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 400,
+      "error_message": "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' in"
+    },
+    {
+      "model_id": "o1-2024-12-17",
+      "owned_by": "system",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 400,
+      "error_message": "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' in"
+    },
+    {
+      "model_id": "o1-pro",
+      "owned_by": "system",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 404,
+      "error_message": "This model is only supported in v1/responses and not in v1/chat/completions."
+    },
+    {
+      "model_id": "o1-pro-2025-03-19",
+      "owned_by": "system",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 404,
+      "error_message": "This model is only supported in v1/responses and not in v1/chat/completions."
+    },
+    {
+      "model_id": "o3",
+      "owned_by": "system",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 400,
+      "error_message": "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' in"
+    },
+    {
+      "model_id": "o3-2025-04-16",
+      "owned_by": "system",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 400,
+      "error_message": "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' in"
+    },
+    {
+      "model_id": "o3-deep-research",
+      "owned_by": "system",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 404,
+      "error_message": "This model is only supported in v1/responses and not in v1/chat/completions."
+    },
+    {
+      "model_id": "o3-deep-research-2025-06-26",
+      "owned_by": "system",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 404,
+      "error_message": "This model is only supported in v1/responses and not in v1/chat/completions."
+    },
+    {
+      "model_id": "o3-mini",
+      "owned_by": "system",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 400,
+      "error_message": "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' in"
+    },
+    {
+      "model_id": "o3-mini-2025-01-31",
+      "owned_by": "system",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 400,
+      "error_message": "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' in"
+    },
+    {
+      "model_id": "o3-pro",
+      "owned_by": "system",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 404,
+      "error_message": "This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to"
+    },
+    {
+      "model_id": "o3-pro-2025-06-10",
+      "owned_by": "system",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 404,
+      "error_message": "This is not a chat model and thus not supported in the v1/chat/completions endpoint. Did you mean to"
+    },
+    {
+      "model_id": "o4-mini",
+      "owned_by": "system",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 400,
+      "error_message": "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' in"
+    },
+    {
+      "model_id": "o4-mini-2025-04-16",
+      "owned_by": "system",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 400,
+      "error_message": "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' in"
+    },
+    {
+      "model_id": "o4-mini-deep-research",
+      "owned_by": "system",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 404,
+      "error_message": "This model is only supported in v1/responses and not in v1/chat/completions."
+    },
+    {
+      "model_id": "o4-mini-deep-research-2025-06-26",
+      "owned_by": "system",
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 404,
+      "error_message": "This model is only supported in v1/responses and not in v1/chat/completions."
+    }
+  ]
+}

@@ -1,0 +1,183 @@
+{
+  "provider": "Groq",
+  "provider_url": "https://console.groq.com",
+  "api_base": "https://api.groq.com/openai/v1",
+  "auth_type": "api_key",
+  "secret_name": "KINDNESS_GROQ_API_KEY",
+  "pricing": {
+    "tier": "free",
+    "free_tier": "14400 req/day",
+    "notes": "No credit card required"
+  },
+  "tested_at": "2026-03-20",
+  "total_models": 18,
+  "working_models": 14,
+  "models": [
+    {
+      "model_id": "allam-2-7b",
+      "owned_by": "SDAIA",
+      "context_window": 4096,
+      "active": true,
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello! It's me, your AI friend.\ud83e\udd16"
+    },
+    {
+      "model_id": "canopylabs/orpheus-arabic-saudi",
+      "owned_by": "Canopy Labs",
+      "context_window": 4000,
+      "active": true,
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 400,
+      "error_message": "{\"error\":{\"message\":\"The model `canopylabs/orpheus-arabic-saudi` requires terms acceptance. Please h"
+    },
+    {
+      "model_id": "canopylabs/orpheus-v1-english",
+      "owned_by": "Canopy Labs",
+      "context_window": 4000,
+      "active": true,
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 400,
+      "error_message": "{\"error\":{\"message\":\"The model `canopylabs/orpheus-v1-english` requires terms acceptance. Please hav"
+    },
+    {
+      "model_id": "groq/compound",
+      "owned_by": "Groq",
+      "context_window": 131072,
+      "active": true,
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "**Reasoning**\n\n1. The request is to produce a greeting that consists of **exactl"
+    },
+    {
+      "model_id": "groq/compound-mini",
+      "owned_by": "Groq",
+      "context_window": 131072,
+      "active": true,
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello dear friend, welcome today."
+    },
+    {
+      "model_id": "llama-3.1-8b-instant",
+      "owned_by": "Meta",
+      "context_window": 131072,
+      "active": true,
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello, how are you today?"
+    },
+    {
+      "model_id": "llama-3.3-70b-versatile",
+      "owned_by": "Meta",
+      "context_window": 131072,
+      "active": true,
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello, how are you today?"
+    },
+    {
+      "model_id": "meta-llama/llama-4-scout-17b-16e-instruct",
+      "owned_by": "Meta",
+      "context_window": 131072,
+      "active": true,
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello, how are you today?"
+    },
+    {
+      "model_id": "meta-llama/llama-prompt-guard-2-22m",
+      "owned_by": "Meta",
+      "context_window": 512,
+      "active": true,
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "0.0010408691596239805"
+    },
+    {
+      "model_id": "meta-llama/llama-prompt-guard-2-86m",
+      "owned_by": "Meta",
+      "context_window": 512,
+      "active": true,
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "0.00040855808765627444"
+    },
+    {
+      "model_id": "moonshotai/kimi-k2-instruct",
+      "owned_by": "Moonshot AI",
+      "context_window": 131072,
+      "active": true,
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello there, how are you?"
+    },
+    {
+      "model_id": "moonshotai/kimi-k2-instruct-0905",
+      "owned_by": "Moonshot AI",
+      "context_window": 262144,
+      "active": true,
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "Hello there, nice meeting you!"
+    },
+    {
+      "model_id": "openai/gpt-oss-120b",
+      "owned_by": "OpenAI",
+      "context_window": 131072,
+      "active": true,
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": ""
+    },
+    {
+      "model_id": "openai/gpt-oss-20b",
+      "owned_by": "OpenAI",
+      "context_window": 131072,
+      "active": true,
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": ""
+    },
+    {
+      "model_id": "openai/gpt-oss-safeguard-20b",
+      "owned_by": "OpenAI",
+      "context_window": 131072,
+      "active": true,
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": ""
+    },
+    {
+      "model_id": "qwen/qwen3-32b",
+      "owned_by": "Alibaba Cloud",
+      "context_window": 131072,
+      "active": true,
+      "status": "working",
+      "usable_for_kindness": true,
+      "test_response": "<think>\nOkay, the user wants me to say hello in 5 words. Let me think about this"
+    },
+    {
+      "model_id": "whisper-large-v3",
+      "owned_by": "OpenAI",
+      "context_window": 448,
+      "active": true,
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 400,
+      "error_message": "{\"error\":{\"message\":\"The model `whisper-large-v3` does not support chat completions\",\"type\":\"invalid"
+    },
+    {
+      "model_id": "whisper-large-v3-turbo",
+      "owned_by": "OpenAI",
+      "context_window": 448,
+      "active": true,
+      "status": "error",
+      "usable_for_kindness": false,
+      "error_code": 400,
+      "error_message": "{\"error\":{\"message\":\"The model `whisper-large-v3-turbo` does not support chat completions\",\"type\":\"i"
+    }
+  ]
+}

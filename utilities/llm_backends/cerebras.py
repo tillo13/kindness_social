@@ -1,6 +1,7 @@
 """
-OpenRouter LLM Backend - Unified API to dozens of models.
-Community free tier gives access to free variants of Meta, Google, Mistral models.
+Cerebras LLM Backend - Fastest inference in the world (wafer-scale chips).
+1M tokens/day free, 30 RPM, no credit card required.
+OpenAI-compatible API.
 """
 
 import logging
@@ -9,24 +10,23 @@ from utilities.google_secret_utils import get_secret
 
 logger = logging.getLogger(__name__)
 
-API_URL = "https://openrouter.ai/api/v1/chat/completions"
+API_URL = "https://api.cerebras.ai/v1/chat/completions"
 _api_key = None
 
-# Use a free community model by default
-DEFAULT_MODEL = "openrouter/free"  # Auto-routes to best available free model
+DEFAULT_MODEL = "llama3.1-8b"
 
 
 def _get_key():
     global _api_key
     if _api_key is None:
-        _api_key = get_secret('KINDNESS_OPENROUTER_API_KEY')
+        _api_key = get_secret('KINDNESS_CEREBRAS_API_KEY')
         if not _api_key:
-            raise RuntimeError("KINDNESS_OPENROUTER_API_KEY not found")
+            raise RuntimeError("KINDNESS_CEREBRAS_API_KEY not found")
     return _api_key
 
 
 def chat(messages, max_tokens=500, temperature=0.3, system=None):
-    """Generate text via OpenRouter API (OpenAI-compatible)."""
+    """Generate text via Cerebras API (OpenAI-compatible)."""
     api_messages = []
     if system:
         api_messages.append({"role": "system", "content": system})
@@ -44,15 +44,13 @@ def chat(messages, max_tokens=500, temperature=0.3, system=None):
     headers = {
         "Authorization": f"Bearer {_get_key()}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://kindness-io.uc.r.appspot.com",
-        "X-Title": "Kindness Social",
     }
 
     try:
-        r = requests.post(API_URL, json=payload, headers=headers, timeout=60)
+        r = requests.post(API_URL, json=payload, headers=headers, timeout=30)
         r.raise_for_status()
         data = r.json()
         return data["choices"][0]["message"]["content"].strip()
     except Exception as e:
-        logger.error(f"OpenRouter error: {e}")
+        logger.error(f"Cerebras error: {e}")
         raise

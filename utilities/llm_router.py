@@ -11,7 +11,7 @@ from utilities.usage_limiter import check_backend_ok, record_usage
 logger = logging.getLogger(__name__)
 
 # Fallback order (cheapest/freest first)
-FALLBACK_ORDER = ['gemini', 'groq', 'mistral', 'deepseek', 'openrouter', 'gpt4o_mini', 'grok', 'haiku', 'local', 'sonnet', 'gpt4o', 'opus']
+FALLBACK_ORDER = ['gemini', 'groq', 'cerebras', 'mistral', 'together', 'deepseek', 'openrouter', 'gpt4o_mini', 'grok', 'haiku', 'local', 'sonnet', 'gpt4o', 'opus']
 
 # Backend to module mapping
 _BACKEND_MODULES = {}
@@ -26,13 +26,19 @@ def _get_backend_module(backend):
         elif backend == 'groq':
             from utilities.llm_backends import groq as groq_backend
             _BACKEND_MODULES[backend] = groq_backend
+        elif backend == 'cerebras':
+            from utilities.llm_backends import cerebras
+            _BACKEND_MODULES[backend] = cerebras
+        elif backend == 'together':
+            from utilities.llm_backends import together
+            _BACKEND_MODULES[backend] = together
         elif backend == 'mistral':
             from utilities.llm_backends import mistral
             _BACKEND_MODULES[backend] = mistral
         elif backend == 'openrouter':
             from utilities.llm_backends import openrouter
             _BACKEND_MODULES[backend] = openrouter
-        elif backend == 'grok':
+        elif backend in ('grok', 'grok_fast', 'grok4'):
             from utilities.llm_backends import grok
             _BACKEND_MODULES[backend] = grok
         elif backend == 'deepseek':
@@ -80,8 +86,18 @@ def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
 
             start = time.time()
 
+            # Grok model variants
+            if b == 'grok':
+                result = module.chat(messages, max_tokens, temperature,
+                                     system=system, model='grok-3-auto')
+            elif b == 'grok_fast':
+                result = module.chat(messages, max_tokens, temperature,
+                                     system=system, model='grok-3-fast')
+            elif b == 'grok4':
+                result = module.chat(messages, max_tokens, temperature,
+                                     system=system, model='grok-4')
             # Claude backends need tier parameter
-            if b in ('haiku', 'sonnet', 'opus'):
+            elif b in ('haiku', 'sonnet', 'opus'):
                 result = module.chat(messages, max_tokens, temperature,
                                      system=system, tier=b)
             elif b == 'gpt4o_mini':

@@ -53,12 +53,25 @@ PERSONALITY_PRESETS = [
 # Distribution: 25% angry, 50% moderate, 25% kind
 PERSONALITY_WEIGHTS = [0.25, 0.50, 0.25]
 
-AVAILABLE_BACKENDS = ['gemini', 'groq', 'mistral', 'deepseek', 'openrouter', 'gpt4o_mini', 'grok', 'haiku', 'sonnet', 'local']
+# Only backends that are confirmed working get agents assigned
+# Others stay in the router for fallback but don't get new agents
+AVAILABLE_BACKENDS = [
+    'groq',       # Llama 3.3 70B — 14400 req/day free, FAST
+    'cerebras',   # Llama 3.1 8B — 1M tokens/day free, FASTEST
+    'mistral',    # Mistral Small — 500K tokens/min free
+    'gpt4o_mini', # GPT-4o Mini — $5 free credits
+    'haiku',      # Claude Haiku 4.5 — Max plan
+    'sonnet',     # Claude Sonnet 4.5 — Max plan
+]
+# Broken/unreliable (kept in router for fallback): gemini(429), deepseek(402),
+# together(401 needs deposit), openrouter(empty), grok(401 auth change)
 
 # Structured naming: provider.model_short.NNN
 BACKEND_NAMING = {
     'gemini':     ('google', 'flash-2.0'),
     'groq':       ('groq', 'llama70b'),
+    'cerebras':   ('cerebras', 'llama70b'),
+    'together':   ('together', 'llama70b'),
     'openrouter': ('openrouter', 'llama8b'),
     'grok':       ('xai', 'grok3'),
     'deepseek':   ('deepseek', 'chat-v3'),

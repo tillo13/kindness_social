@@ -14,6 +14,16 @@ MODELS = {
         'provider': 'Groq',
         'display': 'Llama 3.3 70B (Groq)',
     },
+    'cerebras': {
+        'model_id': 'llama3.1-8b',
+        'provider': 'Cerebras',
+        'display': 'Llama 3.1 8B (Cerebras)',
+    },
+    'together': {
+        'model_id': 'meta-llama/Llama-3.3-70B-Instruct-Turbo-Free',
+        'provider': 'Together AI',
+        'display': 'Llama 3.3 70B (Together Free)',
+    },
     'mistral': {
         'model_id': 'mistral-small-latest',
         'provider': 'Mistral',

@@ -25,6 +25,18 @@ BACKEND_INFO = {
         'notes': 'Groq: Llama 3.3 70B, 14400 req/day free, ultra-fast inference',
         'tier': 'free',
     },
+    'cerebras': {
+        'daily_limit': 10000,
+        'cost_per_1k_tokens': 0.0,
+        'notes': 'Cerebras: Llama 3.3 70B, 1M tokens/day free, fastest inference',
+        'tier': 'free',
+    },
+    'together': {
+        'daily_limit': 1000,
+        'cost_per_1k_tokens': 0.0,
+        'notes': 'Together AI: Llama 3.3 70B free variant, may need deposit to unlock',
+        'tier': 'free_credits',
+    },
     'mistral': {
         'daily_limit': 5000,
         'cost_per_1k_tokens': 0.0,

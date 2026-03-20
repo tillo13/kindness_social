@@ -1,0 +1,17 @@
+{
+  "provider": "Together AI",
+  "provider_url": "https://together.ai",
+  "api_base": "https://api.together.ai/v1",
+  "auth_type": "api_key",
+  "secret_name": "KINDNESS_TOGETHER_API_KEY",
+  "pricing": {
+    "tier": "needs_deposit",
+    "free_tier": "$5 credits after initial deposit",
+    "notes": "Account in read-only mode. API key returns 401 Invalid. Need initial deposit to activate."
+  },
+  "tested_at": "2026-03-20",
+  "total_models": 0,
+  "working_models": 0,
+  "fix": "Make initial deposit at together.ai/settings > Billing. Even $1 may unlock the free tier.",
+  "models": []
+}

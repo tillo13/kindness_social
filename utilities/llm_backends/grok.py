@@ -1,83 +1,66 @@
 """
-Grok LLM Backend - Zero-auth free REST API (from dr_nick pattern).
+Grok LLM Backend - via grok_core ECDSA zero-auth handshake.
+Supports grok-3-fast, grok-3-auto, grok-4. All free, no API key needed.
+Uses the reverse-engineered cryptographic challenge flow from dr_nick.
 """
 
-import json
+import sys
+import os
 import logging
-import requests
 
 logger = logging.getLogger(__name__)
 
-GROK_API_URL = "https://grok.com/rest/app-chat/conversations/new"
-TIMEOUT = 60
+# Add dr_nick to path so we can import grok_core
+DR_NICK_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'dr_nick')
+if os.path.exists(DR_NICK_PATH):
+    sys.path.insert(0, os.path.abspath(DR_NICK_PATH))
+
+# Also check a bundled copy
+BUNDLED_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'grok_core')
+if os.path.exists(BUNDLED_PATH):
+    sys.path.insert(0, os.path.abspath(os.path.join(BUNDLED_PATH, '..')))
+
+_instances = {}
 
 
-def chat(messages, max_tokens=500, temperature=0.3, system=None):
+def _get_grok(model='grok-3-fast'):
+    """Get or create a Grok instance for a specific model."""
+    if model not in _instances:
+        try:
+            from grok_core.grok import Grok
+            _instances[model] = Grok(model=model)
+            logger.info(f"Grok initialized for {model}")
+        except ImportError as e:
+            raise RuntimeError(
+                f"grok_core not available: {e}. "
+                f"Ensure dr_nick is at {DR_NICK_PATH} or grok_core is bundled."
+            )
+    return _instances[model]
+
+
+def chat(messages, max_tokens=500, temperature=0.3, system=None, model='grok-3-fast'):
     """
-    Generate text via Grok zero-auth REST API.
-    messages: list of {"role": "user"|"assistant"|"system", "content": "..."}
-    Returns: string response
+    Generate text via Grok zero-auth ECDSA flow.
+    models: grok-3-fast, grok-3-auto, grok-4
     """
-    # Combine all messages into a single prompt for Grok
-    prompt_parts = []
+    # Combine messages into a single prompt
+    parts = []
     if system:
-        prompt_parts.append(f"System: {system}")
+        parts.append(f"System: {system}")
     for msg in messages:
         if msg['role'] == 'system':
-            prompt_parts.append(f"System: {msg['content']}")
+            parts.append(f"System: {msg['content']}")
         else:
-            prompt_parts.append(msg['content'])
-
-    full_prompt = "\n\n".join(prompt_parts)
-
-    payload = {
-        "temporary": True,
-        "modelName": "grok-3",
-        "message": full_prompt,
-        "fileAttachments": [],
-        "imageAttachments": [],
-        "disableSearch": True,
-        "enableImageGeneration": False,
-        "returnImageBytes": False,
-        "returnRawGrokInXReceipts": False,
-        "enableReasoning": False,
-    }
-
-    headers = {
-        "Content-Type": "application/json",
-        "Origin": "https://grok.com",
-        "Referer": "https://grok.com/",
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-    }
+            parts.append(msg['content'])
+    prompt = "\n\n".join(parts)
 
     try:
-        resp = requests.post(
-            GROK_API_URL,
-            json=payload,
-            headers=headers,
-            timeout=TIMEOUT,
-            stream=True,
-        )
-        resp.raise_for_status()
-
-        # Parse streaming response — collect all token chunks
-        full_text = ""
-        for line in resp.iter_lines(decode_unicode=True):
-            if not line:
-                continue
-            try:
-                data = json.loads(line)
-                token = data.get("result", {}).get("response", {}).get("token", "")
-                if token:
-                    full_text += token
-            except (json.JSONDecodeError, KeyError):
-                continue
-
-        if full_text:
-            return full_text.strip()
-
+        g = _get_grok(model)
+        result = g.start_convo(prompt)
+        text = result.get('response', '')
+        if text:
+            return text.strip()
         raise RuntimeError("Empty response from Grok")
-
     except Exception as e:
-        logger.error(f"Grok error: {e}")
+        logger.error(f"Grok ({model}) error: {e}")
         raise
