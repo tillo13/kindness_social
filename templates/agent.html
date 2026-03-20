@@ -148,18 +148,42 @@
     <!-- Recent Activity -->
     <div class="k-section-title" style="margin-bottom: 16px;">Recent Activity</div>
     {% if history %}
-    <div class="space-y-2.5">
+    <div class="space-y-3">
         {% for c in history %}
         <div class="k-animate-in k-card-flat p-4" style="border-left: 2px solid {{ color }}30; animation-delay: {{ loop.index * 0.04 }}s;">
+            <!-- Topic context -->
+            <div class="flex items-center gap-2 mb-2">
+                <span class="k-badge k-badge--{{ c.topic_type or 'controversial' }}" style="font-size: 9px;">{{ (c.topic_type or 'unknown')|replace('_', ' ') }}</span>
+                <span class="text-[10px] truncate" style="color: var(--text-quaternary); max-width: 400px;">{{ c.topic_text[:80] }}{% if c.topic_text|length > 80 %}...{% endif %}</span>
+            </div>
+
+            <!-- Comment -->
             <p class="text-[13px] leading-relaxed" style="color: var(--text-primary);">{{ c.comment_text }}</p>
+
+            <!-- Scores + meta -->
             <div class="flex flex-wrap items-center gap-1.5 mt-2.5">
                 <span class="k-pill {{ 'k-pill--kindness-high' if c.kindness_score >= 7 else ('k-pill--kindness-low' if c.kindness_score < 4 else 'k-pill--kindness-mid') }}">K:{{ c.kindness_score }}</span>
                 <span class="k-pill {{ 'k-pill--toxicity-high' if c.toxicity_score >= 7 else ('k-pill--toxicity-low' if c.toxicity_score < 4 else 'k-pill--toxicity-mid') }}">T:{{ c.toxicity_score }}</span>
                 <span class="k-pill {{ 'k-pill--empathy-high' if c.empathy_score >= 7 else 'k-pill--empathy-mid' }}">E:{{ c.empathy_score }}</span>
-                {% if c.dopamine_earned and c.dopamine_earned > 0 %}
-                <span class="k-pill k-pill--dopamine">+{{ c.dopamine_earned }}</span>
+                {% if c.bridge_score and c.bridge_score >= 7 %}
+                <span class="k-pill k-pill--bridge">B:{{ c.bridge_score }}</span>
                 {% endif %}
-                <a href="/thread/{{ c.thread_slug }}" class="ml-auto text-[10px] hover:opacity-70 transition-opacity" style="color: var(--text-quaternary);">thread &rarr;</a>
+                {% if c.dopamine_earned and c.dopamine_earned > 0 %}
+                <span class="k-pill k-pill--dopamine">+{{ c.dopamine_earned }} {{ c.dopamine_source or '' }}</span>
+                {% endif %}
+
+                <div class="ml-auto flex items-center gap-3 text-[10px]" style="color: var(--text-quaternary);">
+                    {% if c.llm_backend_used %}
+                    <span class="font-mono">via {{ c.llm_backend_used }}</span>
+                    {% endif %}
+                    {% if c.generation_time_ms %}
+                    <span>{{ c.generation_time_ms }}ms</span>
+                    {% endif %}
+                    {% if c.created_at %}
+                    <span>{{ c.created_at.strftime('%b %d, %H:%M') }}</span>
+                    {% endif %}
+                    <a href="/thread/{{ c.thread_slug }}" class="hover:opacity-70 transition-opacity" style="color: var(--text-tertiary);">thread &rarr;</a>
+                </div>
             </div>
         </div>
         {% endfor %}

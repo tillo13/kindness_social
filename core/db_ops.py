@@ -487,12 +487,20 @@ def get_model_comparison():
 
 
 def get_agent_history(agent_id, limit=50):
-    """Get recent comments by an agent for their profile page."""
+    """Get recent comments by an agent with full thread/topic context."""
     with db_cursor(dict_cursor=True) as cur:
         cur.execute("""
-            SELECT c.*, t.thread_id as thread_slug
+            SELECT c.*,
+                   t.thread_id as thread_slug,
+                   t.participant_count,
+                   t.avg_kindness as thread_avg_kindness,
+                   t.avg_toxicity as thread_avg_toxicity,
+                   tp.post_text as topic_text,
+                   tp.topic_type,
+                   tp.topic_id as topic_name
             FROM kindness_comments c
             JOIN kindness_threads t ON c.thread_id = t.id
+            JOIN kindness_topics tp ON t.topic_id = tp.id
             JOIN kindness_agents a ON c.agent_id = a.id
             WHERE a.agent_id = %s
             ORDER BY c.created_at DESC
