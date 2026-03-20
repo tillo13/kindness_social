@@ -1,247 +1,111 @@
 """
-Evaluator - Enhanced with detailed performance tracking
-Handles all LM Studio interactions with verbose output
+Evaluator - LLM-based comment generation and scoring.
+Adapted from original to use llm_router instead of LM Studio.
 """
 
+import os
 import time
-from typing import Dict, Optional
-from datetime import datetime
-from colorama import Fore, Style
-from lmstudio_utils import LMStudioUtils, ServerConfig
+import logging
 
-class Evaluator:
-    def __init__(self, server_config: ServerConfig, config: Dict, verbose: bool = True):
-        """Initialize the evaluator"""
-        self.config = config
-        self.verbose = verbose
-        self.lm_client = LMStudioUtils(server_config)
-        self.model_id = None
-        self.performance_tracking = config['lm_studio'].get('track_performance', False)
-        self.total_tokens_used = 0
-        self.total_api_calls = 0
-        
-        # Get loaded model
-        self.initialize_model()
-    
-    def initialize_model(self):
-        """Find and set the loaded model"""
-        loaded_models = self.lm_client.get_loaded_models()
-        
-        if not loaded_models:
-            raise Exception("No models loaded in LM Studio")
-        
-        self.model_id = loaded_models[0].id
-        print(f"Using model: {self.model_id}")
-    
-    def test_connection(self) -> bool:
-        """Test LM Studio connection"""
-        if not self.lm_client.check_server_connection():
-            return False
-        
-        # Try a simple evaluation
-        try:
-            result = self.evaluate_toxicity("This is a test.")
-            return result > 0
-        except:
-            return False
-    
-    def generate_text(self, prompt: str, max_tokens: int = 500) -> str:
-        """Generate text using LM Studio with detailed tracking"""
-        start_time = time.time()
-        self.total_api_calls += 1
-        
-        if self.verbose:
-            print(f"\n    {Fore.BLUE}[LM STUDIO GENERATION]{Style.RESET_ALL}")
-            print(f"    Prompt length: {len(prompt)} chars (~{len(prompt)//4} tokens)")
-            print(f"    Requesting up to {max_tokens} tokens...")
-        
-        messages = [
-            {"role": "user", "content": prompt}
-        ]
-        
-        model_config = {
-            "temperature": self.config['lm_studio']['temperature'],
-            "max_tokens": max_tokens,
-            "stream": False
-        }
-        
-        success, response = self.lm_client.send_chat_request(
-            messages, model_config, self.model_id
-        )
-        
-        duration = time.time() - start_time
-        
-        if success:
-            result = response.json()
-            text = result["choices"][0]["message"]["content"].strip()
-            
-            # Extract token usage if available
-            usage = result.get("usage", {})
-            prompt_tokens = usage.get("prompt_tokens", len(prompt)//4)
-            completion_tokens = usage.get("completion_tokens", len(text)//4)
-            total_tokens = prompt_tokens + completion_tokens
-            self.total_tokens_used += total_tokens
-            
-            tokens_per_second = completion_tokens / duration if duration > 0 else 0
-            
-            if self.verbose:
-                print(f"    {Fore.GREEN}✓ Generated in {duration:.2f}s{Style.RESET_ALL}")
-                print(f"    Tokens: {prompt_tokens} prompt + {completion_tokens} completion = {total_tokens} total")
-                print(f"    Speed: {tokens_per_second:.1f} tokens/second")
-                print(f"    Response length: {len(text)} chars")
-            
-            # Track performance
-            if self.performance_tracking:
-                self._log_performance(
-                    "generate", len(prompt), len(text),
-                    duration, True, total_tokens
-                )
-            
-            return text
-        else:
-            if self.verbose:
-                print(f"    {Fore.RED}✗ Generation failed after {duration:.2f}s{Style.RESET_ALL}")
-                print(f"    Error: {response}")
-            
-            if self.performance_tracking:
-                self._log_performance(
-                    "generate", len(prompt), 0,
-                    duration, False, 0, str(response)
-                )
-            return "I appreciate your perspective."  # Fallback
-    
-    def _evaluate_with_prompt(self, prompt_file: str, eval_type: str, **kwargs) -> int:
-        """Generic evaluation with detailed tracking"""
-        start_time = time.time()
-        self.total_api_calls += 1
-        
-        # Load prompt template
-        with open(f"prompts/{prompt_file}", 'r') as f:
-            template = f.read()
-        
-        # Fill in template
-        prompt = template.format(**kwargs)
-        
-        if self.verbose and eval_type != "internal":
-            print(f"    {Fore.CYAN}[Eval: {eval_type}]{Style.RESET_ALL} ", end="")
-        
-        # Get evaluation
-        messages = [
-            {"role": "system", "content": "Return ONLY a number 1-10."},
-            {"role": "user", "content": prompt}
-        ]
-        
-        model_config = {
-            "temperature": 0.1,  # Very low for consistent evaluation
-            "max_tokens": self.config['lm_studio']['eval_max_tokens'],
-            "stream": False
-        }
-        
-        success, response = self.lm_client.send_chat_request(
-            messages, model_config, self.model_id
-        )
-        
-        duration = time.time() - start_time
-        
-        if success:
-            result = response.json()
-            text = result["choices"][0]["message"]["content"].strip()
-            
-            # Extract token usage
-            usage = result.get("usage", {})
-            total_tokens = usage.get("total_tokens", len(prompt)//4 + 2)
-            self.total_tokens_used += total_tokens
-            
-            # Extract number
-            try:
-                score = int(''.join(c for c in text if c.isdigit())[:1] or '5')
-                score = max(1, min(10, score))  # Clamp to 1-10
-            except:
-                score = 5  # Default
-            
-            if self.verbose and eval_type != "internal":
-                print(f"{score} [{duration:.2f}s, {total_tokens} tok]")
-            
-            if self.performance_tracking:
-                self._log_performance(
-                    eval_type, len(prompt), 1,
-                    duration, True, total_tokens
-                )
-            
-            return score
-        else:
-            if self.verbose and eval_type != "internal":
-                print(f"Failed [{duration:.2f}s]")
-            
-            if self.performance_tracking:
-                self._log_performance(
-                    eval_type, len(prompt), 0,
-                    duration, False, 0, str(response)
-                )
-            return 5  # Default middle score
-    
-    def evaluate_kindness(self, comment: str, context: str) -> int:
-        """Evaluate kindness of a comment (1-10)"""
-        return self._evaluate_with_prompt(
-            "evaluate_kindness.txt",
-            "kindness",
-            comment=comment,
-            context=context
-        )
-    
-    def evaluate_toxicity(self, comment: str) -> int:
-        """Evaluate toxicity of a comment (1-10)"""
-        return self._evaluate_with_prompt(
-            "evaluate_toxicity.txt",
-            "toxicity",
-            comment=comment
-        )
-    
-    def evaluate_empathy(self, comment: str, context: str) -> int:
-        """Evaluate empathy shown (1-10)"""
-        return self._evaluate_with_prompt(
-            "evaluate_empathy.txt",
-            "empathy",
-            comment=comment,
-            context=context
-        )
-    
-    def evaluate_bridge(self, comment: str, political_lean: float,
-                       previous_comment: str, previous_lean: float) -> int:
-        """Evaluate bridge-building across political divide (1-10)"""
-        return self._evaluate_with_prompt(
-            "evaluate_bridge.txt",
-            "bridge",
-            comment=comment,
-            political_lean=political_lean,
-            previous_comment=previous_comment,
-            previous_lean=previous_lean
-        )
-    
-    def _log_performance(self, operation: str, prompt_len: int, 
-                        response_len: int, time_taken: float,
-                        success: bool, tokens: int = 0, error: str = ""):
-        """Log performance metrics"""
-        import csv
-        
-        with open("output/lm_performance.csv", 'a', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow([
-                datetime.now().isoformat(),
-                operation,
-                self.model_id,
-                prompt_len,
-                response_len,
-                int(time_taken * 1000),  # Convert to ms
-                tokens,
-                success,
-                error
-            ])
-    
-    def get_session_stats(self):
-        """Get session statistics"""
-        return {
-            "total_api_calls": self.total_api_calls,
-            "total_tokens_used": self.total_tokens_used,
-            "model": self.model_id
-        }
+from utilities.llm_router import chat, chat_eval
+
+logger = logging.getLogger(__name__)
+
+# Prompt directory
+PROMPTS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'prompts')
+
+
+def _load_prompt(filename):
+    with open(os.path.join(PROMPTS_DIR, filename), 'r') as f:
+        return f.read()
+
+
+def generate_comment(persona, topic, thread_history, position, config):
+    """Generate a comment for a persona in a discussion thread."""
+    # Build thread history string
+    history_str = ""
+    for entry in thread_history[-5:]:
+        history_str += f"{entry['persona']['display_name']}: {entry['comment']}\n"
+    if not history_str:
+        history_str = "[First comment in thread]"
+
+    prompt_template = _load_prompt('generate_comment.txt')
+    prompt = prompt_template.format(
+        persona_name=persona['display_name'],
+        political_lean=persona['political_lean'],
+        current_toxicity=persona['current_toxicity'],
+        current_empathy=persona['current_empathy'],
+        openness_to_change=persona['openness_to_change'],
+        topic_post=topic['post_text'],
+        thread_history=history_str,
+        position=position + 1,
+        total_dopamine=persona['total_dopamine'],
+        kindness_streak=persona['kindness_streak'],
+        common_phrases=', '.join(persona.get('common_phrases', [])[:2]),
+    )
+
+    backend = persona.get('llm_backend', 'gemini')
+    messages = [{"role": "user", "content": prompt}]
+
+    start = time.time()
+    text, actual_backend = chat(backend, messages, max_tokens=500, temperature=0.3)
+    gen_time_ms = int((time.time() - start) * 1000)
+
+    return text, actual_backend, gen_time_ms
+
+
+def evaluate_comment(comment, persona, thread_history, topic, config):
+    """Evaluate a comment on kindness, toxicity, empathy, and bridge-building."""
+    backend = 'haiku'  # Use haiku for evals (cheap + fast)
+    eval_start = time.time()
+
+    scores = {}
+
+    # Kindness
+    template = _load_prompt('evaluate_kindness.txt')
+    prompt = template.format(comment=comment, context=topic['post_text'])
+    scores['kindness'] = _parse_score(chat_eval(backend, prompt))
+
+    # Toxicity
+    template = _load_prompt('evaluate_toxicity.txt')
+    prompt = template.format(comment=comment)
+    scores['toxicity'] = _parse_score(chat_eval(backend, prompt))
+
+    # Empathy
+    template = _load_prompt('evaluate_empathy.txt')
+    prompt = template.format(comment=comment, context=topic['post_text'])
+    scores['empathy'] = _parse_score(chat_eval(backend, prompt))
+
+    # Bridge-building (only if political distance exists)
+    scores['bridge'] = 0
+    thresholds = config.get('thresholds', {})
+    min_distance = thresholds.get('political_distance_for_bridge', 0.5)
+
+    if thread_history:
+        last = thread_history[-1]
+        distance = abs(persona['political_lean'] - last['persona']['political_lean'])
+        if distance >= min_distance:
+            template = _load_prompt('evaluate_bridge.txt')
+            prompt = template.format(
+                comment=comment,
+                political_lean=persona['political_lean'],
+                previous_comment=last['comment'],
+                previous_lean=last['persona']['political_lean'],
+            )
+            scores['bridge'] = _parse_score(chat_eval(backend, prompt))
+
+    eval_time_ms = int((time.time() - eval_start) * 1000)
+    return scores, eval_time_ms
+
+
+def _parse_score(result):
+    """Extract a 1-10 score from LLM response."""
+    text, _ = result
+    try:
+        digits = ''.join(c for c in text if c.isdigit())
+        if len(digits) >= 2 and digits[:2] == '10':
+            return 10
+        score = int(digits[0]) if digits else 5
+        return max(1, min(10, score))
+    except (ValueError, IndexError):
+        return 5

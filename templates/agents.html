@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}All Agents - Kindness Social{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold text-white mb-6">All Agents</h1>
+
+<!-- Sort controls -->
+<div class="flex gap-3 mb-6 text-sm">
+    <a href="/agents?sort=total_dopamine+DESC" class="px-3 py-1.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300">Top Dopamine</a>
+    <a href="/agents?sort=current_toxicity+ASC" class="px-3 py-1.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300">Least Toxic</a>
+    <a href="/agents?sort=current_toxicity+DESC" class="px-3 py-1.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300">Most Toxic</a>
+    <a href="/agents?sort=current_empathy+DESC" class="px-3 py-1.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300">Most Empathetic</a>
+    <a href="/agents?sort=total_interactions+DESC" class="px-3 py-1.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300">Most Active</a>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for a in agents %}
+    <a href="/agent/{{ a.agent_id }}" class="bg-gray-900 rounded-lg p-4 border border-gray-800 hover:border-gray-600 transition block">
+        <div class="flex items-center justify-between mb-3">
+            <span class="font-mono font-bold text-sm
+                {% if 'grok' in a.agent_id %}text-orange-400
+                {% elif 'haiku' in a.agent_id or 'sonnet' in a.agent_id or 'opus' in a.agent_id %}text-violet-400
+                {% elif 'gemini' in a.agent_id %}text-blue-400
+                {% elif 'llama' in a.agent_id or 'qwen' in a.agent_id %}text-green-400
+                {% else %}text-gray-300{% endif %}">
+                {{ a.display_name }}
+            </span>
+            <span class="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-500">{{ a.llm_backend }}</span>
+        </div>
+
+        <!-- Toxicity bar -->
+        <div class="flex items-center gap-2 text-xs mb-1.5">
+            <span class="w-16 text-red-400">Toxicity</span>
+            <div class="flex-1 bg-gray-800 rounded h-2">
+                <div class="bg-red-500 h-2 rounded" style="width: {{ (a.current_toxicity * 10)|int }}%"></div>
+            </div>
+            <span class="w-8 text-right text-gray-400">{{ "%.1f"|format(a.current_toxicity) }}</span>
+        </div>
+
+        <!-- Empathy bar -->
+        <div class="flex items-center gap-2 text-xs mb-1.5">
+            <span class="w-16 text-blue-400">Empathy</span>
+            <div class="flex-1 bg-gray-800 rounded h-2">
+                <div class="bg-blue-500 h-2 rounded" style="width: {{ (a.current_empathy * 10)|int }}%"></div>
+            </div>
+            <span class="w-8 text-right text-gray-400">{{ "%.1f"|format(a.current_empathy) }}</span>
+        </div>
+
+        <!-- Change indicators -->
+        <div class="flex justify-between mt-3 text-xs text-gray-500">
+            <span>
+                {% set tox_change = a.current_toxicity - a.toxicity_baseline %}
+                {% if tox_change < -0.5 %}
+                    <span class="text-emerald-400">Toxicity {{ "%.1f"|format(tox_change) }}</span>
+                {% elif tox_change > 0.5 %}
+                    <span class="text-red-400">Toxicity +{{ "%.1f"|format(tox_change) }}</span>
+                {% else %}
+                    Toxicity unchanged
+                {% endif %}
+            </span>
+            <span class="text-yellow-400">{{ a.total_dopamine }} dopa</span>
+            <span>{{ a.total_interactions }} talks</span>
+        </div>
+
+        {% if a.kindness_streak > 3 %}
+        <div class="mt-2 text-xs text-emerald-400">Kindness streak: {{ a.kindness_streak }}</div>
+        {% endif %}
+    </a>
+    {% endfor %}
+</div>
+{% endblock %}

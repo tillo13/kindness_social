@@ -1,0 +1,6 @@
+{
+    "project_id": "kindnesssocial",
+    "app_name": "Kindness Social",
+    "github_repo": "kindness_social",
+    "cron_yaml": true
+}

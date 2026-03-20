@@ -1,0 +1,17 @@
+/* Kindness Social - Minimal custom styles */
+/* Most styling via Tailwind CDN */
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Smooth transitions on cards */
+a[class*="border-gray-800"]:hover {
+    transform: translateY(-1px);
+    transition: all 0.15s ease;
+}
+
+/* Chart.js dark theme override */
+canvas {
+    filter: brightness(1.05);
+}

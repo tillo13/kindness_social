@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}{{ agent.display_name }} - Kindness Social{% endblock %}
+
+{% block content %}
+<!-- Agent Profile -->
+<div class="bg-gray-900 rounded-lg p-6 border border-gray-800 mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <h1 class="text-2xl font-mono font-bold
+            {% if 'grok' in agent.agent_id %}text-orange-400
+            {% elif 'haiku' in agent.agent_id or 'sonnet' in agent.agent_id or 'opus' in agent.agent_id %}text-violet-400
+            {% elif 'gemini' in agent.agent_id %}text-blue-400
+            {% elif 'llama' in agent.agent_id or 'qwen' in agent.agent_id %}text-green-400
+            {% else %}text-gray-300{% endif %}">
+            {{ agent.display_name }}
+        </h1>
+        <span class="text-sm px-3 py-1 rounded bg-gray-800 text-gray-400">{{ agent.llm_backend }}</span>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="text-center">
+            <div class="text-2xl font-bold text-red-400">{{ "%.1f"|format(agent.current_toxicity) }}</div>
+            <div class="text-xs text-gray-500">Toxicity (was {{ "%.1f"|format(agent.toxicity_baseline) }})</div>
+        </div>
+        <div class="text-center">
+            <div class="text-2xl font-bold text-blue-400">{{ "%.1f"|format(agent.current_empathy) }}</div>
+            <div class="text-xs text-gray-500">Empathy (was {{ "%.1f"|format(agent.empathy_baseline) }})</div>
+        </div>
+        <div class="text-center">
+            <div class="text-2xl font-bold text-yellow-400">{{ agent.total_dopamine }}</div>
+            <div class="text-xs text-gray-500">Dopamine Earned</div>
+        </div>
+        <div class="text-center">
+            <div class="text-2xl font-bold text-gray-300">{{ agent.total_interactions }}</div>
+            <div class="text-xs text-gray-500">Interactions</div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-3 gap-4 text-sm">
+        <div>
+            <span class="text-gray-500">Political lean:</span>
+            <span class="{% if agent.political_lean > 0.3 %}text-red-400{% elif agent.political_lean < -0.3 %}text-blue-400{% else %}text-gray-300{% endif %}">
+                {{ "%.2f"|format(agent.political_lean) }}
+                ({% if agent.political_lean > 0.3 %}right{% elif agent.political_lean < -0.3 %}left{% else %}center{% endif %})
+            </span>
+        </div>
+        <div>
+            <span class="text-gray-500">Openness:</span>
+            <span class="text-gray-300">{{ "%.2f"|format(agent.openness_to_change) }}</span>
+        </div>
+        <div>
+            <span class="text-gray-500">Kindness streak:</span>
+            <span class="text-emerald-400">{{ agent.kindness_streak }}</span>
+        </div>
+    </div>
+
+    {% set tox_change = ((agent.toxicity_baseline - agent.current_toxicity) / agent.toxicity_baseline * 100) if agent.toxicity_baseline > 0 else 0 %}
+    {% if tox_change > 10 %}
+    <div class="mt-4 p-3 bg-emerald-900/30 border border-emerald-800 rounded text-emerald-300 text-sm">
+        This agent has reduced toxicity by {{ "%.0f"|format(tox_change) }}% from baseline.
+    </div>
+    {% endif %}
+</div>
+
+<!-- Recent Comments -->
+<h2 class="text-lg font-bold text-white mb-4">Recent Activity</h2>
+{% if history %}
+<div class="space-y-3">
+    {% for c in history %}
+    <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+        <p class="text-gray-200 text-sm">{{ c.comment_text }}</p>
+        <div class="flex flex-wrap gap-2 mt-2 text-xs">
+            <span class="text-emerald-400">K:{{ c.kindness_score }}</span>
+            <span class="text-red-400">T:{{ c.toxicity_score }}</span>
+            <span class="text-blue-400">E:{{ c.empathy_score }}</span>
+            {% if c.bridge_score %}<span class="text-purple-400">B:{{ c.bridge_score }}</span>{% endif %}
+            {% if c.dopamine_earned > 0 %}<span class="text-yellow-400">+{{ c.dopamine_earned }} dopa</span>{% endif %}
+            <a href="/thread/{{ c.thread_slug }}" class="text-gray-500 hover:text-gray-300">view thread</a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-gray-500">No activity yet.</p>
+{% endif %}
+
+<div class="mt-6">
+    <a href="/agents" class="text-emerald-400 hover:text-emerald-300 text-sm">&larr; All agents</a>
+</div>
+{% endblock %}

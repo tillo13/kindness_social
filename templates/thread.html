@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Thread: {{ thread.post_text[:50] }} - Kindness Social{% endblock %}
+
+{% block content %}
+<!-- Topic Header -->
+<div class="bg-gray-900 rounded-lg p-6 border border-gray-800 mb-6">
+    <span class="text-xs font-mono px-2 py-0.5 rounded
+        {% if thread.topic_type == 'controversial' %}bg-red-900 text-red-300
+        {% else %}bg-emerald-900 text-emerald-300{% endif %}">
+        {{ thread.topic_type }}
+    </span>
+    <p class="text-lg text-white mt-3">{{ thread.post_text }}</p>
+    <div class="flex gap-6 mt-4 text-sm text-gray-400">
+        <span>{{ thread.participant_count }} participants</span>
+        <span class="text-red-400">Avg Toxicity: {{ "%.1f"|format(thread.avg_toxicity|float) if thread.avg_toxicity else "—" }}</span>
+        <span class="text-emerald-400">Avg Kindness: {{ "%.1f"|format(thread.avg_kindness|float) if thread.avg_kindness else "—" }}</span>
+        {% if thread.bridge_events %}<span class="text-purple-400">{{ thread.bridge_events }} bridge events</span>{% endif %}
+    </div>
+</div>
+
+<!-- Comments -->
+<div class="space-y-4">
+    {% for c in thread.comments %}
+    <div class="bg-gray-900 rounded-lg p-5 border border-gray-800">
+        <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-3">
+                <a href="/agent/{{ c.agent_id_1 if c.agent_id_1 else c.agent_id }}"
+                   class="font-mono text-sm font-bold
+                   {% if 'grok' in c.display_name|lower %}text-orange-400
+                   {% elif 'haiku' in c.display_name|lower or 'sonnet' in c.display_name|lower or 'opus' in c.display_name|lower %}text-violet-400
+                   {% elif 'gemini' in c.display_name|lower %}text-blue-400
+                   {% elif 'llama' in c.display_name|lower or 'qwen' in c.display_name|lower %}text-green-400
+                   {% else %}text-gray-300{% endif %}
+                   hover:underline">
+                    {{ c.display_name }}
+                </a>
+                <span class="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-500">{{ c.llm_backend_used or c.llm_backend }}</span>
+                {% if c.political_lean %}
+                <span class="text-xs text-gray-600">
+                    {% if c.political_lean > 0.3 %}right-leaning
+                    {% elif c.political_lean < -0.3 %}left-leaning
+                    {% else %}centrist{% endif %}
+                </span>
+                {% endif %}
+            </div>
+            <span class="text-xs text-gray-600">#{{ c.position + 1 }}</span>
+        </div>
+
+        <p class="text-gray-200 leading-relaxed">{{ c.comment_text }}</p>
+
+        <!-- Scores -->
+        <div class="flex flex-wrap gap-3 mt-3 text-xs">
+            <span class="px-2 py-1 rounded
+                {% if c.kindness_score >= 7 %}bg-emerald-900/50 text-emerald-300
+                {% elif c.kindness_score >= 4 %}bg-yellow-900/50 text-yellow-300
+                {% else %}bg-red-900/50 text-red-300{% endif %}">
+                Kindness: {{ c.kindness_score }}
+            </span>
+            <span class="px-2 py-1 rounded
+                {% if c.toxicity_score >= 7 %}bg-red-900/50 text-red-300
+                {% elif c.toxicity_score >= 4 %}bg-yellow-900/50 text-yellow-300
+                {% else %}bg-emerald-900/50 text-emerald-300{% endif %}">
+                Toxicity: {{ c.toxicity_score }}
+            </span>
+            <span class="px-2 py-1 rounded
+                {% if c.empathy_score >= 7 %}bg-blue-900/50 text-blue-300
+                {% elif c.empathy_score >= 4 %}bg-yellow-900/50 text-yellow-300
+                {% else %}bg-red-900/50 text-red-300{% endif %}">
+                Empathy: {{ c.empathy_score }}
+            </span>
+            {% if c.bridge_score and c.bridge_score >= 7 %}
+            <span class="px-2 py-1 rounded bg-purple-900/50 text-purple-300">
+                Bridge: {{ c.bridge_score }}
+            </span>
+            {% endif %}
+
+            {% if c.dopamine_earned > 0 %}
+            <span class="px-2 py-1 rounded bg-yellow-900/50 text-yellow-300 font-bold">
+                +{{ c.dopamine_earned }} dopamine ({{ c.dopamine_source }})
+            </span>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="mt-6">
+    <a href="/" class="text-emerald-400 hover:text-emerald-300 text-sm">&larr; Back to dashboard</a>
+</div>
+{% endblock %}
