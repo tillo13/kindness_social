@@ -11,7 +11,7 @@ from utilities.usage_limiter import check_backend_ok, record_usage
 logger = logging.getLogger(__name__)
 
 # Fallback order (cheapest/freest first)
-FALLBACK_ORDER = ['gemini', 'grok', 'deepseek', 'gpt4o_mini', 'haiku', 'local', 'sonnet', 'gpt4o', 'opus']
+FALLBACK_ORDER = ['gemini', 'groq', 'mistral', 'deepseek', 'openrouter', 'gpt4o_mini', 'grok', 'haiku', 'local', 'sonnet', 'gpt4o', 'opus']
 
 # Backend to module mapping
 _BACKEND_MODULES = {}
@@ -23,6 +23,15 @@ def _get_backend_module(backend):
         if backend == 'gemini':
             from utilities.llm_backends import gemini
             _BACKEND_MODULES[backend] = gemini
+        elif backend == 'groq':
+            from utilities.llm_backends import groq as groq_backend
+            _BACKEND_MODULES[backend] = groq_backend
+        elif backend == 'mistral':
+            from utilities.llm_backends import mistral
+            _BACKEND_MODULES[backend] = mistral
+        elif backend == 'openrouter':
+            from utilities.llm_backends import openrouter
+            _BACKEND_MODULES[backend] = openrouter
         elif backend == 'grok':
             from utilities.llm_backends import grok
             _BACKEND_MODULES[backend] = grok

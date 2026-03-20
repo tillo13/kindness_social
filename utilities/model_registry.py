@@ -9,6 +9,21 @@ MODELS = {
         'provider': 'Google',
         'display': 'Gemini 2.0 Flash',
     },
+    'groq': {
+        'model_id': 'llama-3.3-70b-versatile',
+        'provider': 'Groq',
+        'display': 'Llama 3.3 70B (Groq)',
+    },
+    'mistral': {
+        'model_id': 'mistral-small-latest',
+        'provider': 'Mistral',
+        'display': 'Mistral Small',
+    },
+    'openrouter': {
+        'model_id': 'meta-llama/llama-3.1-8b-instruct:free',
+        'provider': 'OpenRouter',
+        'display': 'Llama 3.1 8B (OpenRouter Free)',
+    },
     'grok': {
         'model_id': 'grok-3',
         'provider': 'xAI',

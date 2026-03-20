@@ -19,10 +19,28 @@ BACKEND_INFO = {
         'notes': 'Gemini 2.0 Flash free tier: 1500 req/day',
         'tier': 'free',
     },
+    'groq': {
+        'daily_limit': 14000,
+        'cost_per_1k_tokens': 0.0,
+        'notes': 'Groq: Llama 3.3 70B, 14400 req/day free, ultra-fast inference',
+        'tier': 'free',
+    },
+    'mistral': {
+        'daily_limit': 5000,
+        'cost_per_1k_tokens': 0.0,
+        'notes': 'Mistral Small: 500K tokens/min free tier',
+        'tier': 'free',
+    },
+    'openrouter': {
+        'daily_limit': 2000,
+        'cost_per_1k_tokens': 0.0,
+        'notes': 'OpenRouter: Llama 3.1 8B free community tier',
+        'tier': 'free',
+    },
     'grok': {
         'daily_limit': 500,
         'cost_per_1k_tokens': 0.0,
-        'notes': 'Grok zero-auth free tier',
+        'notes': 'Grok 3 zero-auth free tier (xAI)',
         'tier': 'free',
     },
     'deepseek': {

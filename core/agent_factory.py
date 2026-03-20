@@ -53,11 +53,13 @@ PERSONALITY_PRESETS = [
 # Distribution: 25% angry, 50% moderate, 25% kind
 PERSONALITY_WEIGHTS = [0.25, 0.50, 0.25]
 
-AVAILABLE_BACKENDS = ['gemini', 'grok', 'deepseek', 'gpt4o_mini', 'haiku', 'sonnet', 'local']
+AVAILABLE_BACKENDS = ['gemini', 'groq', 'mistral', 'deepseek', 'openrouter', 'gpt4o_mini', 'grok', 'haiku', 'sonnet', 'local']
 
 # Structured naming: provider.model_short.NNN
 BACKEND_NAMING = {
     'gemini':     ('google', 'flash-2.0'),
+    'groq':       ('groq', 'llama70b'),
+    'openrouter': ('openrouter', 'llama8b'),
     'grok':       ('xai', 'grok3'),
     'deepseek':   ('deepseek', 'chat-v3'),
     'gpt4o_mini': ('openai', 'gpt4o-mini'),
