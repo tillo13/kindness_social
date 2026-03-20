@@ -240,7 +240,7 @@ def admin_test_backend():
     if not is_admin_request():
         return jsonify({'error': 'Forbidden'}), 403
 
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     backend = data.get('backend', 'groq')
 
     from utilities.llm_router import chat, CLOUD_RUN_ONLY
@@ -255,7 +255,7 @@ def admin_test_backend():
             resp = http_req.post(
                 f'{CLOUD_RUN_WORKER_URL}/test-all-models',
                 json={},
-                timeout=60,
+                timeout=110,
             )
             elapsed = int((time.time() - start) * 1000)
             if resp.ok:
@@ -332,7 +332,7 @@ def admin_test_worker():
     # Health check
     try:
         start = time.time()
-        resp = http_req.get(f'{CLOUD_RUN_WORKER_URL}/health', timeout=10)
+        resp = http_req.get(f'{CLOUD_RUN_WORKER_URL}/health', timeout=30)
         health_ms = int((time.time() - start) * 1000)
         health = {'status': 'ok', 'time_ms': health_ms, 'response': resp.json()}
     except Exception as e:
@@ -341,7 +341,7 @@ def admin_test_worker():
     # Test all models via worker
     try:
         start = time.time()
-        resp = http_req.post(f'{CLOUD_RUN_WORKER_URL}/test-all-models', json={}, timeout=120)
+        resp = http_req.post(f'{CLOUD_RUN_WORKER_URL}/test-all-models', json={}, timeout=110)
         test_ms = int((time.time() - start) * 1000)
         if resp.ok:
             models = {'status': 'ok', 'time_ms': test_ms, 'response': resp.json()}
@@ -391,7 +391,7 @@ def admin_birth_agent():
     if not is_admin_request():
         return jsonify({'error': 'Forbidden'}), 403
 
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     backend = data.get('backend')
     agent = create_agent(backend=backend)
     if agent:
