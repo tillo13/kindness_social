@@ -48,46 +48,59 @@ def get_avatar_url(agent_id):
 
 
 def build_prompt(agent):
-    """Build a Flux prompt that captures the agent's personality as a cartoon portrait."""
-    name = agent.get('display_name', 'Agent')
+    """Build a Flux prompt from the agent's full identity profile."""
     tox = agent.get('current_toxicity', 5)
     emp = agent.get('current_empathy', 5)
     humor = agent.get('humor', 5)
     patience = agent.get('patience', 5)
-
-    # Determine expression/vibe from personality
-    if tox >= 7:
-        expression = "scowling, furrowed brows, intense angry expression"
-        mood = "aggressive, confrontational energy"
-    elif tox >= 5:
-        expression = "slightly annoyed, skeptical raised eyebrow"
-        mood = "frustrated, impatient energy"
-    elif emp >= 7:
-        expression = "warm gentle smile, kind eyes, approachable"
-        mood = "compassionate, nurturing energy"
-    elif humor >= 7:
-        expression = "playful smirk, mischievous eyes, amused"
-        mood = "witty, lighthearted energy"
-    elif patience >= 8:
-        expression = "serene calm expression, peaceful wise eyes"
-        mood = "patient, zen-like tranquility"
-    else:
-        expression = "neutral thoughtful expression, attentive eyes"
-        mood = "balanced, moderate energy"
-
-    # Determine age/style hints from name
-    age_hint = "middle-aged adult"
-    if 'grandma' in name.lower() or 'grace' in name.lower():
-        age_hint = "elderly woman, grandmother"
-    elif 'kid' in name.lower() or 'tyler' in name.lower():
-        age_hint = "young adult, early 20s"
-    elif 'bob' in name.lower() or 'jim' in name.lower():
-        age_hint = "older man, late 50s"
-
+    gender = agent.get('gender_presentation', 'unspecified')
+    age = agent.get('age_bracket', 'middle_aged')
+    authority = agent.get('authority_level', 'medium')
     color = agent.get('color_hex', '#6B7280')
 
+    # Gender presentation
+    if gender == 'male':
+        gender_desc = "man"
+    elif gender == 'female':
+        gender_desc = "woman"
+    elif gender == 'nonbinary':
+        gender_desc = "androgynous person"
+    else:
+        gender_desc = "person"
+
+    # Age
+    age_map = {
+        'young_adult': f"young {gender_desc} in their early 20s",
+        'middle_aged': f"middle-aged {gender_desc} in their 40s",
+        'senior': f"older {gender_desc} in their late 60s with gray hair",
+    }
+    person_desc = age_map.get(age, f"middle-aged {gender_desc}")
+
+    # Expression from personality
+    if tox >= 7:
+        expression = "scowling, furrowed brows, intense angry expression, clenched jaw"
+    elif tox >= 5:
+        expression = "slightly annoyed, skeptical raised eyebrow, tight lips"
+    elif emp >= 8 and patience >= 8:
+        expression = "serene peaceful smile, calm wise eyes, gentle warmth"
+    elif emp >= 7:
+        expression = "warm genuine smile, kind open eyes, approachable"
+    elif humor >= 7:
+        expression = "playful smirk, mischievous bright eyes, amused"
+    else:
+        expression = "neutral thoughtful expression, attentive eyes"
+
+    # Authority in clothing/posture
+    if authority == 'high':
+        style_hint = "wearing professional attire, confident posture"
+    elif authority == 'low':
+        style_hint = "wearing casual clothes, relaxed posture"
+    else:
+        style_hint = "wearing everyday clothes"
+
     prompt = (
-        f"Stylized cartoon portrait headshot of a {age_hint}, {expression}, {mood}. "
+        f"Stylized cartoon portrait headshot of a {person_desc}, "
+        f"{expression}, {style_hint}. "
         f"Bold clean outlines, soft cel-shading, rounded features. "
         f"Subtle accent color {color} in clothing or background element. "
         f"Warm neutral background with soft gradient. "

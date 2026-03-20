@@ -125,6 +125,14 @@ def create_agent(backend=None):
             ))
             agent = dict(cur.fetchone())
             logger.info(f"Created agent: {agent_id} ({preset['type']}, backend={backend})")
+
+            # Generate avatar from full profile
+            try:
+                from utilities.avatar_generator import generate_avatar
+                generate_avatar(agent)
+            except Exception as e:
+                logger.warning(f"Avatar generation failed for {agent_id}: {e}")
+
             return agent
 
     logger.warning(f"Could not create unique agent for backend {backend}")

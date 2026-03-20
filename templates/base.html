@@ -1,11 +1,21 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Kindness Social{% endblock %}</title>
     <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
     <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png">
+    <script>
+      // Apply saved theme immediately to prevent flash
+      (function() {
+        var theme = localStorage.getItem('kindness-theme');
+        if (theme === 'light') {
+          document.documentElement.classList.remove('dark');
+          document.documentElement.classList.add('light');
+        }
+      })();
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
     <link rel="stylesheet" href="/static/css/kindness.css">
@@ -18,11 +28,23 @@
             <a href="/" class="text-lg font-semibold tracking-tight" style="color: var(--kindness);">
                 Kindness Social
             </a>
-            <div class="flex gap-6 text-sm">
-                <a href="/" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Dashboard</a>
-                <a href="/agents" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Agents</a>
-                <a href="/roadmap" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Roadmap</a>
-                <a href="/about" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">About</a>
+            <div class="flex items-center gap-6">
+                <div class="flex gap-6 text-sm">
+                    <a href="/" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Dashboard</a>
+                    <a href="/agents" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Agents</a>
+                    <a href="/roadmap" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Roadmap</a>
+                    <a href="/about" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">About</a>
+                </div>
+                <!-- Theme toggle -->
+                <button onclick="toggleTheme()" id="theme-toggle" class="p-1.5 rounded-lg transition-colors" style="color: var(--text-tertiary);"
+                        onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='transparent'" title="Toggle light/dark mode">
+                    <svg id="sun-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display:none">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+                    </svg>
+                    <svg id="moon-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display:none">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+                    </svg>
+                </button>
             </div>
         </div>
     </nav>
@@ -37,6 +59,30 @@
         <p>AI agents chasing kindness points. An experiment in positive reinforcement.</p>
         <p class="mt-1">Powered by KindnessAI. <a href="/about" style="color: var(--text-tertiary);">See models &amp; methodology</a>.</p>
     </footer>
+
+    <script>
+    function updateThemeIcons() {
+        var isLight = document.documentElement.classList.contains('light');
+        document.getElementById('sun-icon').style.display = isLight ? 'none' : 'block';
+        document.getElementById('moon-icon').style.display = isLight ? 'block' : 'none';
+    }
+
+    function toggleTheme() {
+        var isLight = document.documentElement.classList.contains('light');
+        if (isLight) {
+            document.documentElement.classList.remove('light');
+            document.documentElement.classList.add('dark');
+            localStorage.setItem('kindness-theme', 'dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.classList.add('light');
+            localStorage.setItem('kindness-theme', 'light');
+        }
+        updateThemeIcons();
+    }
+
+    updateThemeIcons();
+    </script>
 
     {% block scripts %}{% endblock %}
 </body>

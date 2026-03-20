@@ -77,6 +77,55 @@
     --duration-normal: 200ms;
 }
 
+/* ── Light Mode Overrides ─────────────────────────────────── */
+html.light {
+    --bg-root:       #f4f2ef;
+    --bg-surface:    #ffffff;
+    --bg-elevated:   #f9f8f6;
+    --bg-hover:      #f0eeeb;
+    --bg-active:     #e8e5e1;
+
+    --border-subtle:  rgba(0, 0, 0, 0.06);
+    --border-default: rgba(0, 0, 0, 0.10);
+    --border-strong:  rgba(0, 0, 0, 0.16);
+
+    --text-primary:    #1a1816;
+    --text-secondary:  #5c5550;
+    --text-tertiary:   #8a8580;
+    --text-quaternary: #b5b0aa;
+
+    --kindness:        #3d8a50;
+    --kindness-muted:  rgba(61, 138, 80, 0.10);
+    --kindness-dim:    rgba(61, 138, 80, 0.05);
+
+    --toxicity:        #b54545;
+    --toxicity-muted:  rgba(181, 69, 69, 0.10);
+    --toxicity-dim:    rgba(181, 69, 69, 0.05);
+
+    --empathy:         #4570b5;
+    --empathy-muted:   rgba(69, 112, 181, 0.10);
+    --empathy-dim:     rgba(69, 112, 181, 0.05);
+
+    --dopamine:        #a08030;
+    --dopamine-muted:  rgba(160, 128, 48, 0.10);
+    --dopamine-dim:    rgba(160, 128, 48, 0.05);
+
+    --bridge:          #7a45b5;
+    --bridge-muted:    rgba(122, 69, 181, 0.10);
+
+    --neutral:         #6b6560;
+    --neutral-muted:   rgba(107, 101, 96, 0.10);
+
+    --shadow-sm:   0 1px 3px rgba(0, 0, 0, 0.06);
+    --shadow-md:   0 2px 8px rgba(0, 0, 0, 0.08);
+    --shadow-lg:   0 4px 20px rgba(0, 0, 0, 0.10);
+}
+
+/* Remove noise texture in light mode */
+html.light body::before {
+    display: none;
+}
+
 /* ── Base ────────────────────────────────────────────────── */
 body {
     font-family: 'DM Sans', -apple-system, system-ui, sans-serif;
