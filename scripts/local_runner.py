@@ -2,7 +2,7 @@
 """
 Local Runner - Generate discussion threads from your local machine.
 Uses rog_gateway for local LLM and writes results to Cloud SQL.
-Can also use any other backend (gemini, grok, claude).
+Can also use any other backend (gemini, groq, claude).
 
 Usage:
     python scripts/local_runner.py                    # Run 1 thread

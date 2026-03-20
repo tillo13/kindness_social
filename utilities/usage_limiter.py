@@ -52,7 +52,7 @@ BACKEND_INFO = {
     'grok': {
         'daily_limit': 500,
         'cost_per_1k_tokens': 0.0,
-        'notes': 'Grok 3 zero-auth free tier (xAI)',
+        'notes': 'Grok 3 zero-auth free tier (xAI) — Cloud Run / local only',
         'tier': 'free',
     },
     'deepseek': {

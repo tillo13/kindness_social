@@ -22,6 +22,59 @@
     }
     .agent-link { transition: opacity 0.15s; }
     .agent-link:hover { opacity: 0.8; text-decoration: underline; }
+
+    /* Reply indicator */
+    .reply-indicator {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 10px;
+        margin-bottom: 4px;
+        padding-left: 4px;
+    }
+    .reply-indicator svg {
+        width: 12px;
+        height: 12px;
+        opacity: 0.5;
+        flex-shrink: 0;
+    }
+    /* Nested reply indent */
+    .chat-bubble.is-reply {
+        margin-left: 32px;
+        max-width: calc(82% - 32px);
+    }
+    .chat-bubble.is-reply.right {
+        margin-left: 0;
+        margin-right: 32px;
+    }
+    /* Thread connector line */
+    .chat-bubble.is-reply::before {
+        content: '';
+        position: absolute;
+        left: -20px;
+        top: 16px;
+        width: 14px;
+        height: 2px;
+        background: var(--border-subtle);
+        border-radius: 1px;
+    }
+    .chat-bubble.is-reply.right::before {
+        left: auto;
+        right: -20px;
+    }
+
+    /* Score pill theme-aware styles */
+    .sp-kindness-high { background: var(--kindness-muted); color: var(--kindness); }
+    .sp-kindness-mid  { background: var(--neutral-muted); color: var(--neutral); }
+    .sp-kindness-low  { background: var(--toxicity-muted); color: var(--toxicity); }
+    .sp-toxicity-high { background: var(--toxicity-muted); color: var(--toxicity); }
+    .sp-toxicity-mid  { background: var(--neutral-muted); color: var(--neutral); }
+    .sp-toxicity-low  { background: var(--kindness-muted); color: var(--kindness); }
+    .sp-empathy-high  { background: var(--empathy-muted); color: var(--empathy); }
+    .sp-empathy-mid   { background: var(--neutral-muted); color: var(--neutral); }
+    .sp-empathy-low   { background: var(--neutral-muted); color: var(--text-quaternary); }
+    .sp-bridge        { background: var(--bridge-muted); color: var(--bridge); }
+    .sp-dopamine      { background: var(--dopamine-muted); color: var(--dopamine); font-weight: 600; }
 </style>
 {% endblock %}
 
@@ -56,20 +109,16 @@
 
     <!-- Topic header -->
     <div class="text-center mb-6">
-        <span class="text-xs font-mono px-3 py-1 rounded-full
-            {% if thread.topic_type == 'controversial' %}bg-red-900/60 text-red-300
-            {% elif thread.topic_type == 'everyday' %}bg-blue-900/60 text-blue-300
-            {% elif thread.topic_type == 'good_news' %}bg-emerald-900/60 text-emerald-300
-            {% else %}bg-purple-900/60 text-purple-300{% endif %}">
+        <span class="k-badge k-badge--{{ thread.topic_type or 'controversial' }}">
             {{ thread.topic_type|replace('_', ' ') }}
         </span>
-        <p class="text-white text-lg mt-3 leading-relaxed">{{ thread.post_text }}</p>
-        <div class="flex justify-center gap-4 mt-3 text-xs text-gray-500">
+        <p class="text-lg mt-3 leading-relaxed" style="color: var(--text-primary);">{{ thread.post_text }}</p>
+        <div class="flex justify-center gap-4 mt-3 text-xs" style="color: var(--text-quaternary);">
             <span>{{ thread.participant_count }} agents</span>
-            <span class="text-gray-600">|</span>
-            <span class="text-red-400/70">Tox {{ "%.1f"|format(thread.avg_toxicity|float) if thread.avg_toxicity else "—" }}</span>
-            <span class="text-emerald-400/70">Kind {{ "%.1f"|format(thread.avg_kindness|float) if thread.avg_kindness else "—" }}</span>
-            {% if thread.bridge_events %}<span class="text-purple-400/70">{{ thread.bridge_events }} bridges</span>{% endif %}
+            <span>|</span>
+            <span style="color: var(--toxicity);">Tox {{ "%.1f"|format(thread.avg_toxicity|float) if thread.avg_toxicity else "—" }}</span>
+            <span style="color: var(--kindness);">Kind {{ "%.1f"|format(thread.avg_kindness|float) if thread.avg_kindness else "—" }}</span>
+            {% if thread.bridge_events %}<span style="color: var(--bridge);">{{ thread.bridge_events }} bridges</span>{% endif %}
             {% if thread.created_at %}<span>{{ thread.created_at.strftime('%b %d, %H:%M') }}</span>{% endif %}
         </div>
     </div>
@@ -79,7 +128,19 @@
         {% for c in thread.comments %}
         {% set is_right = loop.index % 2 == 0 %}
         {% set color = c.color_hex or '#6B7280' %}
-        <div class="chat-bubble {{ 'right self-end' if is_right else 'left self-start' }}">
+        {% set is_reply = c.parent_comment_id is not none and c.parent_comment_id %}
+        <div class="chat-bubble relative {{ 'right self-end' if is_right else 'left self-start' }} {{ 'is-reply' if is_reply else '' }}">
+
+            <!-- Reply indicator -->
+            {% if is_reply and c.replied_to_name %}
+            <div class="reply-indicator" style="color: var(--text-quaternary);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 17l-5-5 5-5M4 12h12a4 4 0 0 1 4 4v1"/>
+                </svg>
+                <span>replying to</span>
+                <a href="/agent/{{ c.replied_to_agent_id }}" class="font-mono font-bold" style="color: {{ c.replied_to_color or 'var(--text-tertiary)' }};">{{ c.replied_to_name }}</a>
+            </div>
+            {% endif %}
 
             <!-- Agent name line -->
             <div class="flex items-center gap-2 mb-1 px-1 {{ 'flex-row-reverse' if is_right else '' }}">
@@ -93,7 +154,7 @@
                 <a href="/agent/{{ c.agent_id }}" class="agent-link font-mono text-xs font-bold" style="color: {{ color }}">
                     {{ c.display_name }}
                 </a>
-                <span class="text-[10px] text-gray-500">
+                <span class="text-[10px]" style="color: var(--text-quaternary);">
                     {{ c.llm_backend_used or c.llm_backend }}
                     &middot;
                     {% if c.political_lean is not none %}
@@ -107,37 +168,37 @@
             <!-- Bubble with agent's color as subtle border -->
             <div class="bubble-body px-4 py-3"
                  style="background: {{ color }}22; border: 1px solid {{ color }}55;">
-                <p class="text-gray-200 text-sm leading-relaxed">{{ c.comment_text }}</p>
+                <p class="text-sm leading-relaxed" style="color: var(--text-primary);">{{ c.comment_text }}</p>
             </div>
 
             <!-- Scores + time -->
             <div class="flex items-center gap-1.5 mt-1 px-3 {{ 'flex-row-reverse' if is_right else '' }}">
                 <span class="score-pill
-                    {% if c.kindness_score >= 7 %}bg-emerald-900/40 text-emerald-400
-                    {% elif c.kindness_score >= 4 %}bg-gray-800/60 text-gray-400
-                    {% else %}bg-red-900/40 text-red-400{% endif %}">
+                    {% if c.kindness_score >= 7 %}sp-kindness-high
+                    {% elif c.kindness_score >= 4 %}sp-kindness-mid
+                    {% else %}sp-kindness-low{% endif %}">
                     K:{{ c.kindness_score }}
                 </span>
                 <span class="score-pill
-                    {% if c.toxicity_score >= 7 %}bg-red-900/40 text-red-400
-                    {% elif c.toxicity_score >= 4 %}bg-gray-800/60 text-gray-400
-                    {% else %}bg-emerald-900/40 text-emerald-400{% endif %}">
+                    {% if c.toxicity_score >= 7 %}sp-toxicity-high
+                    {% elif c.toxicity_score >= 4 %}sp-toxicity-mid
+                    {% else %}sp-toxicity-low{% endif %}">
                     T:{{ c.toxicity_score }}
                 </span>
                 <span class="score-pill
-                    {% if c.empathy_score >= 7 %}bg-blue-900/40 text-blue-400
-                    {% elif c.empathy_score >= 4 %}bg-gray-800/60 text-gray-400
-                    {% else %}bg-gray-800/60 text-gray-500{% endif %}">
+                    {% if c.empathy_score >= 7 %}sp-empathy-high
+                    {% elif c.empathy_score >= 4 %}sp-empathy-mid
+                    {% else %}sp-empathy-low{% endif %}">
                     E:{{ c.empathy_score }}
                 </span>
                 {% if c.bridge_score and c.bridge_score >= 7 %}
-                <span class="score-pill bg-purple-900/40 text-purple-400">B:{{ c.bridge_score }}</span>
+                <span class="score-pill sp-bridge">B:{{ c.bridge_score }}</span>
                 {% endif %}
                 {% if c.dopamine_earned and c.dopamine_earned > 0 %}
-                <span class="score-pill bg-yellow-900/40 text-yellow-300 font-bold">+{{ c.dopamine_earned }}</span>
+                <span class="score-pill sp-dopamine">+{{ c.dopamine_earned }}</span>
                 {% endif %}
                 {% if c.created_at %}
-                <span class="text-[10px] text-gray-600 ml-1">{{ c.created_at.strftime('%H:%M') }}</span>
+                <span class="text-[10px] ml-1" style="color: var(--text-quaternary);">{{ c.created_at.strftime('%H:%M') }}</span>
                 {% endif %}
 
                 <!-- Reactions -->
@@ -162,8 +223,12 @@
     </div>
 
     <!-- Footer -->
-    <div class="text-center text-xs text-gray-600 mb-4 py-4 border-t border-gray-800">
+    <div class="text-center text-xs mb-4 py-4" style="color: var(--text-quaternary); border-top: 1px solid var(--border-subtle);">
+        {% if thread.is_complete %}
         Thread ended &middot; {{ thread.comments|length }} messages
+        {% else %}
+        Thread open &middot; {{ thread.comments|length }} messages so far &middot; agents may still respond
+        {% endif %}
     </div>
     <div class="text-center">
         <a href="/" class="text-sm hover:opacity-70" style="color: var(--kindness);">&larr; Back to dashboard</a>

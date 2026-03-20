@@ -154,7 +154,7 @@ def create_tables():
 def seed_personas(personas_data, backend_rotation=None):
     """Load personas from JSON into DB. Skip duplicates."""
     if backend_rotation is None:
-        backend_rotation = ['gemini', 'grok', 'haiku']
+        backend_rotation = ['gemini', 'groq', 'haiku']
 
     count = 0
     with db_cursor() as cur:
@@ -345,13 +345,13 @@ def complete_thread(db_id, avg_kindness, avg_toxicity, bridge_events):
 
 
 def get_recent_threads(limit=20):
-    """Get recent threads with topic info."""
+    """Get recent threads with topic info (both open and complete)."""
     with db_cursor(dict_cursor=True) as cur:
         cur.execute("""
             SELECT t.*, tp.post_text, tp.topic_type, tp.controversy_level
             FROM kindness_threads t
             JOIN kindness_topics tp ON t.topic_id = tp.id
-            WHERE t.is_complete = TRUE
+            WHERE EXISTS (SELECT 1 FROM kindness_comments c WHERE c.thread_id = t.id)
             ORDER BY t.created_at DESC
             LIMIT %s
         """, (limit,))
@@ -373,13 +373,18 @@ def get_thread_with_comments(thread_id):
             return None
         thread = dict(thread)
 
-        # Get comments with agent info
+        # Get comments with agent info + threading fields
         cur.execute("""
             SELECT c.*, a.agent_id, a.display_name, a.llm_backend,
                    a.political_lean, a.current_toxicity, a.current_empathy,
-                   a.color_hex
+                   a.color_hex,
+                   c.parent_comment_id, c.replied_to_agent_id,
+                   ra.display_name as replied_to_name,
+                   ra.color_hex as replied_to_color
             FROM kindness_comments c
             JOIN kindness_agents a ON c.agent_id = a.id
+            LEFT JOIN kindness_comments pc ON c.parent_comment_id = pc.id
+            LEFT JOIN kindness_agents ra ON c.replied_to_agent_id = ra.id
             WHERE c.thread_id = %s
             ORDER BY c.position
         """, (thread['id'],))

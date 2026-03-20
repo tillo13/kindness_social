@@ -1,6 +1,6 @@
 """
 Agent Factory - Creates new agents with model-based names.
-e.g., gemini_417, grok_892, haiku_203, llama_301
+e.g., gemini_417, groq_892, haiku_203, llama_301
 """
 
 import json
@@ -63,8 +63,8 @@ AVAILABLE_BACKENDS = [
     'haiku',      # Claude Haiku 4.5 — Max plan
     'sonnet',     # Claude Sonnet 4.5 — Max plan
 ]
-# Broken/unreliable (kept in router for fallback): gemini(429), deepseek(402),
-# together(401 needs deposit), openrouter(empty), grok(401 auth change)
+# Cloud Run / local only: grok (native deps), deepseek (native deps)
+# Broken/unreliable: gemini(429 quota), together(401 needs deposit), openrouter(empty responses)
 
 # Structured naming: provider.model_short.NNN
 BACKEND_NAMING = {

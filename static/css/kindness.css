@@ -116,9 +116,14 @@ html.light {
     --neutral:         #6b6560;
     --neutral-muted:   rgba(107, 101, 96, 0.10);
 
+    --link:            #3d8a50;
+    --link-hover:      #2d6a3c;
+    --focus-ring:      rgba(61, 138, 80, 0.4);
+
     --shadow-sm:   0 1px 3px rgba(0, 0, 0, 0.06);
     --shadow-md:   0 2px 8px rgba(0, 0, 0, 0.08);
     --shadow-lg:   0 4px 20px rgba(0, 0, 0, 0.10);
+    --shadow-glow: none;
 }
 
 /* Remove noise texture in light mode */

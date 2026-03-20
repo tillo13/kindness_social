@@ -12,12 +12,12 @@ logger = logging.getLogger(__name__)
 
 # Fallback order (cheapest/freest first)
 # Fallback order — only backends that work reliably on App Engine
-# grok/deepseek need grok_core/deepseek4free (Cloud Run worker only)
+# grok/deepseek need native deps (Cloud Run / local only, not App Engine)
 # gemini has tight per-minute quota, put it later
 # openrouter free models are flaky, put it last
 FALLBACK_ORDER = ['groq', 'cerebras', 'mistral', 'gpt4o_mini', 'haiku', 'sonnet', 'gemini', 'openrouter', 'gpt4o', 'opus']
 
-# These only work on Cloud Run (need native deps: grok_core, deepseek4free)
+# These only work on Cloud Run / locally (need native deps that App Engine can't install)
 CLOUD_RUN_ONLY = {'grok', 'grok_fast', 'grok4', 'deepseek'}
 
 # Backend to module mapping
@@ -135,16 +135,16 @@ def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
 
     Returns: (response_text, actual_backend_used)
     """
-    # If the requested backend is Cloud Run only, skip it and go to fallback
+    # Block Cloud Run-only backends on App Engine — don't even attempt them
     import os
     is_appengine = os.environ.get('GAE_ENV', '').startswith('standard')
+    is_cloud_run_only = backend in CLOUD_RUN_ONLY
 
-    if is_appengine and backend in CLOUD_RUN_ONLY:
-        logger.info(f"Backend {backend} is Cloud Run only, falling through on App Engine")
+    if is_appengine and is_cloud_run_only:
+        # Silently reroute — no import, no attempt, no telemetry noise
         backends_to_try = [b for b in FALLBACK_ORDER if b not in CLOUD_RUN_ONLY]
     else:
         backends_to_try = [backend] + [b for b in FALLBACK_ORDER if b != backend]
-        # Filter out cloud-run-only backends on App Engine
         if is_appengine:
             backends_to_try = [b for b in backends_to_try if b not in CLOUD_RUN_ONLY]
 
@@ -172,6 +172,7 @@ def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
             start = time.time()
 
             # Route to correct backend with model-specific params
+            # (result validated after the call below)
             if b == 'grok':
                 result = module.chat(messages, max_tokens, temperature,
                                      system=system, model='grok-3-auto')
@@ -195,6 +196,22 @@ def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
                                      system=system)
 
             elapsed_ms = int((time.time() - start) * 1000)
+
+            # Validate response — empty/None means backend returned garbage
+            if not result or not result.strip():
+                _log_telemetry(
+                    backend=backend, actual_backend=b, messages=messages,
+                    max_tokens=max_tokens, temperature=temperature,
+                    result_text=None, duration_ms=elapsed_ms,
+                    success=False, error_message="Empty response from backend",
+                    fallback_used=(b != backend),
+                )
+                # Back off flaky backends that return empties (openrouter, etc)
+                mark_backend_backoff(b, 300)  # 5 min cooldown for empty responses
+                logger.warning(f"Backend {b} returned empty response, backing off 300s")
+                fallback_used = True
+                continue
+
             record_usage(b)
 
             # Log successful telemetry
@@ -222,13 +239,19 @@ def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
 
             # Auto-backoff on rate limit errors
             if '429' in error_str or 'rate limit' in error_str.lower() or 'quota' in error_str.lower():
-                # Parse retry-after if available, default 120s
-                backoff_secs = 120
+                # Backend-specific backoff durations
+                if b == 'gemini':
+                    backoff_secs = 600  # 10 min — Gemini free tier has per-minute quota
+                elif b == 'openrouter':
+                    backoff_secs = 300  # 5 min — OpenRouter free models are flaky
+                else:
+                    backoff_secs = 120  # 2 min default
+                # Override with retry-after header if available
                 if 'retry in' in error_str.lower():
                     import re
                     match = re.search(r'retry in (\d+)', error_str.lower())
                     if match:
-                        backoff_secs = min(int(match.group(1)) + 10, 600)  # cap at 10 min
+                        backoff_secs = min(int(match.group(1)) + 10, 900)  # cap at 15 min
                 mark_backend_backoff(b, backoff_secs)
 
             logger.warning(f"Backend {b} failed: {error_str[:80]}, trying next...")

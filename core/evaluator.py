@@ -62,10 +62,9 @@ def generate_comment(persona, topic, thread_history, position, config):
 
 def evaluate_comment(comment, persona, thread_history, topic, config):
     """Evaluate a comment on kindness, toxicity, empathy, and bridge-building."""
-    # IMPORTANT: Always use Sonnet for evaluations to maintain a consistent baseline.
-    # If different models scored differently, we couldn't compare across agents.
-    # Sonnet is the "judge" — agents are the "contestants."
-    backend = 'sonnet'
+    # Haiku is the judge — fast, cheap, consistent for simple 1-10 scoring.
+    # All evals go through the same model so scores stay comparable across agents.
+    backend = 'haiku'
     eval_start = time.time()
 
     scores = {}

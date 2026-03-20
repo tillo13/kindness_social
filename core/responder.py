@@ -51,16 +51,21 @@ def get_thread_comments(thread_db_id):
 
 
 def get_agents_not_in_thread(thread_db_id, limit=10):
-    """Get active agents who haven't participated in this thread yet."""
+    """Get active agents who haven't participated in this thread yet.
+    Prioritizes agents who haven't talked recently (rotation)."""
     from utilities.postgres_utils import db_cursor
     with db_cursor(dict_cursor=True) as cur:
         cur.execute("""
-            SELECT * FROM kindness_agents
-            WHERE is_active = TRUE
-              AND id NOT IN (
+            SELECT a.*, COALESCE(
+                (SELECT MAX(c.created_at) FROM kindness_comments c WHERE c.agent_id = a.id),
+                '2000-01-01'::timestamptz
+            ) as last_spoke
+            FROM kindness_agents a
+            WHERE a.is_active = TRUE
+              AND a.id NOT IN (
                   SELECT DISTINCT agent_id FROM kindness_comments WHERE thread_id = %s
               )
-            ORDER BY RANDOM()
+            ORDER BY last_spoke ASC, RANDOM()
             LIMIT %s
         """, (thread_db_id, limit))
         return [dict(row) for row in cur.fetchall()]
@@ -191,19 +196,39 @@ def build_reply_context(thread_context, target_comment=None):
 
 def run_agent_responses(config=None):
     """
-    Main response loop. Called by cron every 5-10 minutes.
-    For each open thread, check if any agents want to respond.
+    Main response loop. Called by cron every 10 minutes.
+
+    Staggered like real humans:
+    - Random batch size per call (1-4 responses across 1-2 threads)
+    - 20% chance of a quiet period (nobody responds)
+    - Agents who haven't spoken recently get priority (rotation)
+    - Agents whose backends are in backoff are silently skipped
+    - Reactions happen ~50% of the time, from 2-3 random browsers
     """
     config = config or DEFAULT_CONFIG
+    from utilities.usage_limiter import is_backend_in_backoff
 
-    open_threads = get_open_threads(limit=3)
+    # Simulate quiet periods — not every 10 min has activity
+    if random.random() < 0.2:
+        logger.info("Quiet period — no activity this round")
+        return {'threads_checked': 0, 'responses': 0, 'reactions': 0, 'skipped': 'quiet'}
+
+    # Pick 1-2 random open threads
+    open_threads = get_open_threads(limit=5)
     if not open_threads:
         logger.info("No open threads for responses")
-        return {'threads_checked': 0, 'responses': 0}
+        return {'threads_checked': 0, 'responses': 0, 'reactions': 0}
 
+    threads_to_check = random.sample(open_threads, min(random.randint(1, 2), len(open_threads)))
+
+    # Random batch cap this round (1-4 total responses across all threads)
+    max_responses_this_round = random.randint(1, 4)
     total_responses = 0
 
-    for thread in open_threads:
+    for thread in threads_to_check:
+        if total_responses >= max_responses_this_round:
+            break
+
         comments = get_thread_comments(thread['id'])
         if not comments:
             continue
@@ -215,14 +240,14 @@ def run_agent_responses(config=None):
             'post_text': thread.get('post_text', ''),
         }
 
-        # Check agents not yet in thread
+        # Candidates: prioritize agents who haven't spoken recently
         potential_responders = get_agents_not_in_thread(thread['id'], limit=8)
 
-        # Also check agents already in thread (for reply-backs)
+        # Also include existing participants (for reply-backs)
         existing_agent_ids = list(set(c['agent_id'] for c in comments))
-        from utilities.postgres_utils import db_cursor
         existing_agents = []
         if existing_agent_ids:
+            from utilities.postgres_utils import db_cursor
             with db_cursor(dict_cursor=True) as cur:
                 cur.execute(
                     "SELECT * FROM kindness_agents WHERE id = ANY(%s)",
@@ -230,29 +255,27 @@ def run_agent_responses(config=None):
                 )
                 existing_agents = [dict(row) for row in cur.fetchall()]
 
+        # New agents first (rotation), then existing (reply-backs)
         all_candidates = potential_responders + existing_agents
-        random.shuffle(all_candidates)
 
-        # Pick the most recent comment as the one to potentially reply to
         latest_comment = comments[-1] if comments else None
 
-        responses_this_thread = 0
-        max_responses_per_round = 2  # Don't flood
-
         for agent in all_candidates:
-            if responses_this_thread >= max_responses_per_round:
+            if total_responses >= max_responses_this_round:
                 break
+
+            # Skip agents whose backend is in backoff — don't waste the call
+            agent_backend = agent.get('llm_backend', 'groq')
+            if is_backend_in_backoff(agent_backend):
+                continue
 
             should, reason, target = should_respond(agent, latest_comment, thread_context)
             if not should:
                 continue
 
             logger.info(f"  {agent['display_name']} responding to thread {thread['thread_id']} ({reason})")
-
-            # Set telemetry context
             set_telemetry_context(agent_id=agent.get('agent_id'), thread_id=thread['thread_id'])
 
-            # Build reply context
             reply_context = build_reply_context(thread_context, target)
             thread_history = [{'persona': c, 'comment': c.get('comment_text', ''), 'scores': {
                 'kindness': c.get('kindness_score', 5),
@@ -261,32 +284,25 @@ def run_agent_responses(config=None):
                 'bridge': c.get('bridge_score', 0),
             }} for c in reply_context]
 
-            # Build topic dict
             topic = {'post_text': thread['post_text'], 'topic_id': thread.get('topic_id', '?')}
-
-            position = len(comments) + responses_this_thread
+            position = len(comments) + total_responses
 
             try:
-                # Generate comment
                 comment_text, actual_backend, gen_time_ms = generate_comment(
                     agent, topic, thread_history, position, config
                 )
 
-                # Evaluate
                 scores, eval_time_ms = evaluate_comment(
                     comment_text, agent, thread_history, topic, config
                 )
 
-                # Calculate dopamine
                 dopamine, source, multiplier = calculate_dopamine(
                     scores, agent, position, thread_history, config
                 )
 
-                # Update persona
                 update_persona(agent, scores, dopamine)
                 db_ops.update_agent_state(agent['id'], agent)
 
-                # Save comment with parent reference
                 parent_id = target['id'] if target and isinstance(target, dict) and 'id' in target else None
                 replied_to = target.get('agent_id') if target and isinstance(target, dict) else None
 
@@ -296,7 +312,6 @@ def run_agent_responses(config=None):
                     gen_time_ms, eval_time_ms,
                 )
 
-                # Update the parent_comment_id and replied_to_agent_id
                 if parent_id or replied_to:
                     from utilities.postgres_utils import db_cursor as _dc
                     with _dc() as cur:
@@ -306,19 +321,16 @@ def run_agent_responses(config=None):
                             WHERE thread_id = %s AND position = %s
                         """, (parent_id, replied_to, thread['id'], position))
 
-                responses_this_thread += 1
                 total_responses += 1
-
                 logger.info(f"    -> K:{scores['kindness']} T:{scores['toxicity']} +{dopamine}dp ({source})")
 
             except Exception as e:
                 logger.error(f"    Response failed for {agent['display_name']}: {e}")
 
         # Check if thread should close
-        total_comments = len(comments) + responses_this_thread
+        total_comments = len(comments) + total_responses
         max_comments = thread.get('max_comments', 30)
         if total_comments >= max_comments:
-            # Mark complete and calculate final stats
             all_comments = get_thread_comments(thread['id'])
             avg_k = sum(c.get('kindness_score', 0) or 0 for c in all_comments) / max(len(all_comments), 1)
             avg_t = sum(c.get('toxicity_score', 0) or 0 for c in all_comments) / max(len(all_comments), 1)
@@ -327,19 +339,20 @@ def run_agent_responses(config=None):
             logger.info(f"  Thread {thread['thread_id']} completed at {total_comments} comments")
 
     # ── REACTION PHASE ──
-    # After responding, agents browse comments and react (thumbsup/heart)
-    # This is lightweight engagement — even lurkers do this
-    total_reactions = react_to_comments(open_threads)
+    # 50% chance of reactions — lightweight browsing
+    total_reactions = 0
+    if random.random() < 0.5 and threads_to_check:
+        total_reactions = react_to_comments(threads_to_check)
 
     return {
-        'threads_checked': len(open_threads),
+        'threads_checked': len(threads_to_check),
         'responses': total_responses,
         'reactions': total_reactions,
     }
 
 
 def react_to_comments(threads):
-    """Agents browse open threads and react to comments they like."""
+    """A couple agents browse a thread and maybe react. Lightweight."""
     total = 0
 
     for thread in threads:
@@ -347,10 +360,11 @@ def react_to_comments(threads):
         if len(comments) < 2:
             continue
 
-        # Pick some random agents to browse this thread
+        # 2-3 random agents glance at the thread (not 8)
         from utilities.postgres_utils import db_cursor as _dc
         with _dc(dict_cursor=True) as cur:
-            cur.execute("SELECT * FROM kindness_agents WHERE is_active = TRUE ORDER BY RANDOM() LIMIT 8")
+            cur.execute("SELECT * FROM kindness_agents WHERE is_active = TRUE ORDER BY RANDOM() LIMIT %s",
+                        (random.randint(2, 3),))
             browsers = [dict(row) for row in cur.fetchall()]
 
         for agent in browsers:
