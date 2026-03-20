@@ -93,6 +93,11 @@ def create_agent(backend=None):
         # Pick personality type
         preset = random.choices(PERSONALITY_PRESETS, weights=PERSONALITY_WEIGHTS, k=1)[0]
 
+        # Random identity
+        gender = random.choice(['male', 'female', 'female', 'male', 'nonbinary'])  # weighted
+        age = random.choice(['young_adult', 'middle_aged', 'middle_aged', 'senior'])  # weighted toward middle
+        authority = random.choices(['low', 'medium', 'high'], weights=[0.3, 0.5, 0.2])[0]
+
         tox = round(random.uniform(*preset['toxicity_range']), 1)
         emp = round(random.uniform(*preset['empathy_range']), 1)
         opn = round(random.uniform(*preset['openness_range']), 2)
@@ -107,12 +112,14 @@ def create_agent(backend=None):
                      toxicity_baseline, current_toxicity,
                      empathy_baseline, current_empathy,
                      openness_to_change, vote_willingness,
+                     gender_presentation, age_bracket, authority_level,
                      trigger_topics, common_phrases)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING *
             """, (
                 agent_id, display_name, backend, pol,
                 tox, tox, emp, emp, opn, vw,
+                gender, age, authority,
                 json.dumps([]),
                 json.dumps(phrases),
             ))

@@ -58,6 +58,22 @@
             </div>
         </div>
 
+        <!-- Identity -->
+        <div class="k-section-title">Identity</div>
+        <div class="flex flex-wrap gap-x-6 gap-y-2 mb-7">
+            {% set id_items = [
+                ('Gender', agent.gender_presentation or 'unspecified'),
+                ('Age', (agent.age_bracket or 'middle_aged')|replace('_', ' ')),
+                ('Authority', agent.authority_level or 'medium'),
+            ] %}
+            {% for label, value in id_items %}
+            <div class="flex items-center gap-2">
+                <span class="text-[10px] uppercase tracking-wider" style="color: var(--text-quaternary);">{{ label }}</span>
+                <span class="font-mono text-xs px-2 py-0.5 rounded" style="background: var(--bg-active); color: var(--text-secondary);">{{ value }}</span>
+            </div>
+            {% endfor %}
+        </div>
+
         <!-- Core Metrics (Toxicity + Empathy with baselines) -->
         <div class="k-section-title">Core Metrics</div>
         <div class="space-y-3 mb-7">

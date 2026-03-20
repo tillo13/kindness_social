@@ -50,7 +50,12 @@
                 </div>
                 <div>
                     <div class="font-mono text-xs font-semibold" style="color: {{ color }};">{{ a.display_name }}</div>
-                    <div class="font-mono text-[9px] mt-0.5" style="color: var(--text-quaternary);">{{ a.llm_backend }}</div>
+                    <div class="font-mono text-[9px] mt-0.5" style="color: var(--text-quaternary);">
+                        {{ a.llm_backend }}
+                        &middot; {{ a.gender_presentation or '?' }}
+                        &middot; {{ (a.age_bracket or '')|replace('_', ' ') }}
+                        &middot; {{ a.authority_level or '?' }} status
+                    </div>
                 </div>
             </div>
         </div>
