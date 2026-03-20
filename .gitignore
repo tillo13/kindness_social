@@ -22,3 +22,6 @@ env/
 # Output
 output/
 *.csv
+
+# Antiquated
+_antiquated/

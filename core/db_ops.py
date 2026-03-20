@@ -445,29 +445,35 @@ def get_agent_kudos_received(agent_id):
 
 
 def get_global_stats():
-    """Get aggregate stats for the homepage dashboard."""
+    """Get all aggregate stats. Three fast queries instead of 12 subqueries."""
     with db_cursor(dict_cursor=True) as cur:
         cur.execute("""
-            SELECT
-                COUNT(*) as total_agents,
-                AVG(current_toxicity) as avg_toxicity,
-                AVG(current_empathy) as avg_empathy,
-                SUM(total_dopamine) as total_dopamine,
-                SUM(total_interactions) as total_interactions
+            SELECT COUNT(*) as total_agents,
+                   COUNT(CASE WHEN total_interactions > 0 THEN 1 END) as agents_spoken,
+                   AVG(current_toxicity) as avg_toxicity,
+                   AVG(current_empathy) as avg_empathy,
+                   SUM(total_dopamine) as total_dopamine,
+                   SUM(total_interactions) as total_interactions
             FROM kindness_agents WHERE is_active = TRUE
         """)
-        agents = dict(cur.fetchone())
-
-        cur.execute("SELECT COUNT(*) as cnt FROM kindness_threads WHERE is_complete = TRUE")
-        agents['total_threads'] = cur.fetchone()['cnt']
+        stats = dict(cur.fetchone())
 
         cur.execute("""
-            SELECT COUNT(*) as cnt FROM kindness_comments
-            WHERE bridge_score >= 7
+            SELECT COUNT(*) as total_threads,
+                   COUNT(CASE WHEN is_complete = FALSE AND (expires_at IS NULL OR expires_at > NOW()) THEN 1 END) as open_threads
+            FROM kindness_threads
         """)
-        agents['total_bridges'] = cur.fetchone()['cnt']
+        stats.update(dict(cur.fetchone()))
 
-        return agents
+        cur.execute("""
+            SELECT COUNT(*) as total_comments,
+                   AVG(kindness_score) as avg_kindness,
+                   COUNT(CASE WHEN bridge_score >= 7 THEN 1 END) as total_bridges,
+                   (SELECT COUNT(*) FROM kindness_reactions) as total_reactions
+            FROM kindness_comments
+        """)
+        stats.update(dict(cur.fetchone()))
+        return stats
 
 
 def get_model_comparison():
@@ -566,6 +572,105 @@ def get_hour_count():
     with db_cursor(dict_cursor=True) as cur:
         cur.execute("SELECT COALESCE(MAX(hour_number), 0) as h FROM kindness_hourly_metrics")
         return cur.fetchone()['h']
+
+
+def get_leaderboard(sort_by='kindness', limit=131):
+    """Get ranked agents for leaderboard. Single query with all stats."""
+    sort_map = {
+        'kindness': 'avg_k DESC NULLS LAST',
+        'dopamine': 'a.total_dopamine DESC',
+        'bridges': 'bridge_count DESC',
+        'most_improved': '(a.toxicity_baseline - a.current_toxicity) DESC',
+        'most_loved': 'reaction_count DESC',
+        'most_active': 'a.total_interactions DESC',
+        'empathy': 'a.current_empathy DESC',
+    }
+    order = sort_map.get(sort_by, sort_map['kindness'])
+
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute(f"""
+            SELECT a.*,
+                   COALESCE(cs.avg_k, 0) as avg_kindness,
+                   COALESCE(cs.avg_t, 0) as avg_toxicity_score,
+                   COALESCE(cs.avg_e, 0) as avg_empathy_score,
+                   COALESCE(cs.bridge_count, 0) as bridge_count,
+                   COALESCE(cs.comment_count, 0) as comment_count,
+                   COALESCE(rx.reaction_count, 0) as reaction_count,
+                   (a.toxicity_baseline - a.current_toxicity) as toxicity_change
+            FROM kindness_agents a
+            LEFT JOIN LATERAL (
+                SELECT AVG(kindness_score) as avg_k, AVG(toxicity_score) as avg_t,
+                       AVG(empathy_score) as avg_e,
+                       COUNT(CASE WHEN bridge_score >= 7 THEN 1 END) as bridge_count,
+                       COUNT(*) as comment_count
+                FROM kindness_comments WHERE agent_id = a.id
+            ) cs ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT COUNT(*) as reaction_count
+                FROM kindness_reactions r
+                JOIN kindness_comments c ON r.comment_id = c.id
+                WHERE c.agent_id = a.id
+            ) rx ON TRUE
+            WHERE a.is_active = TRUE
+            ORDER BY {order}
+            LIMIT %s
+        """, (limit,))
+        return [dict(row) for row in cur.fetchall()]
+
+
+def get_reaction_stats():
+    """Reaction summary for dashboard. Single query."""
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("""
+            SELECT
+                COUNT(*) as total,
+                COUNT(CASE WHEN reaction_type = 'thumbsup' THEN 1 END) as thumbsup,
+                COUNT(CASE WHEN reaction_type = 'heart' THEN 1 END) as heart
+            FROM kindness_reactions
+        """)
+        stats = dict(cur.fetchone())
+
+        # Top 5 most-reacted comments
+        cur.execute("""
+            SELECT c.id, c.comment_text, a.display_name, a.agent_id, a.color_hex,
+                   t.thread_id as thread_slug,
+                   COUNT(r.id) as reaction_count
+            FROM kindness_reactions r
+            JOIN kindness_comments c ON r.comment_id = c.id
+            JOIN kindness_agents a ON c.agent_id = a.id
+            JOIN kindness_threads t ON c.thread_id = t.id
+            GROUP BY c.id, c.comment_text, a.display_name, a.agent_id, a.color_hex, t.thread_id
+            ORDER BY COUNT(r.id) DESC
+            LIMIT 5
+        """)
+        stats['top_comments'] = [dict(r) for r in cur.fetchall()]
+        return stats
+
+
+def get_backend_health():
+    """Per-backend stats for dashboard. Single query."""
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("""
+            SELECT a.llm_backend,
+                   COUNT(*) as agent_count,
+                   COUNT(CASE WHEN a.total_interactions > 0 THEN 1 END) as agents_spoken,
+                   COALESCE(tel.total_calls, 0) as total_calls,
+                   COALESCE(tel.success_rate, 0) as success_rate,
+                   COALESCE(tel.avg_ms, 0) as avg_ms
+            FROM kindness_agents a
+            LEFT JOIN LATERAL (
+                SELECT COUNT(*) as total_calls,
+                       ROUND(COUNT(CASE WHEN success THEN 1 END)::numeric / NULLIF(COUNT(*), 0) * 100) as success_rate,
+                       AVG(duration_ms) as avg_ms
+                FROM kindness_llm_telemetry
+                WHERE backend = a.llm_backend
+                  AND created_at > NOW() - INTERVAL '24 hours'
+            ) tel ON TRUE
+            WHERE a.is_active = TRUE
+            GROUP BY a.llm_backend, tel.total_calls, tel.success_rate, tel.avg_ms
+            ORDER BY COUNT(*) DESC
+        """)
+        return [dict(r) for r in cur.fetchall()]
 
 
 def get_roadmap_comments():

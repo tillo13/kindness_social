@@ -62,15 +62,40 @@ def is_admin_request():
 # ============================================================================
 
 @app.route('/')
-def index():
-    """Homepage: live dashboard + recent threads."""
+def home():
+    """Landing page: the thesis, live proof, CTAs."""
     stats = db_ops.get_global_stats()
-    threads = db_ops.get_recent_threads(limit=15)
     model_data = db_ops.get_model_comparison()
-    metrics = db_ops.get_metrics_history(limit=48)  # Last 48 hours
-    return render_template('index.html',
-                           stats=stats, threads=threads,
-                           model_data=model_data, metrics=metrics)
+    threads = db_ops.get_recent_threads(limit=3)
+    return render_template('home.html', stats=stats, model_data=model_data, threads=threads)
+
+
+@app.route('/dashboard')
+def dashboard():
+    """Full data dashboard: every metric, chart, leaderboard teaser."""
+    stats = db_ops.get_global_stats()
+    threads = db_ops.get_recent_threads(limit=20)
+    model_data = db_ops.get_model_comparison()
+    metrics = db_ops.get_metrics_history(limit=48)
+    reaction_stats = db_ops.get_reaction_stats()
+    backend_health = db_ops.get_backend_health()
+    top_kind = db_ops.get_leaderboard('kindness', 5)
+    top_dopamine = db_ops.get_leaderboard('dopamine', 5)
+    top_improved = db_ops.get_leaderboard('most_improved', 5)
+    return render_template('dashboard.html',
+                           stats=stats, threads=threads, model_data=model_data,
+                           metrics=metrics, reaction_stats=reaction_stats,
+                           backend_health=backend_health,
+                           top_kind=top_kind, top_dopamine=top_dopamine,
+                           top_improved=top_improved)
+
+
+@app.route('/leaderboard')
+def leaderboard():
+    """Agent leaderboard with multiple sort criteria."""
+    sort = request.args.get('sort', 'kindness')
+    agents = db_ops.get_leaderboard(sort_by=sort)
+    return render_template('leaderboard.html', agents=agents, current_sort=sort)
 
 
 @app.route('/metrics')
