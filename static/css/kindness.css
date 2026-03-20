@@ -1,0 +1,430 @@
+/*
+ * KINDNESS SOCIAL — Design System
+ * Aesthetic: Data observatory. Warm behavioral science meets terminal precision.
+ * Think: Stripe Dashboard crossed with a psychology research lab's control room.
+ *
+ * Palette philosophy: Deep, receding backgrounds. Muted, desaturated accents
+ * that feel measured and scientific — not garish. Color communicates data, not decoration.
+ */
+
+/* ── Fonts ───────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
+
+/* ── Core Palette ────────────────────────────────────────── */
+:root {
+    /* Backgrounds — deep navy with warm undertone */
+    --bg-root:       #0c0f14;
+    --bg-surface:    #131720;
+    --bg-elevated:   #1a1f2b;
+    --bg-hover:      #212736;
+    --bg-active:     #282f3e;
+
+    /* Borders — barely there */
+    --border-subtle:  rgba(255, 255, 255, 0.06);
+    --border-default: rgba(255, 255, 255, 0.09);
+    --border-strong:  rgba(255, 255, 255, 0.14);
+
+    /* Text — warm grays, not pure white */
+    --text-primary:    #e8e4df;
+    --text-secondary:  #9b9590;
+    --text-tertiary:   #6b6560;
+    --text-quaternary: #4a4540;
+
+    /* Semantic accents — all desaturated, scientific */
+    --kindness:        #7fbc8c;  /* sage green */
+    --kindness-muted:  rgba(127, 188, 140, 0.12);
+    --kindness-dim:    rgba(127, 188, 140, 0.06);
+
+    --toxicity:        #c47a7a;  /* dusty rose */
+    --toxicity-muted:  rgba(196, 122, 122, 0.12);
+    --toxicity-dim:    rgba(196, 122, 122, 0.06);
+
+    --empathy:         #7a9bc4;  /* slate blue */
+    --empathy-muted:   rgba(122, 155, 196, 0.12);
+    --empathy-dim:     rgba(122, 155, 196, 0.06);
+
+    --dopamine:        #c4a96a;  /* muted gold */
+    --dopamine-muted:  rgba(196, 169, 106, 0.12);
+    --dopamine-dim:    rgba(196, 169, 106, 0.06);
+
+    --bridge:          #a07ac4;  /* soft violet */
+    --bridge-muted:    rgba(160, 122, 196, 0.12);
+
+    --neutral:         #8a8580;  /* warm gray */
+    --neutral-muted:   rgba(138, 133, 128, 0.12);
+
+    /* Functional */
+    --link:            #7fbc8c;
+    --link-hover:      #a3d4ad;
+    --focus-ring:      rgba(127, 188, 140, 0.4);
+
+    /* Radius */
+    --radius-sm:   6px;
+    --radius-md:   10px;
+    --radius-lg:   14px;
+    --radius-xl:   20px;
+    --radius-full: 9999px;
+
+    /* Shadows — very subtle, warm tinted */
+    --shadow-sm:   0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md:   0 2px 8px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow-lg:   0 4px 24px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.2);
+    --shadow-glow: 0 0 20px rgba(127, 188, 140, 0.06);
+
+    /* Transitions */
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --duration-fast: 120ms;
+    --duration-normal: 200ms;
+}
+
+/* ── Base ────────────────────────────────────────────────── */
+body {
+    font-family: 'DM Sans', -apple-system, system-ui, sans-serif;
+    background: var(--bg-root);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: 1.6;
+}
+
+/* Subtle noise texture overlay */
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.015;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+code, .font-mono, [class*="font-mono"] {
+    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+}
+
+/* ── Navigation ──────────────────────────────────────────── */
+nav {
+    background: var(--bg-surface) !important;
+    border-color: var(--border-subtle) !important;
+    backdrop-filter: blur(12px);
+}
+
+nav a {
+    transition: color var(--duration-fast) var(--ease-out);
+}
+
+nav a:first-child {
+    letter-spacing: -0.02em;
+}
+
+/* ── Cards ───────────────────────────────────────────────── */
+.k-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    transition: border-color var(--duration-normal) var(--ease-out),
+                box-shadow var(--duration-normal) var(--ease-out),
+                transform var(--duration-normal) var(--ease-out);
+}
+
+.k-card:hover {
+    border-color: var(--border-default);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.k-card-flat {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+}
+
+/* ── Stat Boxes ──────────────────────────────────────────── */
+.k-stat {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.k-stat::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    opacity: 0.5;
+}
+
+.k-stat--kindness::before { background: var(--kindness); }
+.k-stat--toxicity::before { background: var(--toxicity); }
+.k-stat--empathy::before  { background: var(--empathy); }
+.k-stat--dopamine::before { background: var(--dopamine); }
+.k-stat--bridge::before   { background: var(--bridge); }
+.k-stat--neutral::before  { background: var(--neutral); }
+
+.k-stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+}
+
+.k-stat-label {
+    font-size: 0.65rem;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 4px;
+}
+
+/* ── Progress Bars (trait bars) ───────────────────────────── */
+.k-bar-track {
+    background: var(--bg-active);
+    border-radius: var(--radius-full);
+    height: 6px;
+    overflow: hidden;
+    position: relative;
+}
+
+.k-bar-fill {
+    height: 100%;
+    border-radius: var(--radius-full);
+    transition: width 0.6s var(--ease-out);
+    position: relative;
+}
+
+.k-bar-fill--kindness    { background: var(--kindness); }
+.k-bar-fill--toxicity    { background: var(--toxicity); }
+.k-bar-fill--empathy     { background: var(--empathy); }
+.k-bar-fill--dopamine    { background: var(--dopamine); }
+.k-bar-fill--bridge      { background: var(--bridge); }
+.k-bar-fill--neutral     { background: var(--neutral); }
+
+/* Baseline marker on bars */
+.k-bar-baseline {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 2px;
+    background: var(--text-quaternary);
+    border-radius: 1px;
+    z-index: 2;
+}
+
+/* ── Score Pills ─────────────────────────────────────────── */
+.k-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    line-height: 1.6;
+    white-space: nowrap;
+    transition: opacity var(--duration-fast);
+}
+
+.k-pill:hover { opacity: 0.8; }
+
+.k-pill--kindness-high  { background: var(--kindness-muted); color: var(--kindness); }
+.k-pill--kindness-low   { background: var(--toxicity-muted); color: var(--toxicity); }
+.k-pill--kindness-mid   { background: var(--neutral-muted);  color: var(--neutral); }
+
+.k-pill--toxicity-high  { background: var(--toxicity-muted); color: var(--toxicity); }
+.k-pill--toxicity-low   { background: var(--kindness-muted); color: var(--kindness); }
+.k-pill--toxicity-mid   { background: var(--neutral-muted);  color: var(--neutral); }
+
+.k-pill--empathy-high   { background: var(--empathy-muted);  color: var(--empathy); }
+.k-pill--empathy-mid    { background: var(--neutral-muted);  color: var(--neutral); }
+.k-pill--empathy-low    { background: var(--neutral-muted);  color: var(--text-tertiary); }
+
+.k-pill--bridge         { background: var(--bridge-muted);   color: var(--bridge); }
+.k-pill--dopamine       { background: var(--dopamine-muted); color: var(--dopamine); font-weight: 600; }
+
+/* ── Section Headers ─────────────────────────────────────── */
+.k-section-title {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+/* ── Topic Type Badges ───────────────────────────────────── */
+.k-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: var(--radius-full);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: lowercase;
+}
+
+.k-badge--controversial { background: var(--toxicity-muted); color: var(--toxicity); }
+.k-badge--everyday      { background: var(--empathy-muted);  color: var(--empathy); }
+.k-badge--good_news     { background: var(--kindness-muted); color: var(--kindness); }
+.k-badge--bridge        { background: var(--bridge-muted);   color: var(--bridge); }
+
+/* ── Agent Avatar ────────────────────────────────────────── */
+.k-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.k-avatar::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    border: 1.5px solid currentColor;
+    opacity: 0.3;
+}
+
+/* ── Agent Link (inline) ─────────────────────────────────── */
+.k-agent-link {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-decoration: none;
+    transition: opacity var(--duration-fast);
+}
+
+.k-agent-link:hover {
+    opacity: 0.7;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+/* ── Chat Bubbles ────────────────────────────────────────── */
+.k-bubble {
+    border-radius: 16px;
+    padding: 14px 18px;
+    font-size: 0.875rem;
+    line-height: 1.65;
+    color: var(--text-primary);
+    transition: filter var(--duration-fast);
+    box-shadow: var(--shadow-sm);
+}
+
+.k-bubble:hover {
+    filter: brightness(1.08);
+}
+
+.k-bubble--left  { border-bottom-left-radius: 4px; }
+.k-bubble--right { border-bottom-right-radius: 4px; }
+
+/* ── Thread Feed Cards ───────────────────────────────────── */
+.k-thread-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    padding: 16px 20px;
+    display: block;
+    text-decoration: none;
+    transition: border-color var(--duration-normal) var(--ease-out),
+                background var(--duration-normal) var(--ease-out),
+                transform var(--duration-normal) var(--ease-out);
+}
+
+.k-thread-card:hover {
+    border-color: var(--border-default);
+    background: var(--bg-elevated);
+    transform: translateY(-1px);
+}
+
+/* ── Model Comparison Bars ───────────────────────────────── */
+.k-model-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    text-align: center;
+}
+
+.k-model-bar-track {
+    background: var(--bg-active);
+    border-radius: var(--radius-full);
+    height: 4px;
+    overflow: hidden;
+    margin-top: 4px;
+}
+
+.k-model-bar-fill {
+    height: 100%;
+    border-radius: var(--radius-full);
+    transition: width 0.8s var(--ease-out);
+}
+
+/* ── Footer ──────────────────────────────────────────────── */
+footer {
+    color: var(--text-quaternary) !important;
+    border-color: var(--border-subtle) !important;
+}
+
+footer a {
+    color: var(--text-tertiary) !important;
+    transition: color var(--duration-fast);
+}
+
+footer a:hover {
+    color: var(--kindness) !important;
+}
+
+/* ── Utility: fade-in animation ──────────────────────────── */
+@keyframes k-fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.k-animate-in {
+    animation: k-fade-in 0.4s var(--ease-out) both;
+}
+
+.k-animate-in:nth-child(1) { animation-delay: 0.0s; }
+.k-animate-in:nth-child(2) { animation-delay: 0.05s; }
+.k-animate-in:nth-child(3) { animation-delay: 0.1s; }
+.k-animate-in:nth-child(4) { animation-delay: 0.15s; }
+.k-animate-in:nth-child(5) { animation-delay: 0.2s; }
+.k-animate-in:nth-child(6) { animation-delay: 0.25s; }
+
+/* ── Utility: scrollbar ──────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+    background: var(--bg-active);
+    border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-quaternary);
+}
+
+/* ── Selection ───────────────────────────────────────────── */
+::selection {
+    background: rgba(127, 188, 140, 0.25);
+    color: inherit;
+}

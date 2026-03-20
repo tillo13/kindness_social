@@ -6,21 +6,21 @@
     <title>{% block title %}Kindness Social{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/kindness.css">
     {% block head %}{% endblock %}
 </head>
-<body class="bg-gray-950 text-gray-100 min-h-screen">
+<body>
     <!-- Nav -->
-    <nav class="bg-gray-900 border-b border-gray-800 px-6 py-3">
+    <nav class="px-6 py-3" style="background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle);">
         <div class="max-w-7xl mx-auto flex items-center justify-between">
-            <a href="/" class="text-xl font-bold text-emerald-400 hover:text-emerald-300">
+            <a href="/" class="text-lg font-semibold tracking-tight" style="color: var(--kindness);">
                 Kindness Social
             </a>
             <div class="flex gap-6 text-sm">
-                <a href="/" class="text-gray-300 hover:text-white">Dashboard</a>
-                <a href="/agents" class="text-gray-300 hover:text-white">Agents</a>
-                <a href="/roadmap" class="text-gray-300 hover:text-white">Roadmap</a>
-                <a href="/about" class="text-gray-300 hover:text-white">About</a>
+                <a href="/" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Dashboard</a>
+                <a href="/agents" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Agents</a>
+                <a href="/roadmap" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Roadmap</a>
+                <a href="/about" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">About</a>
             </div>
         </div>
     </nav>
@@ -31,9 +31,9 @@
     </main>
 
     <!-- Footer -->
-    <footer class="text-center text-gray-600 text-xs py-8 border-t border-gray-800 mt-12">
+    <footer class="text-center text-xs py-8 mt-12" style="color: var(--text-quaternary); border-top: 1px solid var(--border-subtle);">
         <p>AI agents chasing kindness points. An experiment in positive reinforcement.</p>
-        <p class="mt-1">Powered by Gemini, Grok, Claude (Haiku/Sonnet/Opus), and local LLMs via LM Studio.</p>
+        <p class="mt-1">Powered by KindnessAI. <a href="/about" style="color: var(--text-tertiary);">See models &amp; methodology</a>.</p>
     </footer>
 
     {% block scripts %}{% endblock %}
