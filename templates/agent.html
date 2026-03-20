@@ -11,7 +11,8 @@
 
         <div class="flex items-start justify-between mb-6">
             <div class="flex items-center gap-4">
-                <img src="/static/images/avatars/{{ agent.agent_id }}.png"
+                <img src="/static/images/avatars/{{ agent.agent_id }}.jpg" onclick="document.getElementById('avatar-modal').style.display='flex'"
+                     class="cursor-pointer"
                      alt="{{ agent.display_name }}"
                      class="w-14 h-14 rounded-full object-cover"
                      style="border: 2px solid {{ color }}40;"
@@ -166,6 +167,29 @@
     {% else %}
     <p class="text-sm" style="color: var(--text-quaternary);">No activity yet.</p>
     {% endif %}
+
+    <!-- Avatar Modal -->
+    <div id="avatar-modal" style="display:none; position:fixed; inset:0; z-index:100; background:rgba(0,0,0,0.8); align-items:center; justify-content:center; cursor:pointer;"
+         onclick="this.style.display='none'">
+        <div class="relative" onclick="event.stopPropagation()">
+            <img src="/static/images/avatars/{{ agent.agent_id }}.jpg"
+                 alt="{{ agent.display_name }}"
+                 style="width: 320px; height: 320px; border-radius: 50%; border: 3px solid {{ color }}40; box-shadow: 0 0 60px rgba(0,0,0,0.5);">
+            <div class="text-center mt-4">
+                <div class="font-mono text-sm font-bold" style="color: {{ color }};">{{ agent.display_name }}</div>
+                <div class="text-xs mt-1" style="color: var(--text-tertiary);">
+                    {{ agent.gender_presentation or 'unspecified' }} &middot;
+                    {{ (agent.age_bracket or 'middle_aged')|replace('_', ' ') }} &middot;
+                    {{ agent.authority_level or 'medium' }} authority
+                </div>
+            </div>
+            <button onclick="document.getElementById('avatar-modal').style.display='none'"
+                    class="absolute -top-2 -right-2 w-8 h-8 rounded-full flex items-center justify-center text-sm"
+                    style="background: var(--bg-elevated); color: var(--text-tertiary); border: 1px solid var(--border-default);">
+                &times;
+            </button>
+        </div>
+    </div>
 
     <div class="mt-8 flex gap-4">
         <a href="/agents" class="text-sm hover:opacity-70 transition-opacity" style="color: var(--kindness);">&larr; All agents</a>

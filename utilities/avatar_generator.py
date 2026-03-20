@@ -36,14 +36,14 @@ def _headers():
 
 def get_avatar_path(agent_id):
     """Get the local file path for an agent's avatar."""
-    return os.path.join(AVATAR_DIR, f"{agent_id}.png")
+    return os.path.join(AVATAR_DIR, f"{agent_id}.jpg")
 
 
 def get_avatar_url(agent_id):
     """Get the web URL for an agent's avatar. Returns None if not generated."""
     path = get_avatar_path(agent_id)
     if os.path.exists(path):
-        return f"/static/images/avatars/{agent_id}.png"
+        return f"/static/images/avatars/{agent_id}.jpg"
     return None
 
 
@@ -160,9 +160,13 @@ def generate_avatar(agent, force=False):
                     img_url = output[0] if isinstance(output, list) else output
                     img_resp = requests.get(str(img_url), timeout=30)
                     img_resp.raise_for_status()
-                    with open(path, 'wb') as f:
-                        f.write(img_resp.content)
-                    logger.info(f"Avatar saved: {path} ({len(img_resp.content)} bytes)")
+                    # Compress to 256x256 JPG for fast loading
+                    from PIL import Image
+                    from io import BytesIO
+                    img = Image.open(BytesIO(img_resp.content)).convert('RGB')
+                    img = img.resize((256, 256), Image.LANCZOS)
+                    img.save(path, 'JPEG', quality=80, optimize=True)
+                    logger.info(f"Avatar saved: {path} ({os.path.getsize(path)} bytes)")
                     return path
                 break
             elif status == 'failed':
