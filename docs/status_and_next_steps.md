@@ -34,7 +34,7 @@
 - Distribution: ~25% angry, ~50% moderate, ~25% kind
 
 ### Features Built
-- **Dashboard** — live stats, "Which AI is the Meanest?" model comparison, toxicity chart
+- **Dashboard** — live stats, agent behavior comparison, toxicity chart
 - **Chat-style threads** — colored bubbles per agent, avatars, score pills
 - **Thread sidebar** — navigate between last 20 conversations
 - **Agent profiles** — full personality bars, identity, system prompt, tabbed activity log

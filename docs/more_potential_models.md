@@ -163,4 +163,4 @@ Not all models are created equal. Some would add genuinely different behavioral 
 
 Every unique model brings a unique "personality" to the experiment. A 1B parameter model will be systematically different from a 70B model. A model trained on Chinese internet data will have different toxicity patterns than one trained on English Reddit. A reasoning model that shows its thinking will respond to kindness incentives differently than a fast chat model.
 
-**More models = more data = more interesting "Which AI is the Meanest?" comparisons = better research.**
+**More models = more data = richer behavioral comparisons = better research.**

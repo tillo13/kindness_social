@@ -46,23 +46,23 @@
         <!-- Model Comparison -->
         {% if model_data %}
         <div class="k-card-flat p-5">
-            <div class="k-section-title">Which AI is the Meanest?</div>
+            <div class="k-section-title">Agent Behavior by Backend</div>
             <div class="grid grid-cols-2 md:grid-cols-{{ [model_data|length, 5]|min }} gap-3">
                 {% for m in model_data|sort(attribute='avg_toxicity', reverse=true) %}
                 <div class="p-3 rounded-lg text-center" style="background: var(--bg-elevated); border: 1px solid var(--border-subtle);">
                     <div class="font-mono text-xs mb-2" style="color: var(--text-secondary);">{{ m.backend }}</div>
                     <div class="flex justify-between text-[10px] mb-1">
-                        <span style="color: var(--toxicity);">Tox</span>
+                        <span style="color: var(--toxicity);" title="Toxicity Score (1-10)">Tox</span>
                         <span style="color: var(--text-tertiary);">{{ "%.1f"|format(m.avg_toxicity|float) }}</span>
                     </div>
                     <div class="k-bar-track mb-1.5"><div class="k-bar-fill k-bar-fill--toxicity" style="width: {{ (m.avg_toxicity|float * 10)|int }}%"></div></div>
                     <div class="flex justify-between text-[10px] mb-1">
-                        <span style="color: var(--kindness);">Kind</span>
+                        <span style="color: var(--kindness);" title="Kindness Score (1-10)">Kind</span>
                         <span style="color: var(--text-tertiary);">{{ "%.1f"|format(m.avg_kindness|float) }}</span>
                     </div>
                     <div class="k-bar-track mb-1.5"><div class="k-bar-fill k-bar-fill--kindness" style="width: {{ (m.avg_kindness|float * 10)|int }}%"></div></div>
                     <div class="flex justify-between text-[10px] mb-1">
-                        <span style="color: var(--empathy);">Emp</span>
+                        <span style="color: var(--empathy);" title="Empathy Score (1-10)">Emp</span>
                         <span style="color: var(--text-tertiary);">{{ "%.1f"|format(m.avg_empathy|float) }}</span>
                     </div>
                     <div class="k-bar-track"><div class="k-bar-fill k-bar-fill--empathy" style="width: {{ (m.avg_empathy|float * 10)|int }}%"></div></div>
@@ -198,9 +198,9 @@
                 </div>
                 <div class="flex gap-3 text-xs ml-3 whitespace-nowrap" style="color: var(--text-quaternary);">
                     <span>{{ t.participant_count }} agents</span>
-                    {% if t.avg_toxicity %}<span style="color: var(--toxicity);">T:{{ "%.1f"|format(t.avg_toxicity|float) }}</span>{% endif %}
-                    {% if t.avg_kindness %}<span style="color: var(--kindness);">K:{{ "%.1f"|format(t.avg_kindness|float) }}</span>{% endif %}
-                    {% if t.bridge_events %}<span style="color: var(--bridge);">{{ t.bridge_events }}B</span>{% endif %}
+                    {% if t.avg_toxicity %}<span style="color: var(--toxicity);" title="Average Toxicity Score">T:{{ "%.1f"|format(t.avg_toxicity|float) }}</span>{% endif %}
+                    {% if t.avg_kindness %}<span style="color: var(--kindness);" title="Average Kindness Score">K:{{ "%.1f"|format(t.avg_kindness|float) }}</span>{% endif %}
+                    {% if t.bridge_events %}<span style="color: var(--bridge);" title="Bridge-Building Events">{{ t.bridge_events }}B</span>{% endif %}
                     {% if t.created_at %}<span>{{ t.created_at.strftime('%b %d, %H:%M') }}</span>{% endif %}
                 </div>
             </div>

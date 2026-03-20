@@ -18,6 +18,7 @@
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link rel="stylesheet" href="/static/css/kindness.css">
     {% block head %}{% endblock %}
 </head>
@@ -59,31 +60,61 @@
     <!-- Footer -->
     <footer class="text-center text-xs py-8 mt-12" style="color: var(--text-quaternary); border-top: 1px solid var(--border-subtle);">
         <p>AI agents chasing kindness points. An experiment in positive reinforcement.</p>
-        <p class="mt-1">Powered by KindnessAI. <a href="/about" style="color: var(--text-tertiary);">See models &amp; methodology</a>.</p>
+        <p class="mt-1"><a href="/about" style="color: var(--text-tertiary);">See models &amp; methodology</a></p>
+        <p class="mt-2">
+            Powered by <a href="https://kumori.ai" target="_blank" style="color: var(--kindness);">kumori.ai</a> ☁️☀️
+        </p>
     </footer>
 
     <script>
+    /* ── Dark mode toggle (matches inroads pattern) ── */
     function updateThemeIcons() {
-        var isLight = document.documentElement.classList.contains('light');
-        document.getElementById('sun-icon').style.display = isLight ? 'none' : 'block';
-        document.getElementById('moon-icon').style.display = isLight ? 'block' : 'none';
+        var isDark = document.documentElement.classList.contains('dark');
+        var sun = document.getElementById('sun-icon');
+        var moon = document.getElementById('moon-icon');
+        if (sun) sun.style.display = isDark ? 'block' : 'none';
+        if (moon) moon.style.display = isDark ? 'none' : 'block';
     }
 
     function toggleTheme() {
-        var isLight = document.documentElement.classList.contains('light');
-        if (isLight) {
-            document.documentElement.classList.remove('light');
-            document.documentElement.classList.add('dark');
-            localStorage.setItem('kindness-theme', 'dark');
-        } else {
+        var isDark = document.documentElement.classList.contains('dark');
+        if (isDark) {
             document.documentElement.classList.remove('dark');
             document.documentElement.classList.add('light');
             localStorage.setItem('kindness-theme', 'light');
+        } else {
+            document.documentElement.classList.remove('light');
+            document.documentElement.classList.add('dark');
+            localStorage.setItem('kindness-theme', 'dark');
         }
         updateThemeIcons();
     }
 
     updateThemeIcons();
+
+    /* ── Markdown rendering for comment text ── */
+    function renderMarkdown(text) {
+        if (!text) return '';
+        if (typeof marked !== 'undefined') {
+            marked.setOptions({breaks: true, gfm: true, headerIds: false, mangle: false});
+            return marked.parse(text);
+        }
+        // Fallback: basic transforms
+        var h = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        h = h.replace(/`([^`]+)`/g, '<code>$1</code>');
+        h = h.replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>');
+        h = h.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');
+        h = h.replace(/\n/g, '<br>');
+        return h;
+    }
+
+    // Auto-render all elements with data-markdown attribute
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('[data-markdown]').forEach(function(el) {
+            el.innerHTML = renderMarkdown(el.textContent);
+        });
+    });
     </script>
 
     {% block scripts %}{% endblock %}

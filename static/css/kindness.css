@@ -79,51 +79,75 @@
 
 /* ── Light Mode Overrides ─────────────────────────────────── */
 html.light {
-    --bg-root:       #f4f2ef;
+    --bg-root:       #f5f3f0;
     --bg-surface:    #ffffff;
-    --bg-elevated:   #f9f8f6;
-    --bg-hover:      #f0eeeb;
-    --bg-active:     #e8e5e1;
+    --bg-elevated:   #f7f6f4;
+    --bg-hover:      #efede9;
+    --bg-active:     #e5e2dd;
 
-    --border-subtle:  rgba(0, 0, 0, 0.06);
-    --border-default: rgba(0, 0, 0, 0.10);
-    --border-strong:  rgba(0, 0, 0, 0.16);
+    /* Higher contrast borders — visible on white */
+    --border-subtle:  rgba(0, 0, 0, 0.10);
+    --border-default: rgba(0, 0, 0, 0.16);
+    --border-strong:  rgba(0, 0, 0, 0.25);
 
+    /* High contrast text — WCAG AA minimum */
     --text-primary:    #1a1816;
-    --text-secondary:  #5c5550;
-    --text-tertiary:   #8a8580;
-    --text-quaternary: #b5b0aa;
+    --text-secondary:  #3d3833;
+    --text-tertiary:   #5c5550;
+    --text-quaternary: #7a7570;
 
-    --kindness:        #3d8a50;
-    --kindness-muted:  rgba(61, 138, 80, 0.10);
-    --kindness-dim:    rgba(61, 138, 80, 0.05);
+    /* Darker accent colors for light backgrounds */
+    --kindness:        #2d7a40;
+    --kindness-muted:  rgba(45, 122, 64, 0.12);
+    --kindness-dim:    rgba(45, 122, 64, 0.06);
 
-    --toxicity:        #b54545;
-    --toxicity-muted:  rgba(181, 69, 69, 0.10);
-    --toxicity-dim:    rgba(181, 69, 69, 0.05);
+    --toxicity:        #b03030;
+    --toxicity-muted:  rgba(176, 48, 48, 0.12);
+    --toxicity-dim:    rgba(176, 48, 48, 0.06);
 
-    --empathy:         #4570b5;
-    --empathy-muted:   rgba(69, 112, 181, 0.10);
-    --empathy-dim:     rgba(69, 112, 181, 0.05);
+    --empathy:         #3060a8;
+    --empathy-muted:   rgba(48, 96, 168, 0.12);
+    --empathy-dim:     rgba(48, 96, 168, 0.06);
 
-    --dopamine:        #a08030;
-    --dopamine-muted:  rgba(160, 128, 48, 0.10);
-    --dopamine-dim:    rgba(160, 128, 48, 0.05);
+    --dopamine:        #8a6a18;
+    --dopamine-muted:  rgba(138, 106, 24, 0.12);
+    --dopamine-dim:    rgba(138, 106, 24, 0.06);
 
-    --bridge:          #7a45b5;
-    --bridge-muted:    rgba(122, 69, 181, 0.10);
+    --bridge:          #6a35a5;
+    --bridge-muted:    rgba(106, 53, 165, 0.12);
 
-    --neutral:         #6b6560;
-    --neutral-muted:   rgba(107, 101, 96, 0.10);
+    --neutral:         #555048;
+    --neutral-muted:   rgba(85, 80, 72, 0.12);
 
-    --link:            #3d8a50;
-    --link-hover:      #2d6a3c;
-    --focus-ring:      rgba(61, 138, 80, 0.4);
+    --link:            #2d7a40;
+    --link-hover:      #1d5a2e;
+    --focus-ring:      rgba(45, 122, 64, 0.4);
 
-    --shadow-sm:   0 1px 3px rgba(0, 0, 0, 0.06);
-    --shadow-md:   0 2px 8px rgba(0, 0, 0, 0.08);
-    --shadow-lg:   0 4px 20px rgba(0, 0, 0, 0.10);
+    --shadow-sm:   0 1px 3px rgba(0, 0, 0, 0.08);
+    --shadow-md:   0 2px 8px rgba(0, 0, 0, 0.10);
+    --shadow-lg:   0 4px 20px rgba(0, 0, 0, 0.12);
     --shadow-glow: none;
+}
+
+/* Force high contrast on agent colors in light mode */
+html.light .k-agent-link,
+html.light .agent-link,
+html.light .agent-color {
+    filter: brightness(0.65) saturate(1.3);
+}
+
+/* Ensure stat labels are always readable */
+html.light .k-stat-label {
+    color: var(--text-secondary);
+}
+
+/* Ensure bubble text is always readable */
+html.light .bubble-body {
+    border-width: 2px !important;
+}
+html.light .bubble-body p,
+html.light .bubble-body div {
+    color: var(--text-primary) !important;
 }
 
 /* Remove noise texture in light mode */
@@ -465,6 +489,50 @@ footer a:hover {
 .k-animate-in:nth-child(4) { animation-delay: 0.15s; }
 .k-animate-in:nth-child(5) { animation-delay: 0.2s; }
 .k-animate-in:nth-child(6) { animation-delay: 0.25s; }
+
+/* ── Markdown Content (rendered comments/text) ─────────── */
+.k-markdown p { margin-bottom: 0.6em; }
+.k-markdown p:last-child { margin-bottom: 0; }
+.k-markdown strong { color: var(--text-primary); font-weight: 600; }
+.k-markdown em { font-style: italic; }
+.k-markdown ul, .k-markdown ol { padding-left: 1.5em; margin: 0.4em 0; }
+.k-markdown li { margin-bottom: 0.2em; }
+.k-markdown ul li { list-style: disc; }
+.k-markdown ol li { list-style: decimal; }
+.k-markdown code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85em;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--bg-active);
+    color: var(--text-primary);
+}
+.k-markdown pre {
+    background: var(--bg-active);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    margin: 0.5em 0;
+    overflow-x: auto;
+    font-size: 0.8em;
+}
+.k-markdown pre code { background: none; padding: 0; }
+.k-markdown blockquote {
+    border-left: 3px solid var(--kindness);
+    padding-left: 12px;
+    margin: 0.5em 0;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+.k-markdown h1, .k-markdown h2, .k-markdown h3, .k-markdown h4 {
+    color: var(--text-primary);
+    font-weight: 600;
+    margin: 0.6em 0 0.3em;
+}
+.k-markdown h1 { font-size: 1.2em; }
+.k-markdown h2 { font-size: 1.1em; }
+.k-markdown h3 { font-size: 1em; }
+.k-markdown a { color: var(--link); }
 
 /* ── Utility: scrollbar ──────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; }

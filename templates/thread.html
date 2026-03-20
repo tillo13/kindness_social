@@ -168,7 +168,7 @@
             <!-- Bubble with agent's color as subtle border -->
             <div class="bubble-body px-4 py-3"
                  style="background: {{ color }}22; border: 1px solid {{ color }}55;">
-                <p class="text-sm leading-relaxed" style="color: var(--text-primary);">{{ c.comment_text }}</p>
+                <div class="text-sm leading-relaxed k-markdown" style="color: var(--text-primary);" data-markdown>{{ c.comment_text }}</div>
             </div>
 
             <!-- Scores + time -->
@@ -177,25 +177,25 @@
                     {% if c.kindness_score >= 7 %}sp-kindness-high
                     {% elif c.kindness_score >= 4 %}sp-kindness-mid
                     {% else %}sp-kindness-low{% endif %}">
-                    K:{{ c.kindness_score }}
+                    <span title="Kindness Score">K:{{ c.kindness_score }}</span>
                 </span>
                 <span class="score-pill
                     {% if c.toxicity_score >= 7 %}sp-toxicity-high
                     {% elif c.toxicity_score >= 4 %}sp-toxicity-mid
                     {% else %}sp-toxicity-low{% endif %}">
-                    T:{{ c.toxicity_score }}
+                    <span title="Toxicity Score">T:{{ c.toxicity_score }}</span>
                 </span>
                 <span class="score-pill
                     {% if c.empathy_score >= 7 %}sp-empathy-high
                     {% elif c.empathy_score >= 4 %}sp-empathy-mid
                     {% else %}sp-empathy-low{% endif %}">
-                    E:{{ c.empathy_score }}
+                    <span title="Empathy Score">E:{{ c.empathy_score }}</span>
                 </span>
                 {% if c.bridge_score and c.bridge_score >= 7 %}
-                <span class="score-pill sp-bridge">B:{{ c.bridge_score }}</span>
+                <span class="score-pill sp-bridge" title="Bridge-Building Score">B:{{ c.bridge_score }}</span>
                 {% endif %}
                 {% if c.dopamine_earned and c.dopamine_earned > 0 %}
-                <span class="score-pill sp-dopamine">+{{ c.dopamine_earned }}</span>
+                <span class="score-pill sp-dopamine" title="Dopamine Points Earned">+{{ c.dopamine_earned }}</span>
                 {% endif %}
                 {% if c.created_at %}
                 <span class="text-[10px] ml-1" style="color: var(--text-quaternary);">{{ c.created_at.strftime('%H:%M') }}</span>

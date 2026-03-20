@@ -179,7 +179,7 @@
                     <span class="k-badge k-badge--{{ c.topic_type or 'controversial' }}" style="font-size: 9px;">{{ (c.topic_type or 'unknown')|replace('_', ' ') }}</span>
                     <span class="text-[10px] truncate" style="color: var(--text-quaternary); max-width: 400px;">{{ c.topic_text[:80] }}{% if c.topic_text|length > 80 %}...{% endif %}</span>
                 </div>
-                <p class="text-[13px] leading-relaxed" style="color: var(--text-primary);">{{ c.comment_text }}</p>
+                <div class="text-[13px] leading-relaxed k-markdown" style="color: var(--text-primary);" data-markdown>{{ c.comment_text }}</div>
                 <div class="flex flex-wrap items-center gap-1.5 mt-2.5">
                     <span class="k-pill {{ 'k-pill--kindness-high' if c.kindness_score >= 7 else ('k-pill--kindness-low' if c.kindness_score < 4 else 'k-pill--kindness-mid') }}">K:{{ c.kindness_score }}</span>
                     <span class="k-pill {{ 'k-pill--toxicity-high' if c.toxicity_score >= 7 else ('k-pill--toxicity-low' if c.toxicity_score < 4 else 'k-pill--toxicity-mid') }}">T:{{ c.toxicity_score }}</span>

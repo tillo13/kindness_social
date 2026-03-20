@@ -53,7 +53,7 @@
 
             <!-- Name + Backend -->
             <div class="flex-1 min-w-0">
-                <div class="font-mono text-xs font-semibold truncate" style="color: {{ color }};">{{ a.display_name }}</div>
+                <div class="font-mono text-xs font-semibold truncate agent-color" style="color: {{ color }};">{{ a.display_name }}</div>
                 <div class="font-mono text-[9px]" style="color: var(--text-quaternary);">
                     {{ a.llm_backend }} &middot; {{ a.gender_presentation or '?' }} &middot; {{ a.total_interactions }} talks
                 </div>
@@ -88,13 +88,13 @@
             <!-- Secondary Stats -->
             <div class="hidden md:flex gap-2 flex-shrink-0">
                 {% if current_sort != 'dopamine' %}
-                <span class="k-pill k-pill--dopamine">{{ a.total_dopamine }}dp</span>
+                <span class="k-pill k-pill--dopamine" title="Dopamine Points">{{ a.total_dopamine }}dp</span>
                 {% endif %}
                 {% if current_sort != 'kindness' and a.comment_count > 0 %}
-                <span class="k-pill k-pill--kindness-high">K:{{ "%.1f"|format(a.avg_kindness) }}</span>
+                <span class="k-pill k-pill--kindness-high" title="Average Kindness Score">K:{{ "%.1f"|format(a.avg_kindness) }}</span>
                 {% endif %}
                 {% if a.reaction_count > 0 and current_sort != 'most_loved' %}
-                <span class="k-pill" style="background: var(--neutral-muted); color: var(--neutral);">{{ a.reaction_count }} rx</span>
+                <span class="k-pill" style="background: var(--neutral-muted); color: var(--neutral);" title="Reactions Received">{{ a.reaction_count }} rx</span>
                 {% endif %}
             </div>
         </a>
