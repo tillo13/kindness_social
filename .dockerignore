@@ -1,0 +1,8 @@
+venv*/
+.git
+.claude
+__pycache__
+*.pyc
+output/
+.env
+static/images/posterity/
