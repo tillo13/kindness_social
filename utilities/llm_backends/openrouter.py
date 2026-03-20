@@ -52,7 +52,10 @@ def chat(messages, max_tokens=500, temperature=0.3, system=None):
         r = requests.post(API_URL, json=payload, headers=headers, timeout=60)
         r.raise_for_status()
         data = r.json()
-        return data["choices"][0]["message"]["content"].strip()
+        content = data.get("choices", [{}])[0].get("message", {}).get("content")
+        if not content or not content.strip():
+            raise RuntimeError("Empty response from OpenRouter free model")
+        return content.strip()
     except Exception as e:
         logger.error(f"OpenRouter error: {e}")
         raise

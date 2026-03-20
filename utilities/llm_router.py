@@ -6,12 +6,19 @@ Every call is logged to kindness_llm_telemetry for full observability.
 import logging
 import time
 from datetime import datetime, timezone
-from utilities.usage_limiter import check_backend_ok, record_usage
+from utilities.usage_limiter import check_backend_ok, record_usage, mark_backend_backoff
 
 logger = logging.getLogger(__name__)
 
 # Fallback order (cheapest/freest first)
-FALLBACK_ORDER = ['gemini', 'groq', 'cerebras', 'mistral', 'together', 'deepseek', 'openrouter', 'gpt4o_mini', 'grok', 'haiku', 'local', 'sonnet', 'gpt4o', 'opus']
+# Fallback order — only backends that work reliably on App Engine
+# grok/deepseek need grok_core/deepseek4free (Cloud Run worker only)
+# gemini has tight per-minute quota, put it later
+# openrouter free models are flaky, put it last
+FALLBACK_ORDER = ['groq', 'cerebras', 'mistral', 'gpt4o_mini', 'haiku', 'sonnet', 'gemini', 'openrouter', 'gpt4o', 'opus']
+
+# These only work on Cloud Run (need native deps: grok_core, deepseek4free)
+CLOUD_RUN_ONLY = {'grok', 'grok_fast', 'grok4', 'deepseek'}
 
 # Backend to module mapping
 _BACKEND_MODULES = {}
@@ -128,7 +135,19 @@ def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
 
     Returns: (response_text, actual_backend_used)
     """
-    backends_to_try = [backend] + [b for b in FALLBACK_ORDER if b != backend]
+    # If the requested backend is Cloud Run only, skip it and go to fallback
+    import os
+    is_appengine = os.environ.get('GAE_ENV', '').startswith('standard')
+
+    if is_appengine and backend in CLOUD_RUN_ONLY:
+        logger.info(f"Backend {backend} is Cloud Run only, falling through on App Engine")
+        backends_to_try = [b for b in FALLBACK_ORDER if b not in CLOUD_RUN_ONLY]
+    else:
+        backends_to_try = [backend] + [b for b in FALLBACK_ORDER if b != backend]
+        # Filter out cloud-run-only backends on App Engine
+        if is_appengine:
+            backends_to_try = [b for b in backends_to_try if b not in CLOUD_RUN_ONLY]
+
     fallback_used = False
 
     for b in backends_to_try:
@@ -191,16 +210,28 @@ def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
 
         except Exception as e:
             elapsed_ms = int((time.time() - start) * 1000) if 'start' in dir() else 0
+            error_str = str(e)
 
             # Log failed telemetry
             _log_telemetry(
                 backend=backend, actual_backend=b, messages=messages,
                 max_tokens=max_tokens, temperature=temperature,
                 result_text=None, duration_ms=elapsed_ms,
-                success=False, error_message=str(e), fallback_used=(b != backend),
+                success=False, error_message=error_str, fallback_used=(b != backend),
             )
 
-            logger.warning(f"Backend {b} failed: {e}, trying next...")
+            # Auto-backoff on rate limit errors
+            if '429' in error_str or 'rate limit' in error_str.lower() or 'quota' in error_str.lower():
+                # Parse retry-after if available, default 120s
+                backoff_secs = 120
+                if 'retry in' in error_str.lower():
+                    import re
+                    match = re.search(r'retry in (\d+)', error_str.lower())
+                    if match:
+                        backoff_secs = min(int(match.group(1)) + 10, 600)  # cap at 10 min
+                mark_backend_backoff(b, backoff_secs)
+
+            logger.warning(f"Backend {b} failed: {error_str[:80]}, trying next...")
             fallback_used = True
             continue
 

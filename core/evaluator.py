@@ -47,10 +47,14 @@ def generate_comment(persona, topic, thread_history, position, config):
     backend = persona.get('llm_backend', 'gemini')
     messages = [{"role": "user", "content": prompt}]
 
+    # Use agent's unique system prompt if available
+    system_prompt = persona.get('system_prompt')
+
     set_telemetry_context(agent_id=persona.get('agent_id'), call_type='generate')
 
     start = time.time()
-    text, actual_backend = chat(backend, messages, max_tokens=500, temperature=0.3)
+    text, actual_backend = chat(backend, messages, max_tokens=500, temperature=0.3,
+                                 system=system_prompt)
     gen_time_ms = int((time.time() - start) * 1000)
 
     return text, actual_backend, gen_time_ms

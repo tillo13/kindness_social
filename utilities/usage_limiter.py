@@ -107,6 +107,10 @@ GLOBAL_DAILY_LIMIT = 3000  # Total across all backends
 _daily_counts = {}
 _count_date = None
 
+# Backoff tracking — when a backend fails with 429/rate limit, cool it off
+_backoff_until = {}  # backend -> timestamp when it's safe to retry
+BACKOFF_SECONDS = 120  # 2 minutes default cooldown after a rate limit
+
 
 class UsageStatus(NamedTuple):
     allowed: bool
@@ -127,10 +131,34 @@ def is_kill_switch_active():
     return os.environ.get('KINDNESS_KILL_SWITCH', 'false').lower() == 'true'
 
 
+def mark_backend_backoff(backend: str, seconds: int = None):
+    """Mark a backend as needing cooldown (e.g., after 429 rate limit)."""
+    import time
+    cooldown = seconds or BACKOFF_SECONDS
+    _backoff_until[backend] = time.time() + cooldown
+    logger.warning(f"Backend {backend} in backoff for {cooldown}s")
+
+
+def is_backend_in_backoff(backend: str) -> bool:
+    """Check if a backend is in cooldown period."""
+    import time
+    until = _backoff_until.get(backend, 0)
+    if time.time() < until:
+        return True
+    elif until > 0:
+        # Cooldown expired, clear it
+        _backoff_until.pop(backend, None)
+    return False
+
+
 def check_backend_ok(backend: str) -> UsageStatus:
-    """Check if a specific backend is within daily limits."""
+    """Check if a specific backend is within daily limits and not in backoff."""
     if is_kill_switch_active():
         return UsageStatus(False, -1, "System paused for maintenance.", 'blocked')
+
+    # Check backoff first
+    if is_backend_in_backoff(backend):
+        return UsageStatus(False, -1, f"{backend} in cooldown after rate limit.", 'blocked')
 
     _reset_if_new_day()
     count = _daily_counts.get(backend, 0)

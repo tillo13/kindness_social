@@ -83,7 +83,9 @@ def view_thread(thread_id):
         return "Thread not found", 404
     # Get reactions for all comments in this thread
     reactions = db_ops.get_reactions_for_thread(thread['id']) if thread else {}
-    return render_template('thread.html', thread=thread, reactions=reactions)
+    # Get recent threads for sidebar navigation
+    recent_threads = db_ops.get_recent_threads(limit=20)
+    return render_template('thread.html', thread=thread, reactions=reactions, recent_threads=recent_threads)
 
 
 @app.route('/agents')

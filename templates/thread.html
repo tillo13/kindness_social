@@ -26,7 +26,33 @@
 {% endblock %}
 
 {% block content %}
-<div class="chat-window">
+<div class="flex gap-6">
+
+<!-- Thread Sidebar -->
+<div class="hidden lg:block w-64 flex-shrink-0">
+    <div class="sticky top-20">
+        <div class="k-section-title">Recent Threads</div>
+        <div class="space-y-1.5 max-h-[70vh] overflow-y-auto pr-2" id="thread-sidebar">
+            {% for t in recent_threads %}
+            <a href="/thread/{{ t.thread_id }}"
+               class="block p-2.5 rounded-lg transition-all text-[11px]"
+               style="background: {{ 'var(--bg-active)' if t.thread_id == thread.thread_id else 'var(--bg-surface)' }}; border: 1px solid {{ 'var(--border-default)' if t.thread_id == thread.thread_id else 'var(--border-subtle)' }};"
+               onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='{{ 'var(--bg-active)' if t.thread_id == thread.thread_id else 'var(--bg-surface)' }}'">
+                <span class="k-badge k-badge--{{ t.topic_type or 'controversial' }}" style="font-size: 8px;">{{ (t.topic_type or '?')|replace('_', ' ') }}</span>
+                <p class="mt-1 leading-snug truncate" style="color: var(--text-secondary);">{{ t.post_text[:60] }}{% if t.post_text|length > 60 %}...{% endif %}</p>
+                <div class="flex items-center gap-2 mt-1" style="color: var(--text-quaternary); font-size: 9px;">
+                    <span>{{ t.participant_count }} agents</span>
+                    {% if t.created_at %}<span>{{ t.created_at.strftime('%b %d, %H:%M') }}</span>{% endif %}
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        <a href="/" class="block mt-3 text-[11px] text-center hover:opacity-70" style="color: var(--text-quaternary);">View all &rarr;</a>
+    </div>
+</div>
+
+<!-- Main Chat -->
+<div class="chat-window flex-1">
 
     <!-- Topic header -->
     <div class="text-center mb-6">
@@ -140,7 +166,9 @@
         Thread ended &middot; {{ thread.comments|length }} messages
     </div>
     <div class="text-center">
-        <a href="/" class="text-emerald-400 hover:text-emerald-300 text-sm">&larr; Back to dashboard</a>
+        <a href="/" class="text-sm hover:opacity-70" style="color: var(--kindness);">&larr; Back to dashboard</a>
     </div>
 </div>
+
+</div><!-- close flex container -->
 {% endblock %}

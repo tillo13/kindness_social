@@ -122,6 +122,14 @@
             {% endfor %}
         </div>
 
+        <!-- System Prompt -->
+        {% if agent.system_prompt %}
+        <div class="k-section-title">System Prompt</div>
+        <div class="p-3 rounded-lg mb-6 text-[12px] leading-relaxed font-mono" style="background: var(--bg-active); color: var(--text-secondary); border: 1px solid var(--border-subtle);">
+            {{ agent.system_prompt }}
+        </div>
+        {% endif %}
+
         <!-- Phrases -->
         {% if agent.common_phrases %}
         <div class="k-section-title">Common Phrases</div>
