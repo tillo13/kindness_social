@@ -11,6 +11,7 @@ from datetime import datetime
 
 from core import db_ops
 from core.evaluator import generate_comment, evaluate_comment
+from utilities.llm_router import set_telemetry_context
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,7 @@ def run_thread(config=None):
 
     for position, persona in enumerate(participants):
         logger.info(f"[{thread_slug}] Pos {position+1}/{len(participants)}: {persona['display_name']} ({persona['llm_backend']})")
+        set_telemetry_context(agent_id=persona.get('agent_id'), thread_id=thread_slug)
 
         # Generate comment
         comment, actual_backend, gen_time_ms = generate_comment(

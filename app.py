@@ -50,6 +50,19 @@ def index():
                            model_data=model_data, metrics=metrics)
 
 
+@app.route('/metrics')
+def metrics():
+    """Telemetry dashboard — every LLM call, response time, cost, success rate."""
+    telemetry = db_ops.get_telemetry_summary()
+    return render_template('metrics.html', telemetry=telemetry)
+
+
+@app.route('/api/telemetry')
+def api_telemetry():
+    """JSON endpoint for telemetry data."""
+    return jsonify(db_ops.get_telemetry_summary())
+
+
 @app.route('/roadmap')
 def roadmap():
     """Public roadmap with per-section comment threads."""

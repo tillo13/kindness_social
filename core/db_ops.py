@@ -593,6 +593,93 @@ def add_roadmap_comment(section_idx, author_name, comment_text, author_type='ano
         """, (section_idx, author_name[:100], author_type, comment_text[:2000]))
 
 
+def get_telemetry_summary():
+    """Get aggregate telemetry stats for the metrics dashboard."""
+    with db_cursor(dict_cursor=True) as cur:
+        # Overall stats
+        cur.execute("""
+            SELECT
+                COUNT(*) as total_calls,
+                COUNT(CASE WHEN success THEN 1 END) as successful,
+                COUNT(CASE WHEN NOT success THEN 1 END) as failed,
+                COUNT(CASE WHEN fallback_used THEN 1 END) as fallbacks,
+                AVG(duration_ms) as avg_duration_ms,
+                MIN(duration_ms) as min_duration_ms,
+                MAX(duration_ms) as max_duration_ms,
+                SUM(input_tokens) as total_input_tokens,
+                SUM(output_tokens) as total_output_tokens,
+                SUM(estimated_cost_usd) as total_cost
+            FROM kindness_llm_telemetry
+        """)
+        overall = dict(cur.fetchone())
+
+        # Per-backend stats
+        cur.execute("""
+            SELECT
+                actual_backend as backend,
+                COUNT(*) as calls,
+                COUNT(CASE WHEN success THEN 1 END) as successes,
+                AVG(duration_ms) as avg_ms,
+                MIN(duration_ms) as min_ms,
+                MAX(duration_ms) as max_ms,
+                SUM(input_tokens) as input_tokens,
+                SUM(output_tokens) as output_tokens
+            FROM kindness_llm_telemetry
+            WHERE actual_backend IS NOT NULL
+            GROUP BY actual_backend
+            ORDER BY calls DESC
+        """)
+        by_backend = [dict(row) for row in cur.fetchall()]
+
+        # Per call-type stats
+        cur.execute("""
+            SELECT
+                call_type,
+                COUNT(*) as calls,
+                AVG(duration_ms) as avg_ms,
+                COUNT(CASE WHEN success THEN 1 END) as successes
+            FROM kindness_llm_telemetry
+            GROUP BY call_type
+            ORDER BY calls DESC
+        """)
+        by_type = [dict(row) for row in cur.fetchall()]
+
+        # Recent calls (last 50)
+        cur.execute("""
+            SELECT
+                id, backend, actual_backend, model_id, provider, call_type,
+                agent_id, thread_id, prompt_length, response_length,
+                response_preview, duration_ms, success, error_message,
+                fallback_used, created_at
+            FROM kindness_llm_telemetry
+            ORDER BY created_at DESC
+            LIMIT 50
+        """)
+        recent = [dict(row) for row in cur.fetchall()]
+
+        # Calls per hour (last 24h)
+        cur.execute("""
+            SELECT
+                date_trunc('hour', created_at) as hour,
+                COUNT(*) as calls,
+                AVG(duration_ms) as avg_ms,
+                COUNT(CASE WHEN success THEN 1 END) as successes
+            FROM kindness_llm_telemetry
+            WHERE created_at > NOW() - INTERVAL '24 hours'
+            GROUP BY hour
+            ORDER BY hour
+        """)
+        hourly = [dict(row) for row in cur.fetchall()]
+
+        return {
+            'overall': overall,
+            'by_backend': by_backend,
+            'by_type': by_type,
+            'recent': recent,
+            'hourly': hourly,
+        }
+
+
 def get_metrics_history(limit=168):
     """Get hourly metrics for charts."""
     with db_cursor(dict_cursor=True) as cur:

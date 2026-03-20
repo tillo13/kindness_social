@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}Metrics - Kindness Social{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <div class="flex items-baseline justify-between mb-6">
+        <h1 class="text-xl font-semibold" style="color: var(--text-primary);">Metrics &amp; Telemetry</h1>
+        <span class="font-mono text-xs" style="color: var(--text-quaternary);">Every LLM call, every response, every millisecond.</span>
+    </div>
+
+    {% set t = telemetry %}
+
+    <!-- Overall Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
+        <div class="k-stat k-stat--neutral">
+            <div class="k-stat-value" style="color: var(--text-primary);">{{ "{:,}".format(t.overall.total_calls|int) if t.overall.total_calls else 0 }}</div>
+            <div class="k-stat-label">Total LLM Calls</div>
+        </div>
+        <div class="k-stat k-stat--kindness">
+            <div class="k-stat-value" style="color: var(--kindness);">{{ "{:.0f}".format(t.overall.successful|float / t.overall.total_calls|float * 100) if t.overall.total_calls else 0 }}%</div>
+            <div class="k-stat-label">Success Rate</div>
+        </div>
+        <div class="k-stat k-stat--dopamine">
+            <div class="k-stat-value" style="color: var(--dopamine);">{{ "{:,.0f}".format(t.overall.avg_duration_ms|float) if t.overall.avg_duration_ms else 0 }}ms</div>
+            <div class="k-stat-label">Avg Response Time</div>
+        </div>
+        <div class="k-stat k-stat--empathy">
+            <div class="k-stat-value" style="color: var(--empathy);">{{ "{:,}".format((t.overall.total_input_tokens or 0) + (t.overall.total_output_tokens or 0)) }}</div>
+            <div class="k-stat-label">Total Tokens</div>
+        </div>
+        <div class="k-stat k-stat--toxicity">
+            <div class="k-stat-value" style="color: var(--toxicity);">{{ t.overall.failed or 0 }}</div>
+            <div class="k-stat-label">Failed Calls</div>
+        </div>
+    </div>
+
+    <!-- Per-Backend Performance -->
+    <div class="k-section-title">Performance by Backend</div>
+    {% if t.by_backend %}
+    <div class="overflow-x-auto mb-8">
+        <table class="w-full text-sm" style="color: var(--text-secondary);">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--border-subtle);">
+                    <th class="text-left py-2 font-mono text-xs" style="color: var(--text-tertiary);">Backend</th>
+                    <th class="text-right py-2 font-mono text-xs" style="color: var(--text-tertiary);">Calls</th>
+                    <th class="text-right py-2 font-mono text-xs" style="color: var(--text-tertiary);">Success</th>
+                    <th class="text-right py-2 font-mono text-xs" style="color: var(--text-tertiary);">Avg ms</th>
+                    <th class="text-right py-2 font-mono text-xs" style="color: var(--text-tertiary);">Min ms</th>
+                    <th class="text-right py-2 font-mono text-xs" style="color: var(--text-tertiary);">Max ms</th>
+                    <th class="text-right py-2 font-mono text-xs" style="color: var(--text-tertiary);">Tokens In</th>
+                    <th class="text-right py-2 font-mono text-xs" style="color: var(--text-tertiary);">Tokens Out</th>
+                    <th class="text-left py-2 font-mono text-xs" style="color: var(--text-tertiary);">Avg Latency</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in t.by_backend %}
+                <tr style="border-bottom: 1px solid var(--border-subtle);">
+                    <td class="py-2 font-mono font-semibold" style="color: var(--text-primary);">{{ b.backend }}</td>
+                    <td class="py-2 text-right font-mono">{{ b.calls }}</td>
+                    <td class="py-2 text-right font-mono">
+                        {% set rate = (b.successes / b.calls * 100) if b.calls else 0 %}
+                        <span style="color: {{ 'var(--kindness)' if rate > 95 else ('var(--dopamine)' if rate > 80 else 'var(--toxicity)') }};">{{ "%.0f"|format(rate) }}%</span>
+                    </td>
+                    <td class="py-2 text-right font-mono">{{ "%.0f"|format(b.avg_ms|float) if b.avg_ms else '—' }}</td>
+                    <td class="py-2 text-right font-mono" style="color: var(--text-tertiary);">{{ b.min_ms or '—' }}</td>
+                    <td class="py-2 text-right font-mono" style="color: var(--text-tertiary);">{{ b.max_ms or '—' }}</td>
+                    <td class="py-2 text-right font-mono" style="color: var(--text-tertiary);">{{ "{:,}".format(b.input_tokens|int) if b.input_tokens else 0 }}</td>
+                    <td class="py-2 text-right font-mono" style="color: var(--text-tertiary);">{{ "{:,}".format(b.output_tokens|int) if b.output_tokens else 0 }}</td>
+                    <td class="py-2">
+                        {% set max_bar = 5000 %}
+                        {% set bar_width = ((b.avg_ms|float / max_bar) * 100)|int if b.avg_ms else 0 %}
+                        <div class="k-bar-track" style="width: 120px;">
+                            <div class="k-bar-fill" style="width: {{ [bar_width, 100]|min }}%; background: {{ 'var(--kindness)' if (b.avg_ms|float) < 1000 else ('var(--dopamine)' if (b.avg_ms|float) < 3000 else 'var(--toxicity)') }};"></div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="p-8 text-center mb-8" style="color: var(--text-quaternary); background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);">
+        No telemetry data yet. Generate a thread to start collecting metrics.
+    </div>
+    {% endif %}
+
+    <!-- Per Call Type -->
+    {% if t.by_type %}
+    <div class="k-section-title">Performance by Call Type</div>
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
+        {% for ct in t.by_type %}
+        <div class="k-card-flat p-3 text-center">
+            <div class="font-mono text-xs mb-1" style="color: var(--text-tertiary);">{{ ct.call_type }}</div>
+            <div class="font-mono text-lg font-bold" style="color: var(--text-primary);">{{ ct.calls }}</div>
+            <div class="text-[10px]" style="color: var(--text-quaternary);">avg {{ "%.0f"|format(ct.avg_ms|float) if ct.avg_ms else '?' }}ms</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Recent Calls Log -->
+    <div class="k-section-title">Recent Calls (last 50)</div>
+    {% if t.recent %}
+    <div class="overflow-x-auto mb-8">
+        <table class="w-full text-xs" style="color: var(--text-secondary);">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--border-subtle);">
+                    <th class="text-left py-1.5 font-mono" style="color: var(--text-quaternary);">Time</th>
+                    <th class="text-left py-1.5 font-mono" style="color: var(--text-quaternary);">Type</th>
+                    <th class="text-left py-1.5 font-mono" style="color: var(--text-quaternary);">Backend</th>
+                    <th class="text-left py-1.5 font-mono" style="color: var(--text-quaternary);">Agent</th>
+                    <th class="text-right py-1.5 font-mono" style="color: var(--text-quaternary);">ms</th>
+                    <th class="text-left py-1.5 font-mono" style="color: var(--text-quaternary);">Status</th>
+                    <th class="text-left py-1.5 font-mono" style="color: var(--text-quaternary);">Preview</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in t.recent %}
+                <tr style="border-bottom: 1px solid var(--border-subtle);">
+                    <td class="py-1.5 font-mono" style="color: var(--text-quaternary);">{{ c.created_at.strftime('%H:%M:%S') if c.created_at else '' }}</td>
+                    <td class="py-1.5 font-mono">
+                        <span class="k-pill" style="background: var(--neutral-muted); color: var(--neutral);">{{ c.call_type }}</span>
+                    </td>
+                    <td class="py-1.5 font-mono" style="color: var(--text-primary);">
+                        {{ c.actual_backend or c.backend }}
+                        {% if c.fallback_used %}<span style="color: var(--dopamine);" title="Fallback used">*</span>{% endif %}
+                    </td>
+                    <td class="py-1.5 font-mono" style="color: var(--text-tertiary);">
+                        {% if c.agent_id %}<a href="/agent/{{ c.agent_id }}" style="color: var(--text-tertiary);">{{ c.agent_id[:25] }}</a>{% endif %}
+                    </td>
+                    <td class="py-1.5 text-right font-mono" style="color: {{ 'var(--kindness)' if c.duration_ms and c.duration_ms < 1000 else ('var(--dopamine)' if c.duration_ms and c.duration_ms < 3000 else 'var(--toxicity)') }};">
+                        {{ "{:,}".format(c.duration_ms) if c.duration_ms else '—' }}
+                    </td>
+                    <td class="py-1.5">
+                        {% if c.success %}
+                        <span style="color: var(--kindness);">ok</span>
+                        {% else %}
+                        <span style="color: var(--toxicity);" title="{{ c.error_message or '' }}">fail</span>
+                        {% endif %}
+                    </td>
+                    <td class="py-1.5 truncate max-w-[200px]" style="color: var(--text-quaternary);">{{ c.response_preview or c.error_message or '' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="p-8 text-center mb-8" style="color: var(--text-quaternary); background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);">
+        No calls logged yet.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
