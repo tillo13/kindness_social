@@ -11,10 +11,10 @@
 
         <div class="flex items-start justify-between mb-6">
             <div class="flex items-center gap-4">
-                <img src="/static/images/avatars/{{ agent.agent_id }}.jpg" onclick="document.getElementById('avatar-modal').style.display='flex'"
-                     class="cursor-pointer"
+                <img src="/static/images/avatars/{{ agent.agent_id }}.jpg"
+                     onclick="document.getElementById('avatar-modal').style.display='flex'"
+                     class="w-14 h-14 rounded-full object-cover cursor-pointer"
                      alt="{{ agent.display_name }}"
-                     class="w-14 h-14 rounded-full object-cover"
                      style="border: 2px solid {{ color }}40;"
                      onerror="this.outerHTML='<div class=\'k-avatar\' style=\'color: {{ color }}; background: {{ color }}15;\'>{{ agent.display_name[0]|upper }}</div>'">
                 <div>
