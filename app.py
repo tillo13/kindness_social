@@ -27,7 +27,7 @@ app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev-kindness-key'
 GCP_PROJECT_ID = 'kumori-404602'
 
 
-CLOUD_RUN_WORKER_URL = 'https://kindness-worker-g7dpldf2xq-uc.a.run.app'
+CLOUD_RUN_WORKER_URL = 'https://kindness-worker-243380010344.us-central1.run.app'
 
 _admin_api_key = None
 
