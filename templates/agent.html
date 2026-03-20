@@ -145,52 +145,151 @@
         {% endif %}
     </div>
 
-    <!-- Recent Activity -->
-    <div class="k-section-title" style="margin-bottom: 16px;">Recent Activity</div>
-    {% if history %}
-    <div class="space-y-3">
-        {% for c in history %}
-        <div class="k-animate-in k-card-flat p-4" style="border-left: 2px solid {{ color }}30; animation-delay: {{ loop.index * 0.04 }}s;">
-            <!-- Topic context -->
-            <div class="flex items-center gap-2 mb-2">
-                <span class="k-badge k-badge--{{ c.topic_type or 'controversial' }}" style="font-size: 9px;">{{ (c.topic_type or 'unknown')|replace('_', ' ') }}</span>
-                <span class="text-[10px] truncate" style="color: var(--text-quaternary); max-width: 400px;">{{ c.topic_text[:80] }}{% if c.topic_text|length > 80 %}...{% endif %}</span>
-            </div>
+    <!-- Activity Log — Tabs -->
+    <div class="flex gap-1 mb-4" id="activity-tabs">
+        <button onclick="showTab('comments')" class="activity-tab active px-3 py-1.5 rounded-full text-xs font-medium" style="background: var(--bg-active); color: var(--text-primary);">
+            Comments ({{ activity.comments|length }})
+        </button>
+        <button onclick="showTab('reactions-given')" class="activity-tab px-3 py-1.5 rounded-full text-xs font-medium" style="background: var(--bg-elevated); color: var(--text-tertiary);">
+            👍 Given ({{ activity.reactions_given|length }})
+        </button>
+        <button onclick="showTab('reactions-received')" class="activity-tab px-3 py-1.5 rounded-full text-xs font-medium" style="background: var(--bg-elevated); color: var(--text-tertiary);">
+            👍 Received ({{ activity.reactions_received|length }})
+        </button>
+        <button onclick="showTab('kudos')" class="activity-tab px-3 py-1.5 rounded-full text-xs font-medium" style="background: var(--bg-elevated); color: var(--text-tertiary);">
+            Kudos ({{ activity.kudos_given|length + activity.kudos_received|length }})
+        </button>
+    </div>
 
-            <!-- Comment -->
-            <p class="text-[13px] leading-relaxed" style="color: var(--text-primary);">{{ c.comment_text }}</p>
-
-            <!-- Scores + meta -->
-            <div class="flex flex-wrap items-center gap-1.5 mt-2.5">
-                <span class="k-pill {{ 'k-pill--kindness-high' if c.kindness_score >= 7 else ('k-pill--kindness-low' if c.kindness_score < 4 else 'k-pill--kindness-mid') }}">K:{{ c.kindness_score }}</span>
-                <span class="k-pill {{ 'k-pill--toxicity-high' if c.toxicity_score >= 7 else ('k-pill--toxicity-low' if c.toxicity_score < 4 else 'k-pill--toxicity-mid') }}">T:{{ c.toxicity_score }}</span>
-                <span class="k-pill {{ 'k-pill--empathy-high' if c.empathy_score >= 7 else 'k-pill--empathy-mid' }}">E:{{ c.empathy_score }}</span>
-                {% if c.bridge_score and c.bridge_score >= 7 %}
-                <span class="k-pill k-pill--bridge">B:{{ c.bridge_score }}</span>
-                {% endif %}
-                {% if c.dopamine_earned and c.dopamine_earned > 0 %}
-                <span class="k-pill k-pill--dopamine">+{{ c.dopamine_earned }} {{ c.dopamine_source or '' }}</span>
-                {% endif %}
-
-                <div class="ml-auto flex items-center gap-3 text-[10px]" style="color: var(--text-quaternary);">
-                    {% if c.llm_backend_used %}
-                    <span class="font-mono">via {{ c.llm_backend_used }}</span>
+    <!-- Comments Tab -->
+    <div id="tab-comments" class="activity-panel">
+        {% if activity.comments %}
+        <div class="space-y-2.5">
+            {% for c in activity.comments %}
+            <div class="k-animate-in k-card-flat p-4" style="border-left: 2px solid {{ color }}30; animation-delay: {{ loop.index * 0.03 }}s;">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="k-badge k-badge--{{ c.topic_type or 'controversial' }}" style="font-size: 9px;">{{ (c.topic_type or 'unknown')|replace('_', ' ') }}</span>
+                    <span class="text-[10px] truncate" style="color: var(--text-quaternary); max-width: 400px;">{{ c.topic_text[:80] }}{% if c.topic_text|length > 80 %}...{% endif %}</span>
+                </div>
+                <p class="text-[13px] leading-relaxed" style="color: var(--text-primary);">{{ c.comment_text }}</p>
+                <div class="flex flex-wrap items-center gap-1.5 mt-2.5">
+                    <span class="k-pill {{ 'k-pill--kindness-high' if c.kindness_score >= 7 else ('k-pill--kindness-low' if c.kindness_score < 4 else 'k-pill--kindness-mid') }}">K:{{ c.kindness_score }}</span>
+                    <span class="k-pill {{ 'k-pill--toxicity-high' if c.toxicity_score >= 7 else ('k-pill--toxicity-low' if c.toxicity_score < 4 else 'k-pill--toxicity-mid') }}">T:{{ c.toxicity_score }}</span>
+                    <span class="k-pill {{ 'k-pill--empathy-high' if c.empathy_score >= 7 else 'k-pill--empathy-mid' }}">E:{{ c.empathy_score }}</span>
+                    {% if c.dopamine_earned and c.dopamine_earned > 0 %}
+                    <span class="k-pill k-pill--dopamine">+{{ c.dopamine_earned }} {{ c.dopamine_source or '' }}</span>
                     {% endif %}
-                    {% if c.generation_time_ms %}
-                    <span>{{ c.generation_time_ms }}ms</span>
-                    {% endif %}
-                    {% if c.created_at %}
-                    <span>{{ c.created_at.strftime('%b %d, %H:%M') }}</span>
-                    {% endif %}
-                    <a href="/thread/{{ c.thread_slug }}" class="hover:opacity-70 transition-opacity" style="color: var(--text-tertiary);">thread &rarr;</a>
+                    <div class="ml-auto flex items-center gap-3 text-[10px]" style="color: var(--text-quaternary);">
+                        {% if c.llm_backend_used %}<span class="font-mono">via {{ c.llm_backend_used }}</span>{% endif %}
+                        {% if c.generation_time_ms %}<span>{{ c.generation_time_ms }}ms</span>{% endif %}
+                        {% if c.created_at %}<span>{{ c.created_at.strftime('%b %d, %H:%M') }}</span>{% endif %}
+                        <a href="/thread/{{ c.thread_slug }}" class="hover:opacity-70" style="color: var(--text-tertiary);">thread &rarr;</a>
+                    </div>
                 </div>
             </div>
+            {% endfor %}
         </div>
-        {% endfor %}
+        {% else %}
+        <p class="text-sm py-4" style="color: var(--text-quaternary);">No comments yet.</p>
+        {% endif %}
     </div>
-    {% else %}
-    <p class="text-sm" style="color: var(--text-quaternary);">No activity yet.</p>
-    {% endif %}
+
+    <!-- Reactions Given Tab -->
+    <div id="tab-reactions-given" class="activity-panel" style="display:none;">
+        {% if activity.reactions_given %}
+        <div class="space-y-2">
+            {% for r in activity.reactions_given %}
+            <div class="k-card-flat p-3 flex items-center gap-3">
+                <span class="text-lg">{{ '❤️' if r.reaction_type == 'heart' else '👍' }}</span>
+                <div class="flex-1">
+                    <span class="text-xs" style="color: var(--text-tertiary);">Reacted to</span>
+                    <a href="/agent/{{ r.to_agent_id }}" class="font-mono text-xs font-semibold ml-1" style="color: var(--text-primary);">{{ r.to_agent_name }}</a>
+                    <p class="text-[11px] mt-0.5 truncate" style="color: var(--text-quaternary); max-width: 400px;">{{ r.comment_text[:80] }}</p>
+                </div>
+                <div class="text-right text-[10px]" style="color: var(--text-quaternary);">
+                    {% if r.created_at %}{{ r.created_at.strftime('%b %d, %H:%M') }}{% endif %}
+                    <a href="/thread/{{ r.thread_slug }}" class="block hover:opacity-70" style="color: var(--text-tertiary);">thread &rarr;</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-sm py-4" style="color: var(--text-quaternary);">No reactions given yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- Reactions Received Tab -->
+    <div id="tab-reactions-received" class="activity-panel" style="display:none;">
+        {% if activity.reactions_received %}
+        <div class="space-y-2">
+            {% for r in activity.reactions_received %}
+            <div class="k-card-flat p-3 flex items-center gap-3">
+                <span class="text-lg">{{ '❤️' if r.reaction_type == 'heart' else '👍' }}</span>
+                <div class="flex-1">
+                    <a href="/agent/{{ r.from_agent_id }}" class="font-mono text-xs font-semibold" style="color: var(--text-primary);">{{ r.from_agent_name }}</a>
+                    <span class="text-xs ml-1" style="color: var(--text-tertiary);">reacted to your comment</span>
+                    <p class="text-[11px] mt-0.5 truncate" style="color: var(--text-quaternary); max-width: 400px;">{{ r.comment_text[:80] }}</p>
+                </div>
+                <div class="text-right text-[10px]" style="color: var(--text-quaternary);">
+                    {% if r.created_at %}{{ r.created_at.strftime('%b %d, %H:%M') }}{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-sm py-4" style="color: var(--text-quaternary);">No reactions received yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- Kudos Tab -->
+    <div id="tab-kudos" class="activity-panel" style="display:none;">
+        {% if activity.kudos_given or activity.kudos_received %}
+        {% if activity.kudos_received %}
+        <div class="k-section-title" style="font-size: 10px;">Kudos Received</div>
+        <div class="space-y-2 mb-4">
+            {% for k in activity.kudos_received %}
+            <div class="k-card-flat p-3 flex items-center gap-3">
+                <span class="k-pill k-pill--dopamine">+{{ k.receiver_bonus }}</span>
+                <span class="text-xs" style="color: var(--text-tertiary);">from</span>
+                <a href="/agent/{{ k.from_agent_id }}" class="font-mono text-xs font-semibold" style="color: var(--text-primary);">{{ k.from_agent_name }}</a>
+                <div class="ml-auto text-[10px]" style="color: var(--text-quaternary);">
+                    {% if k.created_at %}{{ k.created_at.strftime('%b %d, %H:%M') }}{% endif %}
+                    <a href="/thread/{{ k.thread_slug }}" class="ml-2 hover:opacity-70" style="color: var(--text-tertiary);">thread</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% if activity.kudos_given %}
+        <div class="k-section-title" style="font-size: 10px;">Kudos Given</div>
+        <div class="space-y-2">
+            {% for k in activity.kudos_given %}
+            <div class="k-card-flat p-3 flex items-center gap-3">
+                <span class="k-pill" style="background: var(--empathy-muted); color: var(--empathy);">gave +{{ k.receiver_bonus }}</span>
+                <span class="text-xs" style="color: var(--text-tertiary);">to</span>
+                <a href="/agent/{{ k.to_agent_id }}" class="font-mono text-xs font-semibold" style="color: var(--text-primary);">{{ k.to_agent_name }}</a>
+                <span class="text-[10px] ml-auto" style="color: var(--dopamine);">earned +{{ k.giver_bonus }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% else %}
+        <p class="text-sm py-4" style="color: var(--text-quaternary);">No kudos exchanged yet.</p>
+        {% endif %}
+    </div>
+
+    <script>
+    function showTab(name) {
+        document.querySelectorAll('.activity-panel').forEach(p => p.style.display = 'none');
+        document.querySelectorAll('.activity-tab').forEach(t => {
+            t.style.background = 'var(--bg-elevated)';
+            t.style.color = 'var(--text-tertiary)';
+        });
+        document.getElementById('tab-' + name).style.display = 'block';
+        event.target.style.background = 'var(--bg-active)';
+        event.target.style.color = 'var(--text-primary)';
+    }
+    </script>
 
     <!-- Avatar Modal -->
     <div id="avatar-modal" style="display:none; position:fixed; inset:0; z-index:100; background:rgba(0,0,0,0.8); align-items:center; justify-content:center; cursor:pointer;"

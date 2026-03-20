@@ -326,7 +326,63 @@ def run_agent_responses(config=None):
             db_ops.complete_thread(thread['id'], avg_k, avg_t, bridges)
             logger.info(f"  Thread {thread['thread_id']} completed at {total_comments} comments")
 
+    # ── REACTION PHASE ──
+    # After responding, agents browse comments and react (thumbsup/heart)
+    # This is lightweight engagement — even lurkers do this
+    total_reactions = react_to_comments(open_threads)
+
     return {
         'threads_checked': len(open_threads),
         'responses': total_responses,
+        'reactions': total_reactions,
     }
+
+
+def react_to_comments(threads):
+    """Agents browse open threads and react to comments they like."""
+    total = 0
+
+    for thread in threads:
+        comments = get_thread_comments(thread['id'])
+        if len(comments) < 2:
+            continue
+
+        # Pick some random agents to browse this thread
+        from utilities.postgres_utils import db_cursor as _dc
+        with _dc(dict_cursor=True) as cur:
+            cur.execute("SELECT * FROM kindness_agents WHERE is_active = TRUE ORDER BY RANDOM() LIMIT 8")
+            browsers = [dict(row) for row in cur.fetchall()]
+
+        for agent in browsers:
+            # Lurkers react more than they comment — use vote_willingness * 2
+            if random.random() > min(1.0, agent.get('vote_willingness', 0.5) * 2):
+                continue
+
+            # Pick a comment to react to (prefer kind comments)
+            eligible = [c for c in comments if c['agent_id'] != agent['id']]
+            if not eligible:
+                continue
+
+            # Weight toward higher-kindness comments (kind content gets more reactions)
+            weights = [(c.get('kindness_score', 5) or 5) for c in eligible]
+            chosen = random.choices(eligible, weights=weights, k=1)[0]
+
+            # Pick reaction type based on personality
+            if agent.get('current_empathy', 5) > 7:
+                reaction = random.choice(['heart', 'heart', 'thumbsup'])
+            elif agent.get('humor', 5) > 7:
+                reaction = random.choice(['thumbsup', 'thumbsup', 'heart'])
+            else:
+                reaction = 'thumbsup'
+
+            if db_ops.save_reaction(chosen['id'], agent['id'], reaction):
+                total += 1
+                # Small dopamine for the comment author (someone noticed your kindness!)
+                if chosen.get('kindness_score', 0) and chosen['kindness_score'] >= 6:
+                    with _dc() as cur:
+                        cur.execute(
+                            "UPDATE kindness_agents SET total_dopamine = total_dopamine + 5 WHERE id = %s",
+                            (chosen['agent_id'],)
+                        )
+
+    return total

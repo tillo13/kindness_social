@@ -113,6 +113,23 @@
                 {% if c.created_at %}
                 <span class="text-[10px] text-gray-600 ml-1">{{ c.created_at.strftime('%H:%M') }}</span>
                 {% endif %}
+
+                <!-- Reactions -->
+                {% set comment_reactions = reactions.get(c.id, {}) %}
+                {% if comment_reactions %}
+                <span class="ml-2 flex items-center gap-1.5">
+                    {% if comment_reactions.get('thumbsup') %}
+                    <span class="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full" style="background: var(--bg-active); color: var(--text-tertiary);">
+                        👍 {{ comment_reactions['thumbsup'] }}
+                    </span>
+                    {% endif %}
+                    {% if comment_reactions.get('heart') %}
+                    <span class="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full" style="background: var(--bg-active); color: var(--toxicity);">
+                        ❤️ {{ comment_reactions['heart'] }}
+                    </span>
+                    {% endif %}
+                </span>
+                {% endif %}
             </div>
         </div>
         {% endfor %}

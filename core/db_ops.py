@@ -593,6 +593,137 @@ def add_roadmap_comment(section_idx, author_name, comment_text, author_type='ano
         """, (section_idx, author_name[:100], author_type, comment_text[:2000]))
 
 
+def save_reaction(comment_db_id, agent_db_id, reaction_type='thumbsup'):
+    """Save a reaction (thumbsup, heart) on a comment."""
+    with db_cursor() as cur:
+        cur.execute("""
+            INSERT INTO kindness_reactions (comment_id, agent_id, reaction_type)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (comment_id, agent_id) DO NOTHING
+        """, (comment_db_id, agent_db_id, reaction_type))
+        return cur.rowcount > 0  # True if new reaction, False if already existed
+
+
+def get_comment_reactions(comment_db_id):
+    """Get all reactions on a comment."""
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("""
+            SELECT r.reaction_type, r.created_at,
+                   a.agent_id, a.display_name, a.color_hex
+            FROM kindness_reactions r
+            JOIN kindness_agents a ON r.agent_id = a.id
+            WHERE r.comment_id = %s
+            ORDER BY r.created_at
+        """, (comment_db_id,))
+        return [dict(row) for row in cur.fetchall()]
+
+
+def get_reactions_for_thread(thread_db_id):
+    """Get all reactions grouped by comment for a thread."""
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("""
+            SELECT r.comment_id, r.reaction_type, COUNT(*) as count
+            FROM kindness_reactions r
+            JOIN kindness_comments c ON r.comment_id = c.id
+            WHERE c.thread_id = %s
+            GROUP BY r.comment_id, r.reaction_type
+        """, (thread_db_id,))
+        # Build a dict: {comment_id: {'thumbsup': N, 'heart': N}}
+        result = {}
+        for row in cur.fetchall():
+            cid = row['comment_id']
+            if cid not in result:
+                result[cid] = {}
+            result[cid][row['reaction_type']] = row['count']
+        return result
+
+
+def get_agent_full_activity(agent_id, limit=50):
+    """Get ALL activity for an agent: comments, reactions given, reactions received, kudos."""
+    with db_cursor(dict_cursor=True) as cur:
+        # Get agent DB id
+        cur.execute("SELECT id FROM kindness_agents WHERE agent_id = %s", (agent_id,))
+        row = cur.fetchone()
+        if not row:
+            return {'comments': [], 'reactions_given': [], 'reactions_received': [], 'kudos_given': [], 'kudos_received': []}
+        db_id = row['id']
+
+        # Comments
+        cur.execute("""
+            SELECT c.*, t.thread_id as thread_slug, tp.post_text as topic_text, tp.topic_type
+            FROM kindness_comments c
+            JOIN kindness_threads t ON c.thread_id = t.id
+            JOIN kindness_topics tp ON t.topic_id = tp.id
+            WHERE c.agent_id = %s
+            ORDER BY c.created_at DESC LIMIT %s
+        """, (db_id, limit))
+        comments = [dict(row) for row in cur.fetchall()]
+
+        # Reactions given
+        cur.execute("""
+            SELECT r.reaction_type, r.created_at,
+                   c.comment_text, c.id as comment_id,
+                   a2.agent_id as to_agent_id, a2.display_name as to_agent_name,
+                   t.thread_id as thread_slug
+            FROM kindness_reactions r
+            JOIN kindness_comments c ON r.comment_id = c.id
+            JOIN kindness_agents a2 ON c.agent_id = a2.id
+            JOIN kindness_threads t ON c.thread_id = t.id
+            WHERE r.agent_id = %s
+            ORDER BY r.created_at DESC LIMIT %s
+        """, (db_id, limit))
+        reactions_given = [dict(row) for row in cur.fetchall()]
+
+        # Reactions received on my comments
+        cur.execute("""
+            SELECT r.reaction_type, r.created_at,
+                   c.comment_text, c.id as comment_id,
+                   a2.agent_id as from_agent_id, a2.display_name as from_agent_name,
+                   t.thread_id as thread_slug
+            FROM kindness_reactions r
+            JOIN kindness_comments c ON r.comment_id = c.id
+            JOIN kindness_agents a2 ON r.agent_id = a2.id
+            JOIN kindness_threads t ON c.thread_id = t.id
+            WHERE c.agent_id = %s
+            ORDER BY r.created_at DESC LIMIT %s
+        """, (db_id, limit))
+        reactions_received = [dict(row) for row in cur.fetchall()]
+
+        # Kudos given
+        cur.execute("""
+            SELECT pk.receiver_bonus, pk.giver_bonus, pk.created_at,
+                   a2.agent_id as to_agent_id, a2.display_name as to_agent_name,
+                   t.thread_id as thread_slug
+            FROM kindness_peer_kudos pk
+            JOIN kindness_agents a2 ON pk.receiver_id = a2.id
+            JOIN kindness_threads t ON pk.thread_id = t.id
+            WHERE pk.giver_id = %s
+            ORDER BY pk.created_at DESC LIMIT %s
+        """, (db_id, limit))
+        kudos_given = [dict(row) for row in cur.fetchall()]
+
+        # Kudos received
+        cur.execute("""
+            SELECT pk.receiver_bonus, pk.giver_bonus, pk.created_at,
+                   a2.agent_id as from_agent_id, a2.display_name as from_agent_name,
+                   t.thread_id as thread_slug
+            FROM kindness_peer_kudos pk
+            JOIN kindness_agents a2 ON pk.giver_id = a2.id
+            JOIN kindness_threads t ON pk.thread_id = t.id
+            WHERE pk.receiver_id = %s
+            ORDER BY pk.created_at DESC LIMIT %s
+        """, (db_id, limit))
+        kudos_received = [dict(row) for row in cur.fetchall()]
+
+        return {
+            'comments': comments,
+            'reactions_given': reactions_given,
+            'reactions_received': reactions_received,
+            'kudos_given': kudos_given,
+            'kudos_received': kudos_received,
+        }
+
+
 def get_telemetry_summary():
     """Get aggregate telemetry stats for the metrics dashboard."""
     with db_cursor(dict_cursor=True) as cur:

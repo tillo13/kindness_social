@@ -81,7 +81,9 @@ def view_thread(thread_id):
     thread = db_ops.get_thread_with_comments(thread_id)
     if not thread:
         return "Thread not found", 404
-    return render_template('thread.html', thread=thread)
+    # Get reactions for all comments in this thread
+    reactions = db_ops.get_reactions_for_thread(thread['id']) if thread else {}
+    return render_template('thread.html', thread=thread, reactions=reactions)
 
 
 @app.route('/agents')
@@ -98,8 +100,8 @@ def view_agent(agent_id):
     agent = db_ops.get_agent(agent_id)
     if not agent:
         return "Agent not found", 404
-    history = db_ops.get_agent_history(agent_id, limit=30)
-    return render_template('agent.html', agent=agent, history=history)
+    activity = db_ops.get_agent_full_activity(agent_id, limit=30)
+    return render_template('agent.html', agent=agent, activity=activity)
 
 
 # ============================================================================
