@@ -19,16 +19,16 @@
     --bg-hover:      #212736;
     --bg-active:     #282f3e;
 
-    /* Borders — barely there */
-    --border-subtle:  rgba(255, 255, 255, 0.06);
-    --border-default: rgba(255, 255, 255, 0.09);
-    --border-strong:  rgba(255, 255, 255, 0.14);
+    /* Borders — visible but subtle */
+    --border-subtle:  rgba(255, 255, 255, 0.10);
+    --border-default: rgba(255, 255, 255, 0.15);
+    --border-strong:  rgba(255, 255, 255, 0.22);
 
-    /* Text — warm grays, not pure white */
-    --text-primary:    #e8e4df;
-    --text-secondary:  #9b9590;
-    --text-tertiary:   #6b6560;
-    --text-quaternary: #4a4540;
+    /* Text — high contrast warm grays */
+    --text-primary:    #ece8e3;
+    --text-secondary:  #b0aaa4;
+    --text-tertiary:   #8a8480;
+    --text-quaternary: #6a6460;
 
     /* Semantic accents — all desaturated, scientific */
     --kindness:        #7fbc8c;  /* sage green */
