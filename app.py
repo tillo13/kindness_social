@@ -153,6 +153,18 @@ def cron_generate_thread():
     return jsonify(result)
 
 
+@app.route('/api/cron/agent-responses')
+def cron_agent_responses():
+    """Cron: Agents check open threads and decide whether to respond."""
+    if not is_cron_request():
+        return "Forbidden", 403
+
+    from core.responder import run_agent_responses
+    logger.info("Cron: running agent responses...")
+    result = run_agent_responses()
+    return jsonify(result)
+
+
 @app.route('/api/cron/hourly-metrics')
 def cron_hourly_metrics():
     """Cron: Calculate and save hourly aggregate metrics."""

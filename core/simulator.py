@@ -128,11 +128,19 @@ def run_thread(config=None):
         thread_history, thread_db_id, config
     )
 
-    # Complete thread
+    # DON'T mark complete — leave thread open for agent responses
+    # Set initial stats but keep is_complete = FALSE
     n = len(participants)
     avg_k = total_kindness / n if n else 0
     avg_t = total_toxicity / n if n else 0
-    db_ops.complete_thread(thread_db_id, avg_k, avg_t, bridge_events)
+    from utilities.postgres_utils import db_cursor as _dc
+    with _dc() as cur:
+        cur.execute("""
+            UPDATE kindness_threads SET
+                avg_kindness = %s, avg_toxicity = %s, bridge_events = %s,
+                expires_at = NOW() + INTERVAL '12 hours'
+            WHERE id = %s
+        """, (avg_k, avg_t, bridge_events, thread_db_id))
 
     summary = {
         'thread_id': thread_slug,
