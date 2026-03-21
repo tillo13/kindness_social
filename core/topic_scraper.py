@@ -1,17 +1,17 @@
 """
 Topic Scraper — Finds fresh trending topics from the web and adds them to the experiment.
-Uses DuckDuckGo news search (free, no API key) + Grok (free, via Cloud Run) to generate
-discussion prompts from real headlines.
+Sources: DuckDuckGo news (free, no API key) + Reddit (via reddit_scraper) + Grok (via Cloud Run)
+to generate discussion prompts from real headlines and hot posts.
 """
 
-import json
 import hashlib
 import logging
+import random
 import time
 
 logger = logging.getLogger(__name__)
 
-# Search queries to rotate through — diverse topic sources
+# DDG search queries — diverse topic sources
 # Balanced mix: ~40% controversial, ~30% good news, ~20% everyday, ~10% bridge building
 SEARCH_QUERIES = [
     # Controversial (4)
@@ -30,10 +30,24 @@ SEARCH_QUERIES = [
     "people coming together across differences news",
 ]
 
+# Reddit searches — subreddits and queries that produce good discussion topics
+REDDIT_SEARCHES = [
+    # Controversial / debate
+    {'query': 'unpopular opinion', 'subreddit': 'unpopularopinion', 'sort': 'hot', 'time_filter': 'week'},
+    {'query': '', 'subreddit': 'changemyview', 'sort': 'hot', 'time_filter': 'week'},
+    {'query': 'debate', 'subreddit': 'TooAfraidToAsk', 'sort': 'hot', 'time_filter': 'week'},
+    {'query': '', 'subreddit': 'AmItheAsshole', 'sort': 'hot', 'time_filter': 'week'},
+    # Good news / positive
+    {'query': '', 'subreddit': 'UpliftingNews', 'sort': 'hot', 'time_filter': 'week'},
+    {'query': '', 'subreddit': 'MadeMeSmile', 'sort': 'hot', 'time_filter': 'week'},
+    # Everyday
+    {'query': '', 'subreddit': 'NoStupidQuestions', 'sort': 'hot', 'time_filter': 'week'},
+    {'query': 'opinion', 'subreddit': 'AskReddit', 'sort': 'hot', 'time_filter': 'week'},
+]
+
 
 def fetch_headlines(max_results=10):
     """Fetch trending headlines from DuckDuckGo news search."""
-    import random
     try:
         from ddgs import DDGS
         query = random.choice(SEARCH_QUERIES)
@@ -45,6 +59,58 @@ def fetch_headlines(max_results=10):
                 for r in results if r.get('title')]
     except Exception as e:
         logger.warning(f"DDG search failed: {e}")
+        return []
+
+
+def fetch_reddit_posts(max_results=5):
+    """Fetch trending Reddit posts via old.reddit.com JSON API. No dependencies beyond requests."""
+    import requests as http_req
+
+    search = random.choice(REDDIT_SEARCHES)
+    subreddit = search.get('subreddit', '')
+    query = search['query'] or subreddit
+    logger.info(f"Searching Reddit: r/{subreddit} q={query}")
+
+    try:
+        if subreddit:
+            url = f"https://old.reddit.com/r/{subreddit}/search.json"
+            params = {'q': query, 'sort': search.get('sort', 'hot'),
+                      't': search.get('time_filter', 'week'), 'limit': max_results,
+                      'restrict_sr': 'on', 'type': 'link'}
+        else:
+            url = "https://old.reddit.com/search.json"
+            params = {'q': query, 'sort': search.get('sort', 'hot'),
+                      't': search.get('time_filter', 'week'), 'limit': max_results,
+                      'type': 'link'}
+
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+                          'AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'
+        }
+        resp = http_req.get(url, params=params, headers=headers, timeout=15)
+        if not resp.ok:
+            logger.warning(f"Reddit search HTTP {resp.status_code}")
+            return []
+
+        data = resp.json()
+        posts = []
+        for child in data.get('data', {}).get('children', []):
+            d = child['data']
+            if d.get('score', 0) < 10 or d.get('num_comments', 0) < 5:
+                continue
+            if d.get('over_18', False):
+                continue
+            permalink = d.get('permalink', '')
+            posts.append({
+                'title': d.get('title', ''),
+                'body': (d.get('selftext', '') or '')[:200],
+                'source': f"r/{d.get('subreddit', '')}",
+                'url': f"https://reddit.com{permalink}" if permalink else '',
+            })
+        logger.info(f"Reddit: found {len(posts)} posts from r/{subreddit}")
+        return posts
+    except Exception as e:
+        logger.warning(f"Reddit search failed: {e}")
         return []
 
 
@@ -95,7 +161,7 @@ def headline_to_topic(headline, worker_url):
 
 
 def scrape_and_add_topics(worker_url, max_new=5):
-    """Main function: scrape headlines, convert to topics, add to DB."""
+    """Main function: scrape from DDG + Reddit, convert to topics, add to DB."""
     from core.db_ops import log_cron_start, log_cron_end
     from utilities.postgres_utils import db_cursor
 
@@ -103,10 +169,24 @@ def scrape_and_add_topics(worker_url, max_new=5):
     start = time.time()
 
     try:
-        headlines = fetch_headlines(max_results=10)
+        # Alternate sources: ~60% DDG news, ~40% Reddit posts
+        headlines = []
+        source_used = 'ddg'
+        if random.random() < 0.4:
+            headlines = fetch_reddit_posts(max_results=10)
+            source_used = 'reddit'
+        if not headlines:
+            headlines = fetch_headlines(max_results=10)
+            source_used = 'ddg' if source_used == 'ddg' else 'ddg_fallback'
+        if not headlines:
+            # Try the other source as last resort
+            headlines = fetch_reddit_posts(max_results=10) if source_used == 'ddg' else []
+            if headlines:
+                source_used = 'reddit_fallback'
+
         if not headlines:
             ms = int((time.time() - start) * 1000)
-            log_cron_end(log_id, 'skipped', ms, 'No headlines found')
+            log_cron_end(log_id, 'skipped', ms, 'No headlines found from DDG or Reddit')
             return {'added': 0, 'reason': 'no headlines'}
 
         added = 0
@@ -142,8 +222,8 @@ def scrape_and_add_topics(worker_url, max_new=5):
             logger.info(f"Added topic: [{topic['category']}] {topic['text'][:60]}...")
 
         ms = int((time.time() - start) * 1000)
-        log_cron_end(log_id, 'ok', ms, f'Added {added} topics, skipped {skipped}',
-                     {'added': added, 'skipped': skipped, 'headlines_found': len(headlines)})
+        log_cron_end(log_id, 'ok', ms, f'Added {added} topics, skipped {skipped} (source: {source_used})',
+                     {'added': added, 'skipped': skipped, 'headlines_found': len(headlines), 'source': source_used})
         return {'added': added, 'skipped': skipped}
 
     except Exception as e:

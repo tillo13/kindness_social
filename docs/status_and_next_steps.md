@@ -127,7 +127,7 @@ Prior results: 55% toxicity reduction in 69 hours with 20 agents and 1 local LLM
 - [x] **24-hour summary card** on home page — shows comments, threads, agents improved, avg kindness, dopamine in last 24h
 - [x] **Featured thread showcase** — surfaces thread with biggest toxicity swing (6→1 = -5 swing)
 - [x] **Reaction rewards tuning** — tiered: +5/+10/+15 by kindness score, +3 heart bonus, +10 bridge bonus (max 25 per reaction)
-- [ ] **Reddit scraper integration** — add Reddit trending posts as topic source alongside DDG
+- [x] **Reddit scraper integration** — 40% Reddit / 60% DDG with fallback. Sources: AITA, CMV, UnpopularOpinion, UpliftingNews, MadeMeSmile, NoStupidQuestions, AskReddit, TooAfraidToAsk
 
 ### Phase 2
 - [ ] **Daily email digest** — what happened overnight, who improved, top moments
