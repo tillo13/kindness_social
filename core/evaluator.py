@@ -47,8 +47,12 @@ def generate_comment(persona, topic, thread_history, position, config):
             + f"\n\nYou are replying to {last_speaker}'s comment above."
         )
 
-    prompt_template = _load_prompt('generate_comment.txt')
-    prompt = prompt_template.format(
+    # Control group gets no reward context in their prompt
+    is_control = persona.get('is_control', False)
+    prompt_file = 'generate_comment_control.txt' if is_control else 'generate_comment.txt'
+    prompt_template = _load_prompt(prompt_file)
+
+    fmt = dict(
         persona_name=persona['display_name'],
         political_lean=persona['political_lean'],
         current_toxicity=persona['current_toxicity'],
@@ -62,10 +66,14 @@ def generate_comment(persona, topic, thread_history, position, config):
         topic_post=topic['post_text'],
         reply_context=reply_context,
         position=position + 1,
-        total_dopamine=persona['total_dopamine'],
-        kindness_streak=persona['kindness_streak'],
         common_phrases=', '.join(persona.get('common_phrases', [])[:2]),
     )
+    # Treatment group gets reward context; control group prompt doesn't have these fields
+    if not is_control:
+        fmt['total_dopamine'] = persona['total_dopamine']
+        fmt['kindness_streak'] = persona['kindness_streak']
+
+    prompt = prompt_template.format(**fmt)
 
     backend = persona.get('llm_backend', 'gemini')
     messages = [{"role": "user", "content": prompt}]

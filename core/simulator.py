@@ -286,10 +286,13 @@ def calculate_dopamine(scores, persona, position, thread_history, config):
 
 
 def update_persona(persona, scores, dopamine):
-    """Update persona state based on interaction. Same logic as original."""
+    """Update persona state based on interaction.
+    Control group agents still track dopamine/streaks for measurement,
+    but do NOT get personality evolution (the neural rewiring)."""
     persona['total_dopamine'] = persona.get('total_dopamine', 0) + dopamine
+    is_control = persona.get('is_control', False)
 
-    # Update streaks
+    # Update streaks (both groups — for measurement)
     if scores['kindness'] >= 7:
         persona['kindness_streak'] = persona.get('kindness_streak', 0) + 1
         persona['toxicity_streak'] = 0
@@ -297,7 +300,11 @@ def update_persona(persona, scores, dopamine):
         persona['toxicity_streak'] = persona.get('toxicity_streak', 0) + 1
         persona['kindness_streak'] = 0
 
-    # Neural rewiring
+    # Neural rewiring — TREATMENT GROUP ONLY
+    # Control group personalities stay frozen at baseline
+    if is_control:
+        return
+
     if dopamine > 10:
         reduction = 0.05 * persona['openness_to_change']
         if dopamine > 30:

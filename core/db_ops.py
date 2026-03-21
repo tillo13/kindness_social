@@ -1031,6 +1031,37 @@ def get_cron_summary():
 # AGENT SNAPSHOTS (for evolution charts)
 # ============================================================================
 
+def get_control_vs_treatment():
+    """Compare control group vs treatment group metrics."""
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("""
+            SELECT
+                CASE WHEN a.is_control THEN 'control' ELSE 'treatment' END as group_name,
+                COUNT(DISTINCT a.id) as agent_count,
+                AVG(a.current_toxicity) as avg_toxicity,
+                AVG(a.current_empathy) as avg_empathy,
+                AVG(a.toxicity_baseline) as avg_tox_baseline,
+                AVG(a.empathy_baseline) as avg_emp_baseline,
+                AVG(a.toxicity_baseline - a.current_toxicity) as avg_tox_change,
+                AVG(a.current_empathy - a.empathy_baseline) as avg_emp_change,
+                SUM(a.total_dopamine) as total_dopamine,
+                AVG(c.avg_k) as avg_kindness_score,
+                AVG(c.avg_t) as avg_toxicity_score
+            FROM kindness_agents a
+            LEFT JOIN LATERAL (
+                SELECT AVG(kindness_score) as avg_k, AVG(toxicity_score) as avg_t
+                FROM kindness_comments WHERE agent_id = a.id
+            ) c ON TRUE
+            WHERE a.is_active = TRUE AND a.total_interactions > 0
+            GROUP BY a.is_control
+            ORDER BY a.is_control
+        """)
+        results = {}
+        for r in cur.fetchall():
+            results[r['group_name']] = dict(r)
+        return results
+
+
 def snapshot_all_agents(hour_number):
     """Snapshot current state of all active agents. Called hourly."""
     with db_cursor(dict_cursor=True) as cur:

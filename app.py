@@ -82,12 +82,13 @@ def dashboard():
     top_kind = db_ops.get_leaderboard('kindness', 5)
     top_dopamine = db_ops.get_leaderboard('dopamine', 5)
     top_improved = db_ops.get_leaderboard('most_improved', 5)
+    experiment = db_ops.get_control_vs_treatment()
     return render_template('dashboard.html',
                            stats=stats, threads=threads, model_data=model_data,
                            metrics=metrics, reaction_stats=reaction_stats,
                            backend_health=backend_health,
                            top_kind=top_kind, top_dopamine=top_dopamine,
-                           top_improved=top_improved)
+                           top_improved=top_improved, experiment=experiment)
 
 
 @app.route('/leaderboard')
