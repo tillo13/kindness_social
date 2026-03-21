@@ -158,6 +158,20 @@ def create_tables():
                 ON kindness_cron_log(created_at DESC);
             CREATE INDEX IF NOT EXISTS idx_kindness_cron_log_job
                 ON kindness_cron_log(job_name, created_at DESC);
+
+            CREATE TABLE IF NOT EXISTS kindness_agent_snapshots (
+                id SERIAL PRIMARY KEY,
+                agent_id INTEGER REFERENCES kindness_agents(id),
+                hour_number INTEGER NOT NULL,
+                current_toxicity FLOAT,
+                current_empathy FLOAT,
+                total_dopamine INTEGER,
+                total_interactions INTEGER,
+                kindness_streak INTEGER,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_kindness_snapshots_agent
+                ON kindness_agent_snapshots(agent_id, hour_number);
         """)
     logger.info("Kindness tables created/verified")
 
@@ -1010,4 +1024,37 @@ def get_cron_summary():
             GROUP BY job_name
             ORDER BY MAX(created_at) DESC
         """)
+        return [dict(r) for r in cur.fetchall()]
+
+
+# ============================================================================
+# AGENT SNAPSHOTS (for evolution charts)
+# ============================================================================
+
+def snapshot_all_agents(hour_number):
+    """Snapshot current state of all active agents. Called hourly."""
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("""
+            INSERT INTO kindness_agent_snapshots
+                (agent_id, hour_number, current_toxicity, current_empathy,
+                 total_dopamine, total_interactions, kindness_streak)
+            SELECT id, %s, current_toxicity, current_empathy,
+                   total_dopamine, total_interactions, kindness_streak
+            FROM kindness_agents
+            WHERE is_active = TRUE AND total_interactions > 0
+        """, (hour_number,))
+        return cur.rowcount
+
+
+def get_agent_evolution(agent_db_id, limit=168):
+    """Get snapshot history for one agent (default: last 7 days of hourly data)."""
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("""
+            SELECT hour_number, current_toxicity, current_empathy,
+                   total_dopamine, total_interactions, kindness_streak, created_at
+            FROM kindness_agent_snapshots
+            WHERE agent_id = %s
+            ORDER BY hour_number ASC
+            LIMIT %s
+        """, (agent_db_id, limit))
         return [dict(r) for r in cur.fetchall()]

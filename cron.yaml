@@ -20,6 +20,13 @@ cron:
     min_backoff_seconds: 30
     max_doublings: 2
 
+- description: "Snapshot agent personalities for evolution charts"
+  url: /api/cron/snapshot-agents
+  schedule: every 1 hours
+  retry_parameters:
+    min_backoff_seconds: 30
+    max_doublings: 2
+
 - description: "Birth a new agent with random backend"
   url: /api/cron/birth-agent
   schedule: every 6 hours

@@ -36,7 +36,7 @@
        style="background: {{ 'var(--kindness)' if not current_job else 'var(--bg-elevated)' }}; color: {{ '#fff' if not current_job else 'var(--text-secondary)' }};">
         All Jobs
     </a>
-    {% for name in ['generate-thread', 'agent-responses', 'hourly-metrics', 'birth-agent'] %}
+    {% for name in ['generate-thread', 'agent-responses', 'hourly-metrics', 'snapshot-agents', 'birth-agent'] %}
     <a href="/cron-log?job={{ name }}" class="text-xs px-3 py-1 rounded-full transition-all"
        style="background: {{ 'var(--kindness)' if current_job == name else 'var(--bg-elevated)' }}; color: {{ '#fff' if current_job == name else 'var(--text-secondary)' }};">
         {{ name }}

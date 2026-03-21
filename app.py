@@ -160,7 +160,8 @@ def view_agent(agent_id):
     if not agent:
         return "Agent not found", 404
     activity = db_ops.get_agent_full_activity(agent_id, limit=30)
-    return render_template('agent.html', agent=agent, activity=activity)
+    evolution = db_ops.get_agent_evolution(agent['id'])
+    return render_template('agent.html', agent=agent, activity=activity, evolution=evolution)
 
 
 # ============================================================================
@@ -312,6 +313,29 @@ def cron_hourly_metrics():
         ms = int((time.time() - start) * 1000)
         db_ops.log_cron_end(log_id, 'error', ms, error_text=str(e)[:500])
         logger.exception("Cron hourly-metrics failed")
+        return jsonify({'error': str(e)[:200]}), 500
+
+
+@app.route('/api/cron/snapshot-agents')
+def cron_snapshot_agents():
+    """Cron: Snapshot all active agents' personality state for evolution charts."""
+    if not is_cron_request():
+        return "Forbidden", 403
+
+    import time
+    log_id = db_ops.log_cron_start('snapshot-agents')
+    start = time.time()
+
+    try:
+        hour = db_ops.get_hour_count()
+        count = db_ops.snapshot_all_agents(hour)
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'ok', ms, f'Snapshotted {count} agents at hour {hour}')
+        return jsonify({'hour': hour, 'agents_snapshotted': count, 'status': 'ok'})
+    except Exception as e:
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'error', ms, error_text=str(e)[:500])
+        logger.exception("Cron snapshot-agents failed")
         return jsonify({'error': str(e)[:200]}), 500
 
 

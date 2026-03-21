@@ -116,6 +116,14 @@
             {% endfor %}
         </div>
 
+        <!-- Evolution Chart -->
+        {% if evolution and evolution|length > 1 %}
+        <div class="k-section-title">Personality Over Time</div>
+        <div class="mb-7 p-3 rounded-lg" style="background: var(--bg-elevated); border: 1px solid var(--border-subtle);">
+            <canvas id="evolutionChart" height="120"></canvas>
+        </div>
+        {% endif %}
+
         <!-- System Prompt -->
         {% if agent.system_prompt %}
         <div class="k-section-title">System Prompt</div>
@@ -320,5 +328,52 @@
         <a href="/agents" class="text-sm hover:opacity-70 transition-opacity" style="color: var(--kindness);">&larr; All agents</a>
         <a href="/" class="text-sm hover:opacity-70 transition-opacity" style="color: var(--text-quaternary);">Dashboard</a>
     </div>
+    </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% if evolution and evolution|length > 1 %}
+<script>
+var evo = {{ evolution|tojson }};
+var style = getComputedStyle(document.documentElement);
+var gridColor = style.getPropertyValue('--border-subtle').trim() || 'rgba(255,255,255,0.05)';
+var labelColor = style.getPropertyValue('--text-tertiary').trim() || '#9ca3af';
+
+new Chart(document.getElementById('evolutionChart').getContext('2d'), {
+    type: 'line',
+    data: {
+        labels: evo.map(function(s) { return 'Hr ' + s.hour_number; }),
+        datasets: [
+            {
+                label: 'Toxicity',
+                data: evo.map(function(s) { return s.current_toxicity; }),
+                borderColor: style.getPropertyValue('--toxicity').trim(),
+                backgroundColor: 'rgba(196, 122, 122, 0.1)',
+                fill: true, tension: 0.3, pointRadius: 2
+            },
+            {
+                label: 'Empathy',
+                data: evo.map(function(s) { return s.current_empathy; }),
+                borderColor: style.getPropertyValue('--empathy').trim(),
+                backgroundColor: 'rgba(122, 155, 196, 0.1)',
+                fill: true, tension: 0.3, pointRadius: 2
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+            y: { min: 0, max: 10, grid: { color: gridColor }, ticks: { color: labelColor, font: { size: 10 } } },
+            x: { grid: { color: gridColor }, ticks: { color: labelColor, font: { size: 9 }, maxTicksLimit: 12 } }
+        },
+        plugins: {
+            legend: { labels: { color: labelColor, font: { size: 11 } } },
+            tooltip: { callbacks: { label: function(ctx) { return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1); } } }
+        }
+    }
+});
+</script>
+{% endif %}
 {% endblock %}
