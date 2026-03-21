@@ -312,7 +312,7 @@ def update_agent_state(db_id, updates):
 # ============================================================================
 
 def get_random_topic():
-    """Get a random topic with realistic distribution across all types."""
+    """Get a topic prioritizing fresh/unused ones. Newest and least-used get picked first."""
     roll = random.random()
     if roll < 0.35:
         topic_type = 'controversial'
@@ -323,12 +323,22 @@ def get_random_topic():
     else:
         topic_type = 'bridge_building'
     with db_cursor(dict_cursor=True) as cur:
-        cur.execute("""
-            SELECT * FROM kindness_topics
-            WHERE topic_type = %s AND is_approved = TRUE
-            ORDER BY RANDOM()
-            LIMIT 1
-        """, (topic_type,))
+        # 70% chance: pick least-used topic (favors fresh scraped/visitor topics)
+        # 30% chance: pure random (so old topics still get reused sometimes)
+        if random.random() < 0.7:
+            cur.execute("""
+                SELECT * FROM kindness_topics
+                WHERE topic_type = %s AND is_approved = TRUE
+                ORDER BY times_used ASC, created_at DESC
+                LIMIT 1
+            """, (topic_type,))
+        else:
+            cur.execute("""
+                SELECT * FROM kindness_topics
+                WHERE topic_type = %s AND is_approved = TRUE
+                ORDER BY RANDOM()
+                LIMIT 1
+            """, (topic_type,))
         row = cur.fetchone()
         if row:
             # Increment usage counter
