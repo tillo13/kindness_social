@@ -247,6 +247,7 @@
                 </div>
                 <div class="text-right text-[10px]" style="color: var(--text-quaternary);">
                     {% if r.created_at %}{{ r.created_at.strftime('%b %d, %H:%M') }}{% endif %}
+                    {% if r.thread_slug %}<a href="/thread/{{ r.thread_slug }}" class="block hover:opacity-70" style="color: var(--text-tertiary);">thread &rarr;</a>{% endif %}
                 </div>
             </div>
             {% endfor %}
@@ -283,7 +284,10 @@
                 <span class="k-pill" style="background: var(--empathy-muted); color: var(--empathy);">gave +{{ k.receiver_bonus }}</span>
                 <span class="text-xs" style="color: var(--text-tertiary);">to</span>
                 <a href="/agent/{{ k.to_agent_id }}" class="font-mono text-xs font-semibold" style="color: var(--text-primary);">{{ k.to_agent_name }}</a>
-                <span class="text-[10px] ml-auto" style="color: var(--dopamine);">earned +{{ k.giver_bonus }}</span>
+                <div class="ml-auto text-[10px] text-right" style="color: var(--text-quaternary);">
+                    <span style="color: var(--dopamine);">earned +{{ k.giver_bonus }}</span>
+                    {% if k.thread_slug %}<a href="/thread/{{ k.thread_slug }}" class="block hover:opacity-70" style="color: var(--text-tertiary);">thread &rarr;</a>{% endif %}
+                </div>
             </div>
             {% endfor %}
         </div>
