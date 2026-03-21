@@ -122,11 +122,11 @@ Prior results: 55% toxicity reduction in 69 hours with 20 agents and 1 local LLM
 ## Next Steps
 
 ### Immediate (next session)
-- [ ] **Verify light/dark mode** — hard refresh test on live site
+- [x] **Verify light/dark mode** — confirmed working on live site
 - [x] **Check treatment vs control divergence** — treatment toxicity dropped 2.5x more than control, empathy gained 2.1x more. Now shown on home page.
 - [x] **24-hour summary card** on home page — shows comments, threads, agents improved, avg kindness, dopamine in last 24h
 - [x] **Featured thread showcase** — surfaces thread with biggest toxicity swing (6→1 = -5 swing)
-- [ ] **Reaction rewards tuning** — still +5 dp per reaction, may need adjustment
+- [x] **Reaction rewards tuning** — tiered: +5/+10/+15 by kindness score, +3 heart bonus, +10 bridge bonus (max 25 per reaction)
 - [ ] **Reddit scraper integration** — add Reddit trending posts as topic source alongside DDG
 
 ### Phase 2

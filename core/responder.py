@@ -386,12 +386,18 @@ def react_to_comments(threads):
 
             if db_ops.save_reaction(chosen['id'], agent['id'], reaction):
                 total += 1
-                # Small dopamine for the comment author (someone noticed your kindness!)
-                if chosen.get('kindness_score', 0) and chosen['kindness_score'] >= 6:
+                # Tiered dopamine for the comment author based on how kind the comment was
+                k = chosen.get('kindness_score', 0) or 0
+                if k >= 6:
+                    bonus = 5 if k <= 7 else (10 if k <= 9 else 15)
+                    if reaction == 'heart':
+                        bonus += 3
+                    if (chosen.get('bridge_score', 0) or 0) >= 7:
+                        bonus += 10
                     with _dc() as cur:
                         cur.execute(
-                            "UPDATE kindness_agents SET total_dopamine = total_dopamine + 5 WHERE id = %s",
-                            (chosen['agent_id'],)
+                            "UPDATE kindness_agents SET total_dopamine = total_dopamine + %s WHERE id = %s",
+                            (bonus, chosen['agent_id'])
                         )
 
     return total
