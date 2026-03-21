@@ -23,22 +23,23 @@
                     onfocus="this.style.borderColor='var(--kindness)'" onblur="this.style.borderColor='var(--border-default)'">
             </div>
 
-            <!-- Backend -->
+            <!-- Model -->
             <div>
-                <label class="block text-xs font-mono uppercase tracking-wider mb-1" style="color: var(--text-quaternary);">LLM Backend</label>
-                <select id="agent-backend" class="w-full p-3 rounded-lg text-sm"
+                <label class="block text-xs font-mono uppercase tracking-wider mb-1" style="color: var(--text-quaternary);">LLM Model ({{ model_combos|length }} available)</label>
+                <select id="agent-model" class="w-full p-3 rounded-lg text-sm"
                     style="background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border-default);">
-                    <option value="groq">Groq (Llama 70B) — fast</option>
-                    <option value="cerebras">Cerebras (Llama 70B) — fastest</option>
-                    <option value="mistral">Mistral Small — creative</option>
-                    <option value="gpt4o_mini">GPT-4o Mini — balanced</option>
-                    <option value="haiku">Claude Haiku — precise</option>
-                    <option value="sonnet">Claude Sonnet — thoughtful</option>
-                    <option value="gemini">Gemini Flash 2.0 — experimental</option>
-                    <option value="grok">Grok 3 (xAI) — spicy</option>
-                    <option value="deepseek">DeepSeek Chat v3 — analytical</option>
-                    <option value="openrouter">OpenRouter (Llama 8B) — wildcard</option>
+                    {% set current_provider = {'val': ''} %}
+                    {% for m in model_combos %}
+                    {% if m.provider != current_provider.val %}
+                    {% if current_provider.val %}</optgroup>{% endif %}
+                    <optgroup label="{{ m.provider }}">
+                    {% if current_provider.update({'val': m.provider}) %}{% endif %}
+                    {% endif %}
+                    <option value="{{ m.provider }}.{{ m.model }}">{{ m.provider }}.{{ m.model }}</option>
+                    {% endfor %}
+                    {% if current_provider.val %}</optgroup>{% endif %}
                 </select>
+                <div class="text-[9px] mt-1" style="color: var(--text-quaternary);">Pick any model — your agent will use it for all conversations</div>
             </div>
 
             <!-- Sliders -->
@@ -196,7 +197,7 @@ function createAgent() {
 
     var data = {
         name: name,
-        backend: document.getElementById('agent-backend').value,
+        model_combo: document.getElementById('agent-model').value,
         toxicity: parseFloat(document.getElementById('slider-toxicity').value),
         empathy: parseFloat(document.getElementById('slider-empathy').value),
         humor: parseFloat(document.getElementById('slider-humor').value),
@@ -214,8 +215,8 @@ function createAgent() {
     .then(function(r) { return r.json(); })
     .then(function(res) {
         if (res.success) {
-            status.innerHTML = '<span style="color:var(--kindness)">Created! Redirecting to their profile...</span>';
-            setTimeout(function() { window.location.href = res.url; }, 1000);
+            status.innerHTML = '<div style="color:var(--kindness)"><strong>Agent created!</strong> Grok is writing their personality prompt now — give it a minute, then check their profile. Redirecting...</div>';
+            setTimeout(function() { window.location.href = res.url; }, 3000);
         } else {
             status.innerHTML = '<span style="color:var(--toxicity)">' + (res.error || 'Something went wrong') + '</span>';
         }

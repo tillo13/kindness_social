@@ -533,7 +533,17 @@ def cron_daily_digest():
 @app.route('/create')
 def create_page():
     """Public page: design a custom agent with personality sliders."""
-    return render_template('create.html')
+    from utilities.postgres_utils import db_cursor
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("""
+            SELECT DISTINCT
+                SPLIT_PART(agent_id, '.', 1) as provider,
+                SPLIT_PART(agent_id, '.', 2) as model
+            FROM kindness_agents WHERE is_active = TRUE
+            ORDER BY provider, model
+        """)
+        model_combos = [dict(r) for r in cur.fetchall()]
+    return render_template('create.html', model_combos=model_combos)
 
 
 @app.route('/api/create-agent', methods=['POST'])
@@ -560,21 +570,29 @@ def api_create_agent():
     curiosity = clamp(data.get('curiosity', 5), 1, 10)
     defensiveness = clamp(data.get('defensiveness', 5), 1, 10)
     agreeableness = clamp(data.get('agreeableness', 5), 1, 10)
-    backend = data.get('backend', 'groq')
+    model_combo = (data.get('model_combo', '') or '').strip()
+    if not model_combo or '.' not in model_combo:
+        model_combo = 'groq.llama70b'
 
-    from core.agent_factory import BACKEND_NAMING
-    ALL_BACKENDS = list(BACKEND_NAMING.keys())
-    if backend not in ALL_BACKENDS:
-        backend = 'groq'
+    parts = model_combo.split('.', 1)
+    provider = parts[0]
+    model_short = parts[1] if len(parts) > 1 else 'unknown'
 
-    provider, model_short = BACKEND_NAMING.get(backend, ('unknown', backend))
+    # Map provider to backend for LLM routing
+    PROVIDER_TO_BACKEND = {
+        'groq': 'groq', 'cerebras': 'cerebras', 'mistral': 'mistral',
+        'openai': 'gpt4o_mini', 'anthropic': 'haiku', 'google': 'gemini',
+        'openrouter': 'openrouter', 'xai': 'grok', 'deepseek': 'deepseek',
+    }
+    backend = PROVIDER_TO_BACKEND.get(provider, 'groq')
+
     import random
+    from utilities.postgres_utils import db_cursor
 
     for _ in range(10):
         suffix = random.randint(100, 999)
         agent_id = f"{provider}.{model_short}.{suffix}"
 
-        from utilities.postgres_utils import db_cursor
         with db_cursor(dict_cursor=True) as cur:
             cur.execute("SELECT id FROM kindness_agents WHERE agent_id = %s", (agent_id,))
             if cur.fetchone():
