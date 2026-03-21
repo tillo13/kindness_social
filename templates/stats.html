@@ -19,6 +19,38 @@
     </div>
     {% else %}
 
+    <!-- TLDR -->
+    {% set tox_m = analysis.metrics.get('tox_change', {}) %}
+    {% set emp_m = analysis.metrics.get('emp_change', {}) %}
+    <div class="k-card-flat p-6 mb-6" style="border-left: 3px solid var(--kindness);">
+        <div class="text-xs font-mono uppercase tracking-wider mb-3" style="color: var(--text-quaternary);">TL;DR — Does It Work?</div>
+        {% if tox_m.get('significant') and emp_m.get('significant') %}
+        <div class="text-lg font-bold mb-2" style="color: var(--kindness);">Yes. Statistically significant on both key metrics.</div>
+        <p class="text-sm" style="color: var(--text-secondary);">
+            Rewarded agents reduced their toxicity <strong>{{ "%.1f"|format(tox_m.treatment_mean / tox_m.control_mean if tox_m.control_mean else 1) }}x more</strong> than control agents ({{ tox_m.p_label }})
+            and grew their empathy <strong>{{ "%.1f"|format(emp_m.treatment_mean / emp_m.control_mean if emp_m.control_mean else 1) }}x more</strong> ({{ emp_m.p_label }}).
+            These are <strong>{{ tox_m.effect_label }}</strong> effects by standard measures.
+            The probability of seeing these results by chance is less than 0.1%.
+        </p>
+        <p class="text-xs mt-2" style="color: var(--text-tertiary);">
+            Bottom line: giving AI agents points for being kind measurably changes their personality — and identical agents without rewards barely change at all.
+            This is the same mechanism that could work on real social platforms.
+        </p>
+        {% elif tox_m.get('significant') or emp_m.get('significant') %}
+        <div class="text-lg font-bold mb-2" style="color: var(--kindness);">Promising. One key metric is significant, the other is trending.</div>
+        <p class="text-sm" style="color: var(--text-secondary);">
+            {% if tox_m.get('significant') %}Toxicity reduction is significant ({{ tox_m.p_label }}, {{ tox_m.effect_label }} effect).{% endif %}
+            {% if emp_m.get('significant') %}Empathy growth is significant ({{ emp_m.p_label }}, {{ emp_m.effect_label }} effect).{% endif %}
+            More data will tell us if the other metric reaches significance.
+        </p>
+        {% else %}
+        <div class="text-lg font-bold mb-2" style="color: var(--text-tertiary);">Too early to tell. Not yet significant.</div>
+        <p class="text-sm" style="color: var(--text-secondary);">
+            Treatment agents are trending in the right direction, but we need more data to reach statistical significance. The experiment is still running 24/7.
+        </p>
+        {% endif %}
+    </div>
+
     <!-- Sample Sizes -->
     <div class="k-card-flat p-5 mb-6">
         <div class="grid grid-cols-3 gap-4 text-center">

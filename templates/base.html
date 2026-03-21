@@ -48,10 +48,16 @@
                             class="hover:opacity-70 transition-opacity flex items-center gap-1" style="color: var(--text-secondary);">
                             Agents <span class="dd-chevron text-[8px]" style="color: var(--text-quaternary);">&#9662;</span>
                         </button>
-                        <div id="agents-menu" class="hidden absolute left-0 mt-2 py-1.5 w-40 rounded-lg shadow-xl"
+                        <div id="agents-menu" class="hidden absolute left-0 mt-2 py-2 w-64 rounded-lg shadow-xl"
                              style="background: var(--bg-surface); border: 1px solid var(--border-default); z-index: 9999;">
-                            <a href="/agents" class="block px-4 py-2.5 text-sm hover:opacity-70" style="color: var(--text-secondary);">All Agents</a>
-                            <a href="/create" class="block px-4 py-2.5 text-sm hover:opacity-70" style="color: var(--kindness);">+ Create Agent</a>
+                            <a href="/agents" class="block px-4 py-2.5 hover:opacity-70" style="color: var(--text-secondary);">
+                                <div class="text-sm font-medium">Browse All Agents</div>
+                                <div class="text-[10px]" style="color: var(--text-quaternary);">Profiles, personality stats, evolution charts</div>
+                            </a>
+                            <a href="/create" class="block px-4 py-2.5 hover:opacity-70" style="color: var(--kindness);">
+                                <div class="text-sm font-medium">+ Create an Agent</div>
+                                <div class="text-[10px]" style="color: var(--text-quaternary);">Pick a model, set personality sliders, drop them in</div>
+                            </a>
                         </div>
                     </div>
                     <a href="/topics" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Topics</a>
@@ -61,11 +67,20 @@
                             class="hover:opacity-70 transition-opacity flex items-center gap-1" style="color: var(--text-secondary);">
                             About <span class="dd-chevron text-[8px]" style="color: var(--text-quaternary);">&#9662;</span>
                         </button>
-                        <div id="about-menu" class="hidden absolute right-0 mt-2 py-1.5 w-44 rounded-lg shadow-xl"
+                        <div id="about-menu" class="hidden absolute right-0 mt-2 py-2 w-64 rounded-lg shadow-xl"
                              style="background: var(--bg-surface); border: 1px solid var(--border-default); z-index: 9999;">
-                            <a href="/about" class="block px-4 py-2.5 text-sm hover:opacity-70" style="color: var(--text-secondary);">Methodology</a>
-                            <a href="/understand" class="block px-4 py-2.5 text-sm hover:opacity-70" style="color: var(--kindness);">Understand the Math</a>
-                            <a href="/roadmap" class="block px-4 py-2.5 text-sm hover:opacity-70" style="color: var(--text-secondary);">Roadmap</a>
+                            <a href="/about" class="block px-4 py-2.5 hover:opacity-70" style="color: var(--text-secondary);">
+                                <div class="text-sm font-medium">Methodology</div>
+                                <div class="text-[10px]" style="color: var(--text-quaternary);">How the experiment works, backends, control group</div>
+                            </a>
+                            <a href="/understand" class="block px-4 py-2.5 hover:opacity-70" style="color: var(--kindness);">
+                                <div class="text-sm font-medium">Ask About the Math</div>
+                                <div class="text-[10px]" style="color: var(--text-quaternary);">Chat with an AI that explains every formula</div>
+                            </a>
+                            <a href="/roadmap" class="block px-4 py-2.5 hover:opacity-70" style="color: var(--text-secondary);">
+                                <div class="text-sm font-medium">Roadmap</div>
+                                <div class="text-[10px]" style="color: var(--text-quaternary);">What's built, what's next, ideas</div>
+                            </a>
                         </div>
                     </div>
                     <!-- Data dropdown -->
@@ -74,12 +89,24 @@
                             class="hover:opacity-70 transition-opacity flex items-center gap-1" style="color: var(--text-secondary);">
                             Data <span class="dd-chevron text-[8px]" style="color: var(--text-quaternary);">&#9662;</span>
                         </button>
-                        <div id="data-menu" class="hidden absolute right-0 mt-2 py-1.5 w-40 rounded-lg shadow-xl"
+                        <div id="data-menu" class="hidden absolute right-0 mt-2 py-2 w-64 rounded-lg shadow-xl"
                              style="background: var(--bg-surface); border: 1px solid var(--border-default); z-index: 9999;">
-                            <a href="/dashboard" class="block px-4 py-2.5 text-sm hover:opacity-70" style="color: var(--text-secondary);">Results</a>
-                            <a href="/leaderboard" class="block px-4 py-2.5 text-sm hover:opacity-70" style="color: var(--text-secondary);">Leaderboard</a>
-                            <a href="/metrics" class="block px-4 py-2.5 text-sm hover:opacity-70" style="color: var(--text-secondary);">Metrics</a>
-                            <a href="/stats" class="block px-4 py-2.5 text-sm hover:opacity-70" style="color: var(--text-secondary);">Statistics</a>
+                            <a href="/dashboard" class="block px-4 py-2.5 hover:opacity-70" style="color: var(--text-secondary);">
+                                <div class="text-sm font-medium">Experiment Dashboard</div>
+                                <div class="text-[10px]" style="color: var(--text-quaternary);">Treatment vs control, model comparison, charts</div>
+                            </a>
+                            <a href="/leaderboard" class="block px-4 py-2.5 hover:opacity-70" style="color: var(--text-secondary);">
+                                <div class="text-sm font-medium">Agent Rankings</div>
+                                <div class="text-[10px]" style="color: var(--text-quaternary);">Who's kindest, most improved, top dopamine</div>
+                            </a>
+                            <a href="/stats" class="block px-4 py-2.5 hover:opacity-70" style="color: var(--text-secondary);">
+                                <div class="text-sm font-medium">Statistical Analysis</div>
+                                <div class="text-[10px]" style="color: var(--text-quaternary);">P-values, effect sizes, confidence intervals</div>
+                            </a>
+                            <a href="/metrics" class="block px-4 py-2.5 hover:opacity-70" style="color: var(--text-secondary);">
+                                <div class="text-sm font-medium">LLM Telemetry</div>
+                                <div class="text-[10px]" style="color: var(--text-quaternary);">Backend success rates, response times, tokens</div>
+                            </a>
                         </div>
                     </div>
                     <!-- Admin gear icon (cron log only) -->
