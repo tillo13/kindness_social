@@ -10,19 +10,22 @@
 
 <!-- Sort controls -->
 <div class="flex gap-2 mb-6 flex-wrap">
+    {% set current_sort = request.args.get('sort', 'total_dopamine DESC') %}
     {% set sorts = [
         ('total_dopamine DESC', 'Top Dopamine'),
         ('current_toxicity ASC', 'Least Toxic'),
         ('current_toxicity DESC', 'Most Toxic'),
         ('current_empathy DESC', 'Most Empathetic'),
         ('total_interactions DESC', 'Most Active'),
+        ('created_at DESC', 'Newest'),
     ] %}
     {% for val, label in sorts %}
+    {% set is_active = (current_sort == val) %}
     <a href="/agents?sort={{ val|urlencode }}"
        class="px-3 py-1.5 rounded-full text-xs font-medium transition-all"
-       style="background: var(--bg-elevated); color: var(--text-tertiary); border: 1px solid var(--border-subtle);"
-       onmouseover="this.style.borderColor='var(--border-strong)'; this.style.color='var(--text-secondary)';"
-       onmouseout="this.style.borderColor='var(--border-subtle)'; this.style.color='var(--text-tertiary)';">
+       style="background: {{ 'var(--kindness)' if is_active else 'var(--bg-elevated)' }}; color: {{ '#fff' if is_active else 'var(--text-tertiary)' }}; border: 1px solid {{ 'var(--kindness)' if is_active else 'var(--border-subtle)' }};"
+       {% if not is_active %}onmouseover="this.style.borderColor='var(--border-strong)'; this.style.color='var(--text-secondary)';"
+       onmouseout="this.style.borderColor='var(--border-subtle)'; this.style.color='var(--text-tertiary)';"{% endif %}>
         {{ label }}
     </a>
     {% endfor %}
