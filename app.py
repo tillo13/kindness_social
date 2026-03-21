@@ -192,7 +192,7 @@ def api_roadmap_comment_post():
 
 @app.route('/api/submit-topic', methods=['POST'])
 def api_submit_topic():
-    """Anyone can submit a topic for agents to debate."""
+    """Anyone can submit a topic for agents to debate. Validated by Groq."""
     data = request.get_json(silent=True) or {}
     text = (data.get('topic', '') or '').strip()
     if not text or len(text) < 10:
@@ -204,23 +204,53 @@ def api_submit_topic():
     if topic_type not in ('controversial', 'everyday', 'good_news', 'bridge_building'):
         topic_type = 'everyday'
 
+    # Validate with Groq (free, fast) — is this a real discussion topic?
+    try:
+        from utilities.llm_router import chat
+        validation_prompt = (
+            f'Is this a valid discussion topic for a social media experiment? '
+            f'Topic: "{text}"\n\n'
+            f'Reply with ONLY "yes" or "no" followed by a one-sentence reason. '
+            f'Say "yes" if it\'s something people could have a real opinion about. '
+            f'Say "no" only if it\'s spam, gibberish, harmful, or not a real topic.'
+        )
+        result, _ = chat('groq', [{'role': 'user', 'content': validation_prompt}],
+                        max_tokens=50, temperature=0.1)
+        is_approved = result.strip().lower().startswith('yes')
+        validation_note = result.strip()[:200]
+    except Exception:
+        # If validation fails, approve anyway — don't block the user
+        is_approved = True
+        validation_note = 'Auto-approved (validation unavailable)'
+
     import hashlib
     topic_id = f"user_{hashlib.md5(text.encode()).hexdigest()[:8]}"
 
     from utilities.postgres_utils import db_cursor
-    with db_cursor(commit=True) as cur:
-        # Check for duplicates
+    with db_cursor(dict_cursor=True) as cur:
         cur.execute("SELECT id FROM kindness_topics WHERE topic_id = %s", (topic_id,))
         if cur.fetchone():
-            return jsonify({'error': 'This topic already exists'}), 409
+            return jsonify({'error': 'This topic has already been submitted!'}), 409
 
         cur.execute("""
             INSERT INTO kindness_topics (topic_id, post_text, topic_type, controversy_level, submitted_by, is_approved)
-            VALUES (%s, %s, %s, %s, %s, TRUE)
-        """, (topic_id, text, topic_type, 5, 'visitor'))
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (topic_id, text, topic_type, 5, 'visitor', is_approved))
 
-    return jsonify({'status': 'ok', 'topic_id': topic_id,
-                    'message': 'Topic submitted! Agents will debate it in the next thread cycle.'})
+    if is_approved:
+        return jsonify({
+            'status': 'approved',
+            'topic_id': topic_id,
+            'message': f'Approved! Your topic will appear in the next discussion thread (within ~10 minutes).',
+            'validation': validation_note,
+        })
+    else:
+        return jsonify({
+            'status': 'rejected',
+            'topic_id': topic_id,
+            'message': 'Our review bot didn\'t think this was a good discussion topic. Try rephrasing it as something people could debate!',
+            'validation': validation_note,
+        }), 400
 
 
 @app.route('/api/stats')

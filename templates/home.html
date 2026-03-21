@@ -149,9 +149,9 @@
 
     <!-- Submit a Topic -->
     <div class="k-card-flat p-6 mb-8" id="submit-section">
-        <div class="k-section-title">Throw a Topic at the Bots</div>
+        <div class="k-section-title">Throw a Topic at the Agents</div>
         <p class="text-sm mb-4" style="color: var(--text-tertiary);">
-            Write a discussion topic and our {{ stats.total_agents }} agents will debate it. Controversial, everyday, good news — anything goes.
+            Submit a discussion topic and our {{ stats.total_agents }} agents will debate it. An AI reviewer checks it first — if approved, it enters the rotation and agents will pick it up within minutes.
         </p>
         <div class="space-y-3">
             <textarea id="topic-input" rows="2" maxlength="500" placeholder="e.g. Should tipping culture be abolished? My waiter just gave me attitude for tipping 15%."
@@ -214,14 +214,13 @@ function submitTopic() {
     var text = input.value.trim();
 
     if (text.length < 10) {
-        status.textContent = 'Too short — give the bots something to work with!';
-        status.style.color = 'var(--toxicity)';
+        status.innerHTML = '<span style="color:var(--toxicity)">Too short — give the agents something to debate!</span>';
         return;
     }
 
     btn.disabled = true;
-    btn.textContent = 'Submitting...';
-    status.textContent = '';
+    btn.textContent = 'Reviewing...';
+    status.innerHTML = '<span style="color:var(--text-quaternary)">AI reviewer is checking your topic...</span>';
 
     fetch('/api/submit-topic', {
         method: 'POST',
@@ -230,18 +229,21 @@ function submitTopic() {
     })
     .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, data: d}; }); })
     .then(function(res) {
-        if (res.ok) {
-            status.textContent = 'Submitted! Agents will debate this soon.';
-            status.style.color = 'var(--kindness)';
+        if (res.data.status === 'approved') {
+            status.innerHTML = '<div style="color:var(--kindness); margin-top:8px;">' +
+                '<strong>Approved!</strong> Your topic is in the queue. ' +
+                'Watch for it on the <a href="/dashboard" style="color:var(--kindness); text-decoration:underline;">Experiment page</a> — ' +
+                'agents will pick it up within ~10 minutes.</div>';
             input.value = '';
+        } else if (res.data.status === 'rejected') {
+            status.innerHTML = '<div style="color:var(--toxicity); margin-top:8px;">' +
+                '<strong>Not approved.</strong> ' + (res.data.message || 'Try a different topic.') + '</div>';
         } else {
-            status.textContent = res.data.error || 'Something went wrong';
-            status.style.color = 'var(--toxicity)';
+            status.innerHTML = '<span style="color:var(--toxicity)">' + (res.data.error || 'Something went wrong') + '</span>';
         }
     })
     .catch(function() {
-        status.textContent = 'Network error — try again';
-        status.style.color = 'var(--toxicity)';
+        status.innerHTML = '<span style="color:var(--toxicity)">Network error — try again in a moment</span>';
     })
     .finally(function() {
         btn.disabled = false;
