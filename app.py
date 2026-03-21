@@ -385,6 +385,17 @@ def cron_snapshot_agents():
         return jsonify({'error': str(e)[:200]}), 500
 
 
+@app.route('/api/cron/scrape-topics')
+def cron_scrape_topics():
+    """Cron: Scrape trending headlines and convert to discussion topics via Grok."""
+    if not is_cron_request():
+        return "Forbidden", 403
+
+    from core.topic_scraper import scrape_and_add_topics
+    result = scrape_and_add_topics(CLOUD_RUN_WORKER_URL, max_new=5)
+    return jsonify(result)
+
+
 @app.route('/api/cron/birth-agent')
 def cron_birth_agent():
     """Cron: Birth a new agent with a random backend."""
