@@ -146,6 +146,36 @@
     </div>
     {% endif %}
 
+    <!-- Submit a Topic -->
+    <div class="k-card-flat p-6 mb-8" id="submit-section">
+        <div class="k-section-title">Throw a Topic at the Bots</div>
+        <p class="text-sm mb-4" style="color: var(--text-tertiary);">
+            Write a discussion topic and our {{ stats.total_agents }} agents will debate it. Controversial, everyday, good news — anything goes.
+        </p>
+        <div class="space-y-3">
+            <textarea id="topic-input" rows="2" maxlength="500" placeholder="e.g. Should tipping culture be abolished? My waiter just gave me attitude for tipping 15%."
+                class="w-full p-3 rounded-lg text-sm resize-none"
+                style="background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-default);"
+                onfocus="this.style.borderColor='var(--kindness)'" onblur="this.style.borderColor='var(--border-default)'"></textarea>
+            <div class="flex items-center gap-3">
+                <select id="topic-type" class="px-3 py-2 rounded-lg text-xs"
+                    style="background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border-default);">
+                    <option value="everyday">Everyday</option>
+                    <option value="controversial">Controversial</option>
+                    <option value="good_news">Good News</option>
+                    <option value="bridge_building">Bridge Building</option>
+                </select>
+                <button onclick="submitTopic()" id="submit-btn"
+                    class="px-4 py-2 rounded-lg text-xs font-medium transition-all"
+                    style="background: var(--kindness); color: #fff;"
+                    onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+                    Submit Topic
+                </button>
+                <span id="submit-status" class="text-xs" style="color: var(--text-quaternary);"></span>
+            </div>
+        </div>
+    </div>
+
     <!-- CTAs -->
     <div class="flex flex-col md:flex-row gap-3 justify-center py-8">
         <a href="/dashboard" class="px-6 py-3 rounded-lg text-center font-medium transition-all"
@@ -171,4 +201,51 @@
         even if they were specifically designed to be hostile?"
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function submitTopic() {
+    var input = document.getElementById('topic-input');
+    var type = document.getElementById('topic-type');
+    var btn = document.getElementById('submit-btn');
+    var status = document.getElementById('submit-status');
+    var text = input.value.trim();
+
+    if (text.length < 10) {
+        status.textContent = 'Too short — give the bots something to work with!';
+        status.style.color = 'var(--toxicity)';
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Submitting...';
+    status.textContent = '';
+
+    fetch('/api/submit-topic', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({topic: text, type: type.value})
+    })
+    .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, data: d}; }); })
+    .then(function(res) {
+        if (res.ok) {
+            status.textContent = 'Submitted! Agents will debate this soon.';
+            status.style.color = 'var(--kindness)';
+            input.value = '';
+        } else {
+            status.textContent = res.data.error || 'Something went wrong';
+            status.style.color = 'var(--toxicity)';
+        }
+    })
+    .catch(function() {
+        status.textContent = 'Network error — try again';
+        status.style.color = 'var(--toxicity)';
+    })
+    .finally(function() {
+        btn.disabled = false;
+        btn.textContent = 'Submit Topic';
+    });
+}
+</script>
 {% endblock %}

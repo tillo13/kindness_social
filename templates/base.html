@@ -24,13 +24,14 @@
 </head>
 <body>
     <!-- Nav -->
-    <nav class="px-6 py-3" style="background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle);">
+    <nav class="px-4 md:px-6 py-3" style="background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle);">
         <div class="max-w-7xl mx-auto flex items-center justify-between">
             <a href="/" class="text-lg font-semibold tracking-tight" style="color: var(--kindness);">
                 Kindness Social
             </a>
-            <div class="flex items-center gap-6">
-                <div class="flex gap-6 text-sm">
+            <div class="flex items-center gap-4">
+                <!-- Desktop nav -->
+                <div class="hidden md:flex gap-5 text-sm">
                     <a href="/" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Home</a>
                     <a href="/dashboard" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Dashboard</a>
                     <a href="/leaderboard" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Leaderboard</a>
@@ -50,7 +51,24 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
                     </svg>
                 </button>
+                <!-- Mobile hamburger -->
+                <button onclick="document.getElementById('mobile-nav').classList.toggle('hidden')" class="md:hidden p-1.5 rounded-lg" style="color: var(--text-tertiary);">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                    </svg>
+                </button>
             </div>
+        </div>
+        <!-- Mobile menu -->
+        <div id="mobile-nav" class="hidden md:hidden mt-3 pt-3 grid grid-cols-2 gap-2" style="border-top: 1px solid var(--border-subtle);">
+            <a href="/" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">Home</a>
+            <a href="/dashboard" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">Dashboard</a>
+            <a href="/leaderboard" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">Leaderboard</a>
+            <a href="/agents" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">Agents</a>
+            <a href="/metrics" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">Metrics</a>
+            <a href="/cron-log" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">Cron</a>
+            <a href="/roadmap" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">Roadmap</a>
+            <a href="/about" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">About</a>
         </div>
     </nav>
 

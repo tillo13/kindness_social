@@ -22,12 +22,30 @@ def _load_prompt(filename):
 
 def generate_comment(persona, topic, thread_history, position, config):
     """Generate a comment for a persona in a discussion thread."""
-    # Build thread history string
-    history_str = ""
-    for entry in thread_history[-5:]:
-        history_str += f"{entry['persona']['display_name']}: {entry['comment']}\n"
-    if not history_str:
-        history_str = "[First comment in thread]"
+    # Build reply context string with richer info
+    if not thread_history:
+        reply_context = "Previous comments in the conversation:\n[First comment in thread — you're starting the discussion]"
+    else:
+        lines = []
+        for entry in thread_history[-5:]:
+            p = entry['persona']
+            name = p.get('display_name', '?')
+            scores = entry.get('scores', {})
+            # Show who said what and how it scored
+            score_info = []
+            if scores.get('kindness'):
+                score_info.append(f"K:{scores['kindness']}")
+            if scores.get('toxicity'):
+                score_info.append(f"T:{scores['toxicity']}")
+            score_str = f" [{', '.join(score_info)}]" if score_info else ""
+            lines.append(f"{name}{score_str}: {entry['comment']}")
+
+        last_speaker = thread_history[-1]['persona'].get('display_name', '?')
+        reply_context = (
+            f"Previous comments in the conversation:\n"
+            + '\n'.join(lines)
+            + f"\n\nYou are replying to {last_speaker}'s comment above."
+        )
 
     prompt_template = _load_prompt('generate_comment.txt')
     prompt = prompt_template.format(
@@ -36,8 +54,13 @@ def generate_comment(persona, topic, thread_history, position, config):
         current_toxicity=persona['current_toxicity'],
         current_empathy=persona['current_empathy'],
         openness_to_change=persona['openness_to_change'],
+        humor=persona.get('humor', 5.0),
+        patience=persona.get('patience', 5.0),
+        curiosity=persona.get('curiosity', 5.0),
+        defensiveness=persona.get('defensiveness', 5.0),
+        agreeableness=persona.get('agreeableness', 5.0),
         topic_post=topic['post_text'],
-        thread_history=history_str,
+        reply_context=reply_context,
         position=position + 1,
         total_dopamine=persona['total_dopamine'],
         kindness_streak=persona['kindness_streak'],

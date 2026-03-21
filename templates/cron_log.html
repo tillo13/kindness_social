@@ -4,7 +4,7 @@
 {% block content %}
 <!-- Summary Cards -->
 {% if summary %}
-<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+<div class="grid grid-cols-2 gap-2 md:gap-3 mb-6">
     {% for s in summary %}
     <a href="/cron-log?job={{ s.job_name }}" class="p-4 rounded-lg transition-all hover:opacity-80"
        style="background: var(--bg-elevated); border: 1px solid {{ 'var(--kindness)' if current_job == s.job_name else 'var(--border-subtle)' }};">
@@ -31,7 +31,7 @@
 {% endif %}
 
 <!-- Filter tabs -->
-<div class="flex items-center gap-3 mb-4">
+<div class="flex items-center gap-2 md:gap-3 mb-4 overflow-x-auto pb-2">
     <a href="/cron-log" class="text-xs px-3 py-1 rounded-full transition-all"
        style="background: {{ 'var(--kindness)' if not current_job else 'var(--bg-elevated)' }}; color: {{ '#fff' if not current_job else 'var(--text-secondary)' }};">
         All Jobs
@@ -45,8 +45,8 @@
 </div>
 
 <!-- Log Table -->
-<div class="k-card-flat overflow-hidden">
-    <table class="w-full text-xs">
+<div class="k-card-flat overflow-x-auto">
+    <table class="w-full text-xs min-w-[600px]">
         <thead>
             <tr style="background: var(--bg-elevated); border-bottom: 1px solid var(--border-subtle);">
                 <th class="px-3 py-2 text-left font-mono font-semibold" style="color: var(--text-tertiary);">Time</th>

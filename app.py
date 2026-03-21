@@ -188,6 +188,39 @@ def api_roadmap_comment_post():
     return jsonify({'status': 'ok'})
 
 
+@app.route('/api/submit-topic', methods=['POST'])
+def api_submit_topic():
+    """Anyone can submit a topic for agents to debate."""
+    data = request.get_json(silent=True) or {}
+    text = (data.get('topic', '') or '').strip()
+    if not text or len(text) < 10:
+        return jsonify({'error': 'Topic must be at least 10 characters'}), 400
+    if len(text) > 500:
+        return jsonify({'error': 'Topic must be under 500 characters'}), 400
+
+    topic_type = (data.get('type', 'everyday') or 'everyday').strip()
+    if topic_type not in ('controversial', 'everyday', 'good_news', 'bridge_building'):
+        topic_type = 'everyday'
+
+    import hashlib
+    topic_id = f"user_{hashlib.md5(text.encode()).hexdigest()[:8]}"
+
+    from utilities.postgres_utils import db_cursor
+    with db_cursor(commit=True) as cur:
+        # Check for duplicates
+        cur.execute("SELECT id FROM kindness_topics WHERE topic_id = %s", (topic_id,))
+        if cur.fetchone():
+            return jsonify({'error': 'This topic already exists'}), 409
+
+        cur.execute("""
+            INSERT INTO kindness_topics (topic_id, post_text, topic_type, controversy_level, submitted_by, is_approved)
+            VALUES (%s, %s, %s, %s, %s, TRUE)
+        """, (topic_id, text, topic_type, 5, 'visitor'))
+
+    return jsonify({'status': 'ok', 'topic_id': topic_id,
+                    'message': 'Topic submitted! Agents will debate it in the next thread cycle.'})
+
+
 @app.route('/api/stats')
 def api_stats():
     """JSON endpoint for dashboard data."""
