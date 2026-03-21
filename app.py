@@ -249,11 +249,6 @@ def cron_generate_thread():
     start = time.time()
 
     try:
-        if random.random() < 0.4:
-            ms = int((time.time() - start) * 1000)
-            db_ops.log_cron_end(log_id, 'skipped', ms, 'Stagger skip')
-            return jsonify({'skipped': 'stagger', 'status': 'ok'})
-
         result = run_thread()
         ms = int((time.time() - start) * 1000)
         summary = f"Thread created: {result.get('thread_id', '?')}, {result.get('comments', '?')} comments"

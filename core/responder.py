@@ -208,21 +208,16 @@ def run_agent_responses(config=None):
     config = config or DEFAULT_CONFIG
     from utilities.usage_limiter import is_backend_in_backoff
 
-    # Simulate quiet periods — not every 10 min has activity
-    if random.random() < 0.2:
-        logger.info("Quiet period — no activity this round")
-        return {'threads_checked': 0, 'responses': 0, 'reactions': 0, 'skipped': 'quiet'}
-
-    # Pick 1-2 random open threads
+    # Pick up to 3 open threads
     open_threads = get_open_threads(limit=5)
     if not open_threads:
         logger.info("No open threads for responses")
         return {'threads_checked': 0, 'responses': 0, 'reactions': 0}
 
-    threads_to_check = random.sample(open_threads, min(random.randint(1, 2), len(open_threads)))
+    threads_to_check = random.sample(open_threads, min(random.randint(2, 3), len(open_threads)))
 
-    # Random batch cap this round (1-4 total responses across all threads)
-    max_responses_this_round = random.randint(1, 4)
+    # Higher batch cap — 3-6 responses per cycle
+    max_responses_this_round = random.randint(3, 6)
     total_responses = 0
 
     for thread in threads_to_check:

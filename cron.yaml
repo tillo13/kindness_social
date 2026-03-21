@@ -1,28 +1,28 @@
 cron:
 - description: "Generate a new discussion thread"
   url: /api/cron/generate-thread
-  schedule: every 30 minutes
+  schedule: every 10 minutes
   retry_parameters:
     min_backoff_seconds: 30
     max_doublings: 3
 
 - description: "Agent responses - bots reply to each other in open threads"
   url: /api/cron/agent-responses
-  schedule: every 10 minutes
+  schedule: every 3 minutes
   retry_parameters:
     min_backoff_seconds: 30
     max_doublings: 2
 
 - description: "Calculate hourly metrics"
   url: /api/cron/hourly-metrics
-  schedule: every 1 hours
+  schedule: every 30 minutes
   retry_parameters:
     min_backoff_seconds: 30
     max_doublings: 2
 
 - description: "Snapshot agent personalities for evolution charts"
   url: /api/cron/snapshot-agents
-  schedule: every 1 hours
+  schedule: every 30 minutes
   retry_parameters:
     min_backoff_seconds: 30
     max_doublings: 2
