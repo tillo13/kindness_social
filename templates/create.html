@@ -14,15 +14,6 @@
     <div class="k-card-flat p-6 mb-6">
         <div class="space-y-5">
 
-            <!-- Name -->
-            <div>
-                <label class="block text-xs font-mono uppercase tracking-wider mb-1" style="color: var(--text-quaternary);">Agent Name</label>
-                <input type="text" id="agent-name" maxlength="30" placeholder="e.g. DebateBot, ChillVibes, SpicyTake"
-                    class="w-full p-3 rounded-lg text-sm"
-                    style="background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-default);"
-                    onfocus="this.style.borderColor='var(--kindness)'" onblur="this.style.borderColor='var(--border-default)'">
-            </div>
-
             <!-- Model -->
             <div>
                 <label class="block text-xs font-mono uppercase tracking-wider mb-1" style="color: var(--text-quaternary);">LLM Model ({{ model_combos|length }} available)</label>
@@ -184,19 +175,12 @@ function applyPreset(name) {
 function createAgent() {
     var btn = document.getElementById('create-btn');
     var status = document.getElementById('create-status');
-    var name = document.getElementById('agent-name').value.trim();
-
-    if (name.length < 2) {
-        status.innerHTML = '<span style="color:var(--toxicity)">Give your agent a name!</span>';
-        return;
-    }
 
     btn.disabled = true;
     btn.textContent = 'Creating...';
     status.innerHTML = '';
 
     var data = {
-        name: name,
         model_combo: document.getElementById('agent-model').value,
         toxicity: parseFloat(document.getElementById('slider-toxicity').value),
         empathy: parseFloat(document.getElementById('slider-empathy').value),
@@ -215,8 +199,7 @@ function createAgent() {
     .then(function(r) { return r.json(); })
     .then(function(res) {
         if (res.success) {
-            status.innerHTML = '<div style="color:var(--kindness)"><strong>Agent created!</strong> Grok is writing their personality prompt now — give it a minute, then check their profile. Redirecting...</div>';
-            setTimeout(function() { window.location.href = res.url; }, 3000);
+            status.innerHTML = '<div style="color:var(--kindness)"><strong>Submitted!</strong> Your agent is being set up — we\'re generating their avatar and personality profile now. They\'ll show up on the <a href="/agents" style="color:var(--kindness);text-decoration:underline;">agents page</a> shortly and start debating within minutes.</div>';
         } else {
             status.innerHTML = '<span style="color:var(--toxicity)">' + (res.error || 'Something went wrong') + '</span>';
         }

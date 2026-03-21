@@ -548,15 +548,9 @@ def create_page():
 
 @app.route('/api/create-agent', methods=['POST'])
 def api_create_agent():
-    """Create a custom agent from visitor-submitted personality values."""
-    import time
+    """Create a custom agent. DB insert is instant, avatar + system prompt happen in background."""
     data = request.get_json(silent=True) or {}
 
-    name = (data.get('name', '') or '').strip()[:30]
-    if not name or len(name) < 2:
-        return jsonify({'error': 'Name must be at least 2 characters'}), 400
-
-    # Clamp all values
     def clamp(v, lo, hi):
         try:
             return round(min(hi, max(lo, float(v))), 1)
@@ -570,6 +564,7 @@ def api_create_agent():
     curiosity = clamp(data.get('curiosity', 5), 1, 10)
     defensiveness = clamp(data.get('defensiveness', 5), 1, 10)
     agreeableness = clamp(data.get('agreeableness', 5), 1, 10)
+
     model_combo = (data.get('model_combo', '') or '').strip()
     if not model_combo or '.' not in model_combo:
         model_combo = 'groq.llama70b'
@@ -578,7 +573,6 @@ def api_create_agent():
     provider = parts[0]
     model_short = parts[1] if len(parts) > 1 else 'unknown'
 
-    # Map provider to backend for LLM routing
     PROVIDER_TO_BACKEND = {
         'groq': 'groq', 'cerebras': 'cerebras', 'mistral': 'mistral',
         'openai': 'gpt4o_mini', 'anthropic': 'haiku', 'google': 'gemini',
@@ -586,9 +580,10 @@ def api_create_agent():
     }
     backend = PROVIDER_TO_BACKEND.get(provider, 'groq')
 
-    import random
+    import random, threading
     from utilities.postgres_utils import db_cursor
 
+    # Step 1: Create the agent in DB immediately
     for _ in range(10):
         suffix = random.randint(100, 999)
         agent_id = f"{provider}.{model_short}.{suffix}"
@@ -612,53 +607,59 @@ def api_create_agent():
                      gender_presentation, age_bracket, authority_level,
                      trigger_topics, common_phrases, created_by)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING agent_id, display_name, llm_backend
+                RETURNING agent_id
             """, (
-                agent_id, name, backend, pol,
+                agent_id, agent_id, backend, pol,
                 tox, tox, emp, emp, opn, vw,
                 humor, patience, curiosity, defensiveness, agreeableness,
                 'unspecified', 'middle_aged', 'medium',
                 json.dumps([]), json.dumps([]),
                 'visitor',
             ))
-            agent = dict(cur.fetchone())
+            cur.fetchone()
 
-        # Generate avatar
-        try:
-            from utilities.avatar_generator import generate_avatar
-            generate_avatar({'agent_id': agent_id, 'current_toxicity': tox,
-                             'current_empathy': emp, 'humor': humor})
-        except Exception:
-            pass
+        # Step 2: Background thread for avatar + system prompt (non-blocking)
+        def _finish_agent(aid, t, e, h, p, c, d, a, worker_url):
+            try:
+                from utilities.avatar_generator import generate_avatar
+                generate_avatar({'agent_id': aid, 'current_toxicity': t,
+                                 'current_empathy': e, 'humor': h})
+            except Exception:
+                pass
+            try:
+                import requests as http_req
+                prompt = (
+                    f"Generate a short (2-3 sentence) personality description for a social media bot called '{aid}'. "
+                    f"Traits on a 1-10 scale: toxicity={t}, empathy={e}, humor={h}, "
+                    f"patience={p}, curiosity={c}, defensiveness={d}, agreeableness={a}. "
+                    f"Write it as a system prompt — tell the bot WHO it is and HOW it talks in online debates. "
+                    f"Be vivid and specific. If traits seem contradictory (e.g. high toxicity AND high empathy), "
+                    f"lean into that complexity — make them a fascinating character, not a generic one. "
+                    f"Extreme values should produce extreme personalities. All 10s = chaotic. All 1s = hollow."
+                )
+                resp = http_req.post(
+                    f'{worker_url}/chat',
+                    json={'backend': 'grok', 'messages': [{'role': 'user', 'content': prompt}]},
+                    timeout=30,
+                )
+                if resp.ok:
+                    sys_prompt = resp.json().get('text', '')
+                    if sys_prompt and len(sys_prompt) > 20:
+                        from utilities.postgres_utils import db_cursor as _dc
+                        with _dc() as cur2:
+                            cur2.execute("UPDATE kindness_agents SET system_prompt = %s WHERE agent_id = %s",
+                                         (sys_prompt[:500], aid))
+                logger.info(f"Background setup done for {aid}")
+            except Exception as ex:
+                logger.warning(f"Background setup failed for {aid}: {ex}")
 
-        # Generate a custom system prompt via Grok based on personality
-        try:
-            import requests as http_req
-            prompt = (
-                f"Generate a short (2-3 sentence) personality description for a social media bot named '{name}'. "
-                f"Traits on a 1-10 scale: toxicity={tox}, empathy={emp}, humor={humor}, "
-                f"patience={patience}, curiosity={curiosity}, defensiveness={defensiveness}, "
-                f"agreeableness={agreeableness}. "
-                f"Write it as a system prompt — tell the bot WHO it is and HOW it talks in online debates. "
-                f"Be vivid and specific. If traits seem contradictory (e.g. high toxicity AND high empathy), "
-                f"lean into that complexity — make them a fascinating character, not a generic one. "
-                f"Extreme values should produce extreme personalities. All 10s = chaotic. All 1s = hollow."
-            )
-            resp = http_req.post(
-                f'{CLOUD_RUN_WORKER_URL}/chat',
-                json={'backend': 'grok', 'messages': [{'role': 'user', 'content': prompt}]},
-                timeout=15,
-            )
-            if resp.ok:
-                sys_prompt = resp.json().get('text', '')
-                if sys_prompt and len(sys_prompt) > 20:
-                    with db_cursor() as cur2:
-                        cur2.execute("UPDATE kindness_agents SET system_prompt = %s WHERE agent_id = %s",
-                                     (sys_prompt[:500], agent_id))
-        except Exception:
-            pass  # Non-critical — agent works fine without custom prompt
+        threading.Thread(
+            target=_finish_agent,
+            args=(agent_id, tox, emp, humor, patience, curiosity, defensiveness, agreeableness, CLOUD_RUN_WORKER_URL),
+            daemon=True,
+        ).start()
 
-        return jsonify({'success': True, 'agent_id': agent_id, 'name': name,
+        return jsonify({'success': True, 'agent_id': agent_id,
                         'url': f'/agent/{agent_id}'})
 
     return jsonify({'error': 'Could not create agent, try again'}), 500
