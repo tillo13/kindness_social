@@ -482,8 +482,19 @@ def admin_kick_thread():
     if not is_admin_request():
         return jsonify({'error': 'Forbidden'}), 403
 
-    result = run_thread()
-    return jsonify(result)
+    import time
+    log_id = db_ops.log_cron_start('generate-thread')
+    start = time.time()
+    try:
+        result = run_thread()
+        ms = int((time.time() - start) * 1000)
+        summary = f"Thread: {result.get('thread_id', '?')}, {result.get('participants', '?')} agents (admin kick)"
+        db_ops.log_cron_end(log_id, 'ok', ms, summary, result)
+        return jsonify(result)
+    except Exception as e:
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'error', ms, error_text=str(e)[:500])
+        return jsonify({'error': str(e)[:200]}), 500
 
 
 @app.route('/api/admin/kick-responses', methods=['POST'])
@@ -492,9 +503,20 @@ def admin_kick_responses():
     if not is_admin_request():
         return jsonify({'error': 'Forbidden'}), 403
 
+    import time
     from core.responder import run_agent_responses
-    result = run_agent_responses()
-    return jsonify(result)
+    log_id = db_ops.log_cron_start('agent-responses')
+    start = time.time()
+    try:
+        result = run_agent_responses()
+        ms = int((time.time() - start) * 1000)
+        responses = result.get('responses_generated', result.get('responses', 0)) if isinstance(result, dict) else 0
+        db_ops.log_cron_end(log_id, 'ok', ms, f'{responses} responses (admin kick)', result)
+        return jsonify(result)
+    except Exception as e:
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'error', ms, error_text=str(e)[:500])
+        return jsonify({'error': str(e)[:200]}), 500
 
 
 @app.route('/api/admin/kick-metrics', methods=['POST'])
@@ -503,9 +525,19 @@ def admin_kick_metrics():
     if not is_admin_request():
         return jsonify({'error': 'Forbidden'}), 403
 
-    hour = db_ops.get_hour_count() + 1
-    db_ops.save_hourly_metrics(hour)
-    return jsonify({'hour': hour, 'status': 'ok'})
+    import time
+    log_id = db_ops.log_cron_start('hourly-metrics')
+    start = time.time()
+    try:
+        hour = db_ops.get_hour_count() + 1
+        db_ops.save_hourly_metrics(hour)
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'ok', ms, f'Hour {hour} snapshot (admin kick)')
+        return jsonify({'hour': hour, 'status': 'ok'})
+    except Exception as e:
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'error', ms, error_text=str(e)[:500])
+        return jsonify({'error': str(e)[:200]}), 500
 
 
 @app.route('/api/admin/birth-agent', methods=['POST'])
@@ -514,12 +546,24 @@ def admin_birth_agent():
     if not is_admin_request():
         return jsonify({'error': 'Forbidden'}), 403
 
-    data = request.get_json(silent=True) or {}
-    backend = data.get('backend')
-    agent = create_agent(backend=backend)
-    if agent:
-        return jsonify({'created': agent['agent_id'], 'backend': agent['llm_backend']})
-    return jsonify({'error': 'Failed'}), 500
+    import time
+    log_id = db_ops.log_cron_start('birth-agent')
+    start = time.time()
+    try:
+        data = request.get_json(silent=True) or {}
+        backend = data.get('backend')
+        agent = create_agent(backend=backend)
+        ms = int((time.time() - start) * 1000)
+        if agent:
+            db_ops.log_cron_end(log_id, 'ok', ms, f"Born: {agent['agent_id']} (admin kick)",
+                                {'agent_id': agent['agent_id'], 'backend': agent['llm_backend']})
+            return jsonify({'created': agent['agent_id'], 'backend': agent['llm_backend']})
+        db_ops.log_cron_end(log_id, 'error', ms, 'Could not create agent')
+        return jsonify({'error': 'Failed'}), 500
+    except Exception as e:
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'error', ms, error_text=str(e)[:500])
+        return jsonify({'error': str(e)[:200]}), 500
 
 
 @app.route('/api/admin/system-status')
