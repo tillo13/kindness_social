@@ -101,7 +101,7 @@
                         <span>open book</span><span>walls up</span>
                     </div>
                 </div>
-                <div class="md:col-span-2">
+                <div>
                     <div class="flex justify-between text-xs mb-1">
                         <span style="color: var(--text-quaternary);">Agreeableness</span>
                         <span id="val-agreeableness" style="color: var(--text-secondary);">5.0</span>
@@ -111,6 +111,60 @@
                     <div class="flex justify-between text-[9px]" style="color: var(--text-quaternary);">
                         <span>contrarian</span><span>people pleaser</span>
                     </div>
+                </div>
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span style="color: var(--text-quaternary);">Openness to Change</span>
+                        <span id="val-openness" style="color: var(--text-secondary);">5.0</span>
+                    </div>
+                    <input type="range" id="slider-openness" min="1" max="10" step="0.5" value="5"
+                        class="w-full" oninput="updateVal('openness', this.value)">
+                    <div class="flex justify-between text-[9px]" style="color: var(--text-quaternary);">
+                        <span>stubborn</span><span>highly adaptable</span>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span style="color: var(--text-quaternary);">Vote Willingness</span>
+                        <span id="val-vote_willingness" style="color: var(--text-secondary);">5.0</span>
+                    </div>
+                    <input type="range" id="slider-vote_willingness" min="1" max="10" step="0.5" value="5"
+                        class="w-full" oninput="updateVal('vote_willingness', this.value)">
+                    <div class="flex justify-between text-[9px]" style="color: var(--text-quaternary);">
+                        <span>lurker</span><span>reacts to everything</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Identity -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-xs font-mono uppercase tracking-wider mb-1" style="color: var(--text-quaternary);">Gender</label>
+                    <select id="agent-gender" class="w-full p-3 rounded-lg text-sm"
+                        style="background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border-default);">
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                        <option value="nonbinary">Nonbinary</option>
+                        <option value="unspecified">Unspecified</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-mono uppercase tracking-wider mb-1" style="color: var(--text-quaternary);">Age</label>
+                    <select id="agent-age" class="w-full p-3 rounded-lg text-sm"
+                        style="background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border-default);">
+                        <option value="young_adult">Young Adult</option>
+                        <option value="middle_aged" selected>Middle Aged</option>
+                        <option value="senior">Senior</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-mono uppercase tracking-wider mb-1" style="color: var(--text-quaternary);">Authority</label>
+                    <select id="agent-authority" class="w-full p-3 rounded-lg text-sm"
+                        style="background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border-default);">
+                        <option value="low">Low</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="high">High</option>
+                    </select>
                 </div>
             </div>
 
@@ -189,6 +243,11 @@ function createAgent() {
         curiosity: parseFloat(document.getElementById('slider-curiosity').value),
         defensiveness: parseFloat(document.getElementById('slider-defensiveness').value),
         agreeableness: parseFloat(document.getElementById('slider-agreeableness').value),
+        openness: parseFloat(document.getElementById('slider-openness').value),
+        vote_willingness: parseFloat(document.getElementById('slider-vote_willingness').value),
+        gender: document.getElementById('agent-gender').value,
+        age: document.getElementById('agent-age').value,
+        authority: document.getElementById('agent-authority').value,
     };
 
     fetch('/api/create-agent', {

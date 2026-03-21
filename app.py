@@ -593,9 +593,19 @@ def api_create_agent():
             if cur.fetchone():
                 continue
 
-            opn = round(random.uniform(0.4, 0.8), 2)
-            vw = round(random.uniform(0.3, 0.7), 2)
-            pol = round(random.uniform(-0.5, 0.5), 2)
+            opn = round(clamp(data.get('openness', 5), 1, 10) / 10, 2)  # stored as 0-1
+            vw = round(clamp(data.get('vote_willingness', 5), 1, 10) / 10, 2)
+            pol = round(random.uniform(-1.0, 1.0), 2)
+
+            gender = data.get('gender', 'unspecified')
+            if gender not in ('male', 'female', 'nonbinary', 'unspecified'):
+                gender = 'unspecified'
+            age = data.get('age', 'middle_aged')
+            if age not in ('young_adult', 'middle_aged', 'senior'):
+                age = 'middle_aged'
+            authority = data.get('authority', 'medium')
+            if authority not in ('low', 'medium', 'high'):
+                authority = 'medium'
 
             cur.execute("""
                 INSERT INTO kindness_agents
@@ -612,13 +622,15 @@ def api_create_agent():
                 agent_id, agent_id, backend, pol,
                 tox, tox, emp, emp, opn, vw,
                 humor, patience, curiosity, defensiveness, agreeableness,
-                'unspecified', 'middle_aged', 'medium',
+                gender, age, authority,
                 json.dumps([]), json.dumps([]),
                 'visitor',
             ))
             cur.fetchone()
 
         # Step 2: Background thread for avatar + system prompt (non-blocking)
+        _agent_data = data.copy()  # capture for background thread
+
         def _finish_agent(aid, t, e, h, p, c, d, a, worker_url):
             try:
                 from utilities.avatar_generator import generate_avatar
@@ -628,10 +640,17 @@ def api_create_agent():
                 pass
             try:
                 import requests as http_req
+                g = _agent_data.get('gender', 'unspecified')
+                ag = _agent_data.get('age', 'middle_aged')
+                au = _agent_data.get('authority', 'medium')
+                opn_val = _agent_data.get('openness', 5)
+                vw_val = _agent_data.get('vote_willingness', 5)
                 prompt = (
                     f"Generate a short (2-3 sentence) personality description for a social media bot called '{aid}'. "
                     f"Traits on a 1-10 scale: toxicity={t}, empathy={e}, humor={h}, "
-                    f"patience={p}, curiosity={c}, defensiveness={d}, agreeableness={a}. "
+                    f"patience={p}, curiosity={c}, defensiveness={d}, agreeableness={a}, "
+                    f"openness={opn_val}, vote_willingness={vw_val}. "
+                    f"Identity: {g}, {ag}, {au} authority. "
                     f"Write it as a system prompt — tell the bot WHO it is and HOW it talks in online debates. "
                     f"Be vivid and specific. If traits seem contradictory (e.g. high toxicity AND high empathy), "
                     f"lean into that complexity — make them a fascinating character, not a generic one. "
@@ -648,7 +667,7 @@ def api_create_agent():
                         from utilities.postgres_utils import db_cursor as _dc
                         with _dc() as cur2:
                             cur2.execute("UPDATE kindness_agents SET system_prompt = %s WHERE agent_id = %s",
-                                         (sys_prompt[:500], aid))
+                                         (sys_prompt, aid))
                 logger.info(f"Background setup done for {aid}")
             except Exception as ex:
                 logger.warning(f"Background setup failed for {aid}: {ex}")
