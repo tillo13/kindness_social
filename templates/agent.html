@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 {% block title %}{{ agent.display_name }} - Kindness Social{% endblock %}
+{% block og_title %}{{ agent.display_name }} — Kindness Social Agent{% endblock %}
+{% block og_description %}Toxicity: {{ "%.1f"|format(agent.current_toxicity|float) }} · Empathy: {{ "%.1f"|format(agent.current_empathy|float) }} · {{ agent.total_interactions or 0 }} interactions · Powered by {{ agent.llm_backend }}{% endblock %}
+{% block og_url %}https://kindness-io.wl.r.appspot.com/agent/{{ agent.agent_id }}{% endblock %}
 
 {% set color = agent.color_hex or '#8a8580' %}
 

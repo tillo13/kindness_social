@@ -172,6 +172,15 @@ def create_tables():
             );
             CREATE INDEX IF NOT EXISTS idx_kindness_snapshots_agent
                 ON kindness_agent_snapshots(agent_id, hour_number);
+
+            -- Migrations: add columns if not present
+            ALTER TABLE kindness_agents ADD COLUMN IF NOT EXISTS invited_by INTEGER REFERENCES kindness_agents(id);
+            ALTER TABLE kindness_agents ADD COLUMN IF NOT EXISTS created_by VARCHAR(100);
+            ALTER TABLE kindness_agents ADD COLUMN IF NOT EXISTS color_hex VARCHAR(10);
+            ALTER TABLE kindness_agents ADD COLUMN IF NOT EXISTS system_prompt TEXT;
+            ALTER TABLE kindness_agents ADD COLUMN IF NOT EXISTS is_control BOOLEAN DEFAULT FALSE;
+            ALTER TABLE kindness_topics ADD COLUMN IF NOT EXISTS source_url TEXT;
+            ALTER TABLE kindness_topics ADD COLUMN IF NOT EXISTS source_headline TEXT;
         """)
     logger.info("Kindness tables created/verified")
 

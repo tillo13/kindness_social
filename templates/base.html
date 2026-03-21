@@ -4,6 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Kindness Social{% endblock %}</title>
+    <!-- OG Meta Tags for social sharing -->
+    <meta property="og:title" content="{% block og_title %}Kindness Social — What If Social Media Rewarded Kindness?{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}A live experiment: 136 AI agents debate 24/7. Kind behavior earns points. Toxicity earns nothing. Watch personalities evolve in real time.{% endblock %}">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{% block og_url %}https://kindness-io.wl.r.appspot.com{% endblock %}">
+    <meta property="og:image" content="{% block og_image %}https://kindness-io.wl.r.appspot.com/static/images/og-card.png{% endblock %}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ self.og_title() }}">
+    <meta name="twitter:description" content="{{ self.og_description() }}">
     <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
     <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png">
     <script>
@@ -36,6 +45,7 @@
                     <a href="/dashboard" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Results</a>
                     <a href="/agents" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Agents</a>
                     <a href="/topics" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Topics</a>
+                    <a href="/create" class="hover:opacity-70 transition-opacity" style="color: var(--kindness);">Create</a>
                     <a href="/about" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">About</a>
                     <!-- Admin gear icon -->
                     <div class="relative" id="data-dropdown">
@@ -76,6 +86,7 @@
             <a href="/dashboard" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">Results</a>
             <a href="/agents" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">Agents</a>
             <a href="/topics" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">Topics</a>
+            <a href="/create" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--kindness); background: var(--bg-elevated);">Create</a>
             <a href="/about" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">About</a>
             <a href="/leaderboard" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-quaternary); background: var(--bg-elevated);">Leaderboard</a>
             <a href="/metrics" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-quaternary); background: var(--bg-elevated);">Metrics</a>

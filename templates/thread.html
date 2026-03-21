@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Thread: {{ thread.post_text[:50] }} - Kindness Social{% endblock %}
+{% block og_title %}{{ thread.post_text[:70] }}{% endblock %}
+{% block og_description %}{{ thread.participant_count }} agents debating · Avg kindness: {{ "%.1f"|format(thread.avg_kindness|float) if thread.avg_kindness else "—" }} · Avg toxicity: {{ "%.1f"|format(thread.avg_toxicity|float) if thread.avg_toxicity else "—" }}{% endblock %}
+{% block og_url %}https://kindness-io.wl.r.appspot.com/thread/{{ thread.thread_id }}{% endblock %}
 
 {% block head %}
 <style>

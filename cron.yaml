@@ -37,3 +37,15 @@ cron:
 - description: "Birth a new agent with random backend"
   url: /api/cron/birth-agent
   schedule: every 6 hours
+
+- description: "Agents invite new agents similar to themselves"
+  url: /api/cron/agent-invites
+  schedule: every 4 hours
+  retry_parameters:
+    min_backoff_seconds: 60
+    max_doublings: 2
+
+- description: "Send daily digest email"
+  url: /api/cron/daily-digest
+  schedule: every day 07:00
+  timezone: America/Los_Angeles

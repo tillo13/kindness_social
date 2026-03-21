@@ -444,6 +444,144 @@ def cron_birth_agent():
         return jsonify({'error': str(e)[:200]}), 500
 
 
+@app.route('/api/cron/agent-invites')
+def cron_agent_invites():
+    """Cron: Agents invite new agents similar to themselves."""
+    if not is_cron_request():
+        return "Forbidden", 403
+
+    import time
+    from core.agent_inviter import run_agent_invites
+    log_id = db_ops.log_cron_start('agent-invites')
+    start = time.time()
+
+    try:
+        created = run_agent_invites(max_invites=3)
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'ok', ms, f'{created} agents invited')
+        return jsonify({'invited': created})
+    except Exception as e:
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'error', ms, error_text=str(e)[:500])
+        logger.exception("Cron agent-invites failed")
+        return jsonify({'error': str(e)[:200]}), 500
+
+
+@app.route('/api/cron/daily-digest')
+def cron_daily_digest():
+    """Cron: Send daily digest email."""
+    if not is_cron_request():
+        return "Forbidden", 403
+
+    import time
+    from core.daily_digest import send_daily_digest
+    log_id = db_ops.log_cron_start('daily-digest')
+    start = time.time()
+
+    try:
+        result = send_daily_digest()
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'ok', ms, f'Digest sent: {result.get("sent")}', result)
+        return jsonify(result)
+    except Exception as e:
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'error', ms, error_text=str(e)[:500])
+        logger.exception("Cron daily-digest failed")
+        return jsonify({'error': str(e)[:200]}), 500
+
+
+# ============================================================================
+# CHARACTER CREATOR — Public page for visitors to create custom agents
+# ============================================================================
+
+@app.route('/create')
+def create_page():
+    """Public page: design a custom agent with personality sliders."""
+    return render_template('create.html')
+
+
+@app.route('/api/create-agent', methods=['POST'])
+def api_create_agent():
+    """Create a custom agent from visitor-submitted personality values."""
+    import time
+    data = request.get_json(silent=True) or {}
+
+    name = (data.get('name', '') or '').strip()[:30]
+    if not name or len(name) < 2:
+        return jsonify({'error': 'Name must be at least 2 characters'}), 400
+
+    # Clamp all values
+    def clamp(v, lo, hi):
+        try:
+            return round(min(hi, max(lo, float(v))), 1)
+        except (TypeError, ValueError):
+            return (lo + hi) / 2
+
+    tox = clamp(data.get('toxicity', 5), 1, 10)
+    emp = clamp(data.get('empathy', 5), 1, 10)
+    humor = clamp(data.get('humor', 5), 1, 10)
+    patience = clamp(data.get('patience', 5), 1, 10)
+    curiosity = clamp(data.get('curiosity', 5), 1, 10)
+    defensiveness = clamp(data.get('defensiveness', 5), 1, 10)
+    agreeableness = clamp(data.get('agreeableness', 5), 1, 10)
+    backend = data.get('backend', 'groq')
+
+    from core.agent_factory import AVAILABLE_BACKENDS, BACKEND_NAMING
+    if backend not in AVAILABLE_BACKENDS:
+        backend = 'groq'
+
+    provider, model_short = BACKEND_NAMING.get(backend, ('unknown', backend))
+    import random
+
+    for _ in range(10):
+        suffix = random.randint(100, 999)
+        agent_id = f"{provider}.{model_short}.{suffix}"
+
+        from utilities.postgres_utils import db_cursor
+        with db_cursor(dict_cursor=True) as cur:
+            cur.execute("SELECT id FROM kindness_agents WHERE agent_id = %s", (agent_id,))
+            if cur.fetchone():
+                continue
+
+            opn = round(random.uniform(0.4, 0.8), 2)
+            vw = round(random.uniform(0.3, 0.7), 2)
+            pol = round(random.uniform(-0.5, 0.5), 2)
+
+            cur.execute("""
+                INSERT INTO kindness_agents
+                    (agent_id, display_name, llm_backend, political_lean,
+                     toxicity_baseline, current_toxicity,
+                     empathy_baseline, current_empathy,
+                     openness_to_change, vote_willingness,
+                     humor, patience, curiosity, defensiveness, agreeableness,
+                     gender_presentation, age_bracket, authority_level,
+                     trigger_topics, common_phrases, created_by)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING agent_id, display_name, llm_backend
+            """, (
+                agent_id, name, backend, pol,
+                tox, tox, emp, emp, opn, vw,
+                humor, patience, curiosity, defensiveness, agreeableness,
+                'unspecified', 'middle_aged', 'medium',
+                json.dumps([]), json.dumps([]),
+                'visitor',
+            ))
+            agent = dict(cur.fetchone())
+
+        # Generate avatar
+        try:
+            from utilities.avatar_generator import generate_avatar
+            generate_avatar({'agent_id': agent_id, 'current_toxicity': tox,
+                             'current_empathy': emp, 'humor': humor})
+        except Exception:
+            pass
+
+        return jsonify({'success': True, 'agent_id': agent_id, 'name': name,
+                        'url': f'/agent/{agent_id}'})
+
+    return jsonify({'error': 'Could not create agent, try again'}), 500
+
+
 # ============================================================================
 # ADMIN — API key protected. Pass key via X-Admin-Key header or ?key= param.
 # ============================================================================
