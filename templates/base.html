@@ -33,20 +33,19 @@
                 <!-- Desktop nav -->
                 <div class="hidden md:flex gap-5 text-sm items-center">
                     <a href="/" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Home</a>
-                    <a href="/dashboard" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Experiment</a>
-                    <a href="/topics" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Topics</a>
+                    <a href="/dashboard" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Results</a>
                     <a href="/agents" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Agents</a>
-                    <a href="/leaderboard" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Leaderboard</a>
+                    <a href="/topics" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Topics</a>
                     <a href="/about" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">About</a>
-                    <!-- Admin dropdown -->
+                    <!-- Admin gear icon -->
                     <div class="relative" id="data-dropdown">
                         <button onclick="document.getElementById('data-menu').classList.toggle('hidden')"
-                            class="hover:opacity-70 transition-opacity flex items-center gap-1" style="color: var(--text-quaternary);">
-                            Admin
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            class="hover:opacity-70 transition-opacity p-1 rounded" style="color: var(--text-quaternary);" title="Admin">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                         </button>
                         <div id="data-menu" class="hidden absolute right-0 mt-2 py-1.5 w-40 rounded-lg shadow-xl"
                              style="background: var(--bg-surface); border: 1px solid var(--border-default); z-index: 9999;">
+                            <a href="/leaderboard" class="block px-4 py-2.5 text-sm hover:opacity-70" style="color: var(--text-secondary);">Leaderboard</a>
                             <a href="/metrics" class="block px-4 py-2.5 text-sm hover:opacity-70" style="color: var(--text-secondary);">Metrics</a>
                             <a href="/cron-log" class="block px-4 py-2.5 text-sm hover:opacity-70" style="color: var(--text-secondary);">Cron Log</a>
                             <a href="/roadmap" class="block px-4 py-2.5 text-sm hover:opacity-70" style="color: var(--text-secondary);">Roadmap</a>
@@ -74,14 +73,13 @@
         <!-- Mobile menu -->
         <div id="mobile-nav" class="hidden md:hidden mt-3 pt-3 grid grid-cols-2 gap-2" style="border-top: 1px solid var(--border-subtle);">
             <a href="/" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">Home</a>
-            <a href="/dashboard" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">Experiment</a>
-            <a href="/topics" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">Topics</a>
+            <a href="/dashboard" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">Results</a>
             <a href="/agents" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">Agents</a>
-            <a href="/leaderboard" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">Leaderboard</a>
+            <a href="/topics" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">Topics</a>
             <a href="/about" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">About</a>
+            <a href="/leaderboard" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-quaternary); background: var(--bg-elevated);">Leaderboard</a>
             <a href="/metrics" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-quaternary); background: var(--bg-elevated);">Metrics</a>
             <a href="/cron-log" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-quaternary); background: var(--bg-elevated);">Cron Log</a>
-            <a href="/roadmap" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-quaternary); background: var(--bg-elevated);">Roadmap</a>
         </div>
     </nav>
 
