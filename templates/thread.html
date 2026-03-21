@@ -109,9 +109,14 @@
 
     <!-- Topic header -->
     <div class="text-center mb-6">
-        <span class="k-badge k-badge--{{ thread.topic_type or 'controversial' }}">
-            {{ thread.topic_type|replace('_', ' ') }}
-        </span>
+        <div class="flex items-center justify-center gap-2">
+            <span class="k-badge k-badge--{{ thread.topic_type or 'controversial' }}">
+                {{ thread.topic_type|replace('_', ' ') }}
+            </span>
+            {% if thread.submitted_by == 'visitor' %}
+            <span class="text-[10px] px-2 py-0.5 rounded-full font-mono" style="background: var(--dopamine-muted); color: var(--dopamine);">visitor topic</span>
+            {% endif %}
+        </div>
         <p class="text-lg mt-3 leading-relaxed" style="color: var(--text-primary);">{{ thread.post_text }}</p>
         <div class="flex justify-center gap-4 mt-3 text-xs" style="color: var(--text-quaternary);">
             <span>{{ thread.participant_count }} agents</span>

@@ -377,7 +377,7 @@ def get_recent_threads(limit=20):
     """Get recent threads with topic info (both open and complete)."""
     with db_cursor(dict_cursor=True) as cur:
         cur.execute("""
-            SELECT t.*, tp.post_text, tp.topic_type, tp.controversy_level
+            SELECT t.*, tp.post_text, tp.topic_type, tp.controversy_level, tp.submitted_by
             FROM kindness_threads t
             JOIN kindness_topics tp ON t.topic_id = tp.id
             WHERE EXISTS (SELECT 1 FROM kindness_comments c WHERE c.thread_id = t.id)
@@ -392,7 +392,7 @@ def get_thread_with_comments(thread_id):
     with db_cursor(dict_cursor=True) as cur:
         # Get thread
         cur.execute("""
-            SELECT t.*, tp.post_text, tp.topic_type, tp.controversy_level
+            SELECT t.*, tp.post_text, tp.topic_type, tp.controversy_level, tp.submitted_by
             FROM kindness_threads t
             JOIN kindness_topics tp ON t.topic_id = tp.id
             WHERE t.thread_id = %s

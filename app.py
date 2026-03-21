@@ -204,20 +204,40 @@ def api_submit_topic():
     if topic_type not in ('controversial', 'everyday', 'good_news', 'bridge_building'):
         topic_type = 'everyday'
 
-    # Validate with Groq (free, fast) — is this a real discussion topic?
+    # Validate with Grok (free, headless, handles edgy content well)
     try:
-        from utilities.llm_router import chat
+        import requests as http_req
         validation_prompt = (
-            f'Is this a valid discussion topic for a social media experiment? '
-            f'Topic: "{text}"\n\n'
-            f'Reply with ONLY "yes" or "no" followed by a one-sentence reason. '
-            f'Say "yes" if it\'s something people could have a real opinion about. '
-            f'Say "no" only if it\'s spam, gibberish, harmful, or not a real topic.'
+            f'Someone on the internet submitted this as a discussion topic:\n\n'
+            f'"{text}"\n\n'
+            f'People are rude online. That\'s fine. The question is: '
+            f'is this something worth debating? Could real people have genuine opinions about it?\n\n'
+            f'Say NO only if it\'s: literal spam/gibberish, a direct threat, doxxing, '
+            f'or so incoherent nobody could respond to it.\n\n'
+            f'Rude, vulgar, controversial, politically charged — all fine. That\'s the internet.\n\n'
+            f'Also pick the best category: controversial, everyday, good_news, or bridge_building.\n\n'
+            f'Reply in this EXACT format (nothing else):\n'
+            f'APPROVED: yes or no\n'
+            f'CATEGORY: one of the four categories\n'
+            f'REASON: one sentence'
         )
-        result, _ = chat('groq', [{'role': 'user', 'content': validation_prompt}],
-                        max_tokens=50, temperature=0.1)
-        is_approved = result.strip().lower().startswith('yes')
-        validation_note = result.strip()[:200]
+        resp = http_req.post(
+            f'{CLOUD_RUN_WORKER_URL}/chat',
+            json={'backend': 'grok', 'messages': [{'role': 'user', 'content': validation_prompt}]},
+            timeout=30,
+        )
+        if resp.ok:
+            result = resp.json().get('text', '')
+        else:
+            result = ''
+        validation_note = result.strip()[:300]
+        lines = result.strip().lower()
+        is_approved = 'approved: yes' in lines or 'approved:yes' in lines
+        # Use Grok's suggested category
+        for cat in ('controversial', 'everyday', 'good_news', 'bridge_building'):
+            if f'category: {cat}' in lines or f'category:{cat}' in lines:
+                topic_type = cat
+                break
     except Exception:
         # If validation fails, approve anyway — don't block the user
         is_approved = True
