@@ -955,7 +955,7 @@ def get_metrics_history(limit=168):
 
 def log_cron_start(job_name):
     """Start a cron log entry. Returns the log ID."""
-    with db_cursor(commit=True) as cur:
+    with db_cursor(dict_cursor=True) as cur:
         cur.execute("""
             INSERT INTO kindness_cron_log (job_name, status)
             VALUES (%s, 'running')
@@ -966,7 +966,7 @@ def log_cron_start(job_name):
 
 def log_cron_end(log_id, status, duration_ms, result_summary=None, result_json=None, error_text=None):
     """Complete a cron log entry."""
-    with db_cursor(commit=True) as cur:
+    with db_cursor(dict_cursor=True) as cur:
         cur.execute("""
             UPDATE kindness_cron_log
             SET status = %s, duration_ms = %s, result_summary = %s,
