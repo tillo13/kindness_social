@@ -105,6 +105,32 @@ def stats_page():
     return render_template('stats.html', analysis=analysis, experiment=experiment)
 
 
+@app.route('/understand')
+def understand_page():
+    """Chat page: ask questions about the experiment's math and methodology."""
+    return render_template('understand.html')
+
+
+@app.route('/api/chat', methods=['POST'])
+def api_chat():
+    """Chat API: answer questions about the experiment math."""
+    data = request.get_json(silent=True) or {}
+    message = (data.get('message', '') or '').strip()
+    if not message or len(message) < 2:
+        return jsonify({'error': 'Message too short'}), 400
+    if len(message) > 1000:
+        return jsonify({'error': 'Message too long (max 1000 chars)'}), 400
+
+    from core.chatbot import chat, get_chat_count_today, MAX_CHATS_PER_DAY
+    remaining = MAX_CHATS_PER_DAY - get_chat_count_today()
+    if remaining <= 0:
+        return jsonify({'error': 'Daily limit reached (100/day). Come back tomorrow!'}), 429
+
+    history = data.get('history', [])
+    response = chat(message, history)
+    return jsonify({'response': response, 'remaining': remaining - 1})
+
+
 @app.route('/leaderboard')
 def leaderboard():
     """Agent leaderboard with multiple sort criteria."""
