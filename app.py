@@ -95,6 +95,16 @@ def dashboard():
                            top_improved=top_improved, experiment=experiment)
 
 
+@app.route('/stats')
+def stats_page():
+    """Statistical analysis: p-values, effect sizes, confidence intervals."""
+    from core.stats_analysis import analyze_experiment
+    raw_data = db_ops.get_experiment_raw_data()
+    analysis = analyze_experiment(raw_data)
+    experiment = db_ops.get_control_vs_treatment()
+    return render_template('stats.html', analysis=analysis, experiment=experiment)
+
+
 @app.route('/leaderboard')
 def leaderboard():
     """Agent leaderboard with multiple sort criteria."""

@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Statistical Analysis — Kindness Social{% endblock %}
+{% block og_title %}Statistical Analysis — Does Rewarding Kindness Work?{% endblock %}
+{% block og_description %}P-values, effect sizes, and confidence intervals from a live experiment with {{ analysis.treatment_n + analysis.control_n }} AI agents.{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+
+    <div class="text-center py-8">
+        <h1 class="text-3xl font-bold mb-2" style="color: var(--text-primary);">Statistical Analysis</h1>
+        <p class="text-sm" style="color: var(--text-tertiary);">
+            Does rewarding kindness actually change behavior? Here are the numbers.
+        </p>
+    </div>
+
+    {% if not analysis %}
+    <div class="k-card-flat p-6 text-center" style="color: var(--text-tertiary);">
+        Not enough data yet. Need at least 2 agents in each group with interactions.
+    </div>
+    {% else %}
+
+    <!-- Sample Sizes -->
+    <div class="k-card-flat p-5 mb-6">
+        <div class="grid grid-cols-3 gap-4 text-center">
+            <div>
+                <div class="text-2xl font-bold font-mono" style="color: var(--kindness);">{{ analysis.treatment_n }}</div>
+                <div class="text-xs" style="color: var(--text-quaternary);">Treatment agents (rewarded)</div>
+            </div>
+            <div>
+                <div class="text-2xl font-bold font-mono" style="color: var(--text-tertiary);">{{ analysis.control_n }}</div>
+                <div class="text-xs" style="color: var(--text-quaternary);">Control agents (no rewards)</div>
+            </div>
+            <div>
+                <div class="text-2xl font-bold font-mono" style="color: var(--text-primary);">{{ "{:,}".format(analysis.total_comments) }}</div>
+                <div class="text-xs" style="color: var(--text-quaternary);">Total comments analyzed</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Methodology -->
+    <div class="k-card-flat p-5 mb-6">
+        <div class="text-xs font-mono uppercase tracking-wider mb-2" style="color: var(--text-quaternary);">Methodology</div>
+        <p class="text-sm" style="color: var(--text-tertiary);">
+            Welch's t-test (unequal variances, two-tailed). Effect sizes reported as Cohen's d.
+            95% confidence intervals shown for each group mean. All agents start with randomized baselines,
+            treatment agents receive dopamine rewards that drive personality evolution, control agents do not.
+        </p>
+    </div>
+
+    <!-- Results Table -->
+    {% for key, m in analysis.metrics.items() %}
+    <div class="k-card-flat p-5 mb-4" style="{% if m.significant %}border-left: 3px solid var(--kindness);{% endif %}">
+        <div class="flex items-baseline justify-between mb-3">
+            <div class="font-bold text-sm" style="color: var(--text-primary);">{{ m.name }}</div>
+            <div class="flex items-center gap-2">
+                {% if m.significant %}
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-mono" style="background: var(--kindness-muted); color: var(--kindness);">
+                    {{ m.stars }} {{ m.p_label }}
+                </span>
+                {% else %}
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-mono" style="background: var(--bg-elevated); color: var(--text-quaternary);">
+                    ns ({{ m.p_label }})
+                </span>
+                {% endif %}
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-mono" style="background: var(--bg-elevated); color: var(--text-tertiary);">
+                    d={{ "%.2f"|format(m.cohens_d) }} ({{ m.effect_label }})
+                </span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-3">
+            <!-- Treatment -->
+            <div class="p-3 rounded-lg" style="background: var(--bg-elevated);">
+                <div class="text-[10px] uppercase tracking-wider mb-1" style="color: var(--kindness);">Treatment (rewarded)</div>
+                <div class="text-xl font-bold font-mono" style="color: var(--text-primary);">{{ "%.3f"|format(m.treatment_mean) }}</div>
+                <div class="text-[10px] font-mono" style="color: var(--text-quaternary);">
+                    SD: {{ "%.3f"|format(m.treatment_sd) }} &middot;
+                    95% CI: [{{ "%.3f"|format(m.treatment_ci[0]) }}, {{ "%.3f"|format(m.treatment_ci[1]) }}]
+                </div>
+            </div>
+            <!-- Control -->
+            <div class="p-3 rounded-lg" style="background: var(--bg-elevated);">
+                <div class="text-[10px] uppercase tracking-wider mb-1" style="color: var(--text-quaternary);">Control (no rewards)</div>
+                <div class="text-xl font-bold font-mono" style="color: var(--text-tertiary);">{{ "%.3f"|format(m.control_mean) }}</div>
+                <div class="text-[10px] font-mono" style="color: var(--text-quaternary);">
+                    SD: {{ "%.3f"|format(m.control_sd) }} &middot;
+                    95% CI: [{{ "%.3f"|format(m.control_ci[0]) }}, {{ "%.3f"|format(m.control_ci[1]) }}]
+                </div>
+            </div>
+        </div>
+
+        <!-- Difference -->
+        <div class="flex items-center gap-3 text-xs" style="color: var(--text-quaternary);">
+            <span>Difference: <span class="font-mono" style="color: var(--text-secondary);">{{ "%.3f"|format(m.difference) }}</span></span>
+            <span>t({{ "%.1f"|format(m.df) }}) = {{ "%.3f"|format(m.t_stat) }}</span>
+            {% if m.significant %}
+            <span style="color: var(--kindness);">
+                {% if m.higher_is_better and m.difference > 0 %}Treatment performing better{% elif not m.higher_is_better and m.difference < 0 %}Treatment performing better{% else %}Control performing better{% endif %}
+            </span>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- Interpretation -->
+    <div class="k-card-flat p-5 mb-6">
+        <div class="text-xs font-mono uppercase tracking-wider mb-2" style="color: var(--text-quaternary);">How to Read This</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm" style="color: var(--text-tertiary);">
+            <div>
+                <div class="font-bold mb-1" style="color: var(--text-secondary);">P-value</div>
+                <p>Probability of seeing this difference by chance. Below 0.05 = statistically significant.
+                *** = p&lt;0.001, ** = p&lt;0.01, * = p&lt;0.05, ns = not significant.</p>
+            </div>
+            <div>
+                <div class="font-bold mb-1" style="color: var(--text-secondary);">Cohen's d</div>
+                <p>How big the effect is, independent of sample size. &lt;0.2 = negligible, 0.2-0.5 = small,
+                0.5-0.8 = medium, &gt;0.8 = large.</p>
+            </div>
+            <div>
+                <div class="font-bold mb-1" style="color: var(--text-secondary);">Confidence Interval</div>
+                <p>Range where the true mean likely falls (95% probability). Non-overlapping CIs between
+                groups suggest a real difference.</p>
+            </div>
+            <div>
+                <div class="font-bold mb-1" style="color: var(--text-secondary);">The Experiment</div>
+                <p>Treatment agents earn dopamine for kindness, which drives personality evolution.
+                Control agents participate identically but never get rewards. Same topics, same scoring.</p>
+            </div>
+        </div>
+    </div>
+
+    {% endif %}
+</div>
+{% endblock %}

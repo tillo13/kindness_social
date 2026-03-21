@@ -1064,6 +1064,32 @@ def get_control_vs_treatment():
         return results
 
 
+def get_experiment_raw_data():
+    """Get per-agent metrics for statistical analysis (treatment vs control)."""
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("""
+            SELECT
+                a.id, a.agent_id, a.is_control,
+                a.toxicity_baseline, a.current_toxicity,
+                (a.toxicity_baseline - a.current_toxicity) as tox_change,
+                a.empathy_baseline, a.current_empathy,
+                (a.current_empathy - a.empathy_baseline) as emp_change,
+                a.total_dopamine, a.total_interactions,
+                COALESCE(c.avg_k, 0) as avg_kindness_score,
+                COALESCE(c.avg_t, 0) as avg_toxicity_score,
+                COALESCE(c.comment_count, 0) as comment_count
+            FROM kindness_agents a
+            LEFT JOIN LATERAL (
+                SELECT AVG(kindness_score) as avg_k, AVG(toxicity_score) as avg_t,
+                       COUNT(*) as comment_count
+                FROM kindness_comments WHERE agent_id = a.id
+            ) c ON TRUE
+            WHERE a.is_active = TRUE AND a.total_interactions > 0
+            ORDER BY a.is_control, a.id
+        """)
+        return [dict(r) for r in cur.fetchall()]
+
+
 def get_24h_summary():
     """Get activity summary for the last 24 hours."""
     with db_cursor(dict_cursor=True) as cur:
