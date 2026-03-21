@@ -28,6 +28,34 @@ def health():
     return jsonify({'status': 'ok', 'service': 'kindness-worker'})
 
 
+@app.route('/chat', methods=['POST'])
+def chat_proxy():
+    """Proxy chat requests for backends that only work on Cloud Run (grok, deepseek)."""
+    data = request.get_json(silent=True) or {}
+    backend = data.get('backend', 'grok')
+    messages = data.get('messages', [])
+    max_tokens = data.get('max_tokens', 500)
+    temperature = data.get('temperature', 0.3)
+    system = data.get('system')
+
+    if not messages:
+        return jsonify({'error': 'No messages provided'}), 400
+
+    try:
+        if backend in ('grok', 'grok_fast', 'grok4'):
+            from grok_core.grok import chat as grok_chat
+            text = grok_chat(messages, max_tokens=max_tokens, temperature=temperature, system=system)
+        elif backend == 'deepseek':
+            from dsk.api import chat as dsk_chat
+            text = dsk_chat(messages, max_tokens=max_tokens, temperature=temperature)
+        else:
+            return jsonify({'error': f'Unknown backend: {backend}'}), 400
+
+        return jsonify({'text': text, 'backend': backend, 'status': 'ok'})
+    except Exception as e:
+        return jsonify({'error': str(e)[:300], 'backend': backend}), 500
+
+
 @app.route('/test-all-models', methods=['POST'])
 def test_all_models():
     """Test every model from every provider. Returns which work and which don't."""

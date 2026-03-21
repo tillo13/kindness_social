@@ -20,6 +20,51 @@ FALLBACK_ORDER = ['groq', 'cerebras', 'mistral', 'gpt4o_mini', 'haiku', 'sonnet'
 # These only work on Cloud Run / locally (need native deps that App Engine can't install)
 CLOUD_RUN_ONLY = {'grok', 'grok_fast', 'grok4', 'deepseek'}
 
+CLOUD_RUN_WORKER_URL = 'https://kindness-worker-243380010344.us-central1.run.app'
+
+
+def _proxy_to_worker(backend, messages, max_tokens=500, temperature=0.3, system=None):
+    """Proxy a chat request to the Cloud Run worker for backends that can't run on App Engine."""
+    import requests as http_req
+    start = time.time()
+    try:
+        payload = {
+            'backend': backend,
+            'messages': messages,
+            'max_tokens': max_tokens,
+            'temperature': temperature,
+        }
+        if system:
+            payload['system'] = system
+
+        resp = http_req.post(
+            f'{CLOUD_RUN_WORKER_URL}/chat',
+            json=payload,
+            timeout=120,
+        )
+        elapsed = int((time.time() - start) * 1000)
+
+        if resp.ok:
+            data = resp.json()
+            text = data.get('text', '')
+            actual = data.get('backend', backend)
+            if text:
+                logger.info(f"Cloud Run proxy OK for {backend} ({elapsed}ms)")
+                _log_telemetry(backend, actual, messages, max_tokens, temperature,
+                              text, elapsed, True)
+                record_usage(backend)
+                return text, actual
+
+        logger.warning(f"Cloud Run proxy returned {resp.status_code} for {backend}")
+        return None
+    except Exception as e:
+        elapsed = int((time.time() - start) * 1000)
+        logger.warning(f"Cloud Run proxy failed for {backend}: {e} ({elapsed}ms)")
+        _log_telemetry(backend, backend, messages, max_tokens, temperature,
+                      '', elapsed, False, error_message=str(e)[:200])
+        return None
+
+
 # Backend to module mapping
 _BACKEND_MODULES = {}
 
@@ -141,7 +186,14 @@ def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
     is_cloud_run_only = backend in CLOUD_RUN_ONLY
 
     if is_appengine and is_cloud_run_only:
-        # Silently reroute — no import, no attempt, no telemetry noise
+        # Proxy to Cloud Run worker instead of silently falling back
+        try:
+            result = _proxy_to_worker(backend, messages, max_tokens, temperature, system)
+            if result:
+                return result
+        except Exception as e:
+            logger.warning(f"Cloud Run proxy failed for {backend}: {e}")
+        # Fall back to App Engine backends only if worker fails
         backends_to_try = [b for b in FALLBACK_ORDER if b not in CLOUD_RUN_ONLY]
     else:
         backends_to_try = [backend] + [b for b in FALLBACK_ORDER if b != backend]
