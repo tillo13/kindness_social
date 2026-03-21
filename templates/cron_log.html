@@ -2,6 +2,11 @@
 {% block title %}Cron Log - Kindness Social{% endblock %}
 
 {% block content %}
+<div class="mb-6">
+    <h1 class="text-xl font-semibold mb-1" style="color: var(--text-primary);">Cron Log</h1>
+    <p class="text-sm" style="color: var(--text-tertiary);">Execution history for every automated job — thread generation, agent responses, topic scraping, metrics snapshots, and more. Filter by job name to drill in.</p>
+</div>
+
 <!-- Summary Cards -->
 {% if summary %}
 <div class="grid grid-cols-2 gap-2 md:gap-3 mb-6">

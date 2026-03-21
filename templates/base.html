@@ -45,7 +45,9 @@
                     <!-- Agents dropdown -->
                     <div class="relative" id="agents-dropdown">
                         <button onclick="toggleDropdown('agents-menu')"
-                            class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Agents</button>
+                            class="hover:opacity-70 transition-opacity flex items-center gap-1" style="color: var(--text-secondary);">
+                            Agents <span class="dd-chevron text-[8px]" style="color: var(--text-quaternary);">&#9662;</span>
+                        </button>
                         <div id="agents-menu" class="hidden absolute left-0 mt-2 py-1.5 w-40 rounded-lg shadow-xl"
                              style="background: var(--bg-surface); border: 1px solid var(--border-default); z-index: 9999;">
                             <a href="/agents" class="block px-4 py-2.5 text-sm hover:opacity-70" style="color: var(--text-secondary);">All Agents</a>
@@ -56,19 +58,21 @@
                     <!-- About dropdown -->
                     <div class="relative" id="about-dropdown">
                         <button onclick="toggleDropdown('about-menu')"
-                            class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">About</button>
-                        <div id="about-menu" class="hidden absolute right-0 mt-2 py-1.5 w-40 rounded-lg shadow-xl"
+                            class="hover:opacity-70 transition-opacity flex items-center gap-1" style="color: var(--text-secondary);">
+                            About <span class="dd-chevron text-[8px]" style="color: var(--text-quaternary);">&#9662;</span>
+                        </button>
+                        <div id="about-menu" class="hidden absolute right-0 mt-2 py-1.5 w-44 rounded-lg shadow-xl"
                              style="background: var(--bg-surface); border: 1px solid var(--border-default); z-index: 9999;">
                             <a href="/about" class="block px-4 py-2.5 text-sm hover:opacity-70" style="color: var(--text-secondary);">Methodology</a>
                             <a href="/understand" class="block px-4 py-2.5 text-sm hover:opacity-70" style="color: var(--kindness);">Understand the Math</a>
                             <a href="/roadmap" class="block px-4 py-2.5 text-sm hover:opacity-70" style="color: var(--text-secondary);">Roadmap</a>
                         </div>
                     </div>
-                    <!-- Data dropdown (chart icon) -->
+                    <!-- Data dropdown -->
                     <div class="relative" id="data-dropdown">
                         <button onclick="toggleDropdown('data-menu')"
-                            class="hover:opacity-70 transition-opacity p-1 rounded" style="color: var(--text-secondary);" title="Data">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                            class="hover:opacity-70 transition-opacity flex items-center gap-1" style="color: var(--text-secondary);">
+                            Data <span class="dd-chevron text-[8px]" style="color: var(--text-quaternary);">&#9662;</span>
                         </button>
                         <div id="data-menu" class="hidden absolute right-0 mt-2 py-1.5 w-40 rounded-lg shadow-xl"
                              style="background: var(--bg-surface); border: 1px solid var(--border-default); z-index: 9999;">
@@ -171,21 +175,39 @@
     updateThemeIcons();
 
     /* ── Dropdown toggle + close on click outside ── */
+    function updateChevrons() {
+        ['agents', 'data', 'about'].forEach(function(name) {
+            var menu = document.getElementById(name + '-menu');
+            var dd = document.getElementById(name + '-dropdown');
+            if (!menu || !dd) return;
+            var chevron = dd.querySelector('.dd-chevron');
+            if (!chevron) return;
+            var isOpen = !menu.classList.contains('hidden');
+            chevron.innerHTML = isOpen ? '&#9652;' : '&#9662;';
+            chevron.style.color = isOpen ? 'var(--kindness)' : 'var(--text-quaternary)';
+        });
+    }
     function toggleDropdown(menuId) {
         var allMenus = ['agents-menu', 'data-menu', 'about-menu'];
         allMenus.forEach(function(id) {
             if (id !== menuId) document.getElementById(id)?.classList.add('hidden');
         });
         document.getElementById(menuId)?.classList.toggle('hidden');
+        updateChevrons();
     }
     document.addEventListener('click', function(e) {
+        var closed = false;
         ['agents-dropdown', 'data-dropdown', 'about-dropdown'].forEach(function(id) {
             var dd = document.getElementById(id);
             if (dd && !dd.contains(e.target)) {
                 var menu = dd.querySelector('[id$="-menu"]');
-                if (menu) menu.classList.add('hidden');
+                if (menu && !menu.classList.contains('hidden')) {
+                    menu.classList.add('hidden');
+                    closed = true;
+                }
             }
         });
+        if (closed) updateChevrons();
     });
 
     /* ── Markdown rendering for comment text ── */
