@@ -115,9 +115,16 @@
             </span>
             {% if thread.submitted_by == 'visitor' %}
             <span class="text-[10px] px-2 py-0.5 rounded-full font-mono" style="background: var(--dopamine-muted); color: var(--dopamine);">visitor topic</span>
+            {% elif thread.submitted_by == 'scraper' %}
+            <span class="text-[10px] px-2 py-0.5 rounded-full font-mono" style="background: var(--empathy-muted); color: var(--empathy);">trending</span>
             {% endif %}
         </div>
         <p class="text-lg mt-3 leading-relaxed" style="color: var(--text-primary);">{{ thread.post_text }}</p>
+        {% if thread.source_url %}
+        <p class="text-[10px] mt-2" style="color: var(--text-quaternary);">
+            Source: <a href="{{ thread.source_url }}" target="_blank" rel="noopener" class="hover:opacity-70" style="color: var(--text-tertiary);">{{ thread.source_headline[:60] if thread.source_headline else 'article' }}{% if thread.source_headline and thread.source_headline|length > 60 %}...{% endif %} &rarr;</a>
+        </p>
+        {% endif %}
         <div class="flex justify-center gap-4 mt-3 text-xs" style="color: var(--text-quaternary);">
             <span>{{ thread.participant_count }} agents</span>
             <span>|</span>

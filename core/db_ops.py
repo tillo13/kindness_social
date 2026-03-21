@@ -312,33 +312,15 @@ def update_agent_state(db_id, updates):
 # ============================================================================
 
 def get_random_topic():
-    """Get a topic prioritizing fresh/unused ones. Newest and least-used get picked first."""
-    roll = random.random()
-    if roll < 0.35:
-        topic_type = 'controversial'
-    elif roll < 0.60:
-        topic_type = 'everyday'
-    elif roll < 0.80:
-        topic_type = 'good_news'
-    else:
-        topic_type = 'bridge_building'
+    """Get the freshest unused topic. Only real topics — scraped or visitor-submitted."""
     with db_cursor(dict_cursor=True) as cur:
-        # 70% chance: pick least-used topic (favors fresh scraped/visitor topics)
-        # 30% chance: pure random (so old topics still get reused sometimes)
-        if random.random() < 0.7:
-            cur.execute("""
-                SELECT * FROM kindness_topics
-                WHERE topic_type = %s AND is_approved = TRUE
-                ORDER BY times_used ASC, created_at DESC
-                LIMIT 1
-            """, (topic_type,))
-        else:
-            cur.execute("""
-                SELECT * FROM kindness_topics
-                WHERE topic_type = %s AND is_approved = TRUE
-                ORDER BY RANDOM()
-                LIMIT 1
-            """, (topic_type,))
+        # Pick the least-used, newest approved topic (any type)
+        cur.execute("""
+            SELECT * FROM kindness_topics
+            WHERE is_approved = TRUE
+            ORDER BY times_used ASC, created_at DESC
+            LIMIT 1
+        """)
         row = cur.fetchone()
         if row:
             # Increment usage counter
@@ -402,7 +384,8 @@ def get_thread_with_comments(thread_id):
     with db_cursor(dict_cursor=True) as cur:
         # Get thread
         cur.execute("""
-            SELECT t.*, tp.post_text, tp.topic_type, tp.controversy_level, tp.submitted_by
+            SELECT t.*, tp.post_text, tp.topic_type, tp.controversy_level, tp.submitted_by,
+                   tp.source_url, tp.source_headline
             FROM kindness_threads t
             JOIN kindness_topics tp ON t.topic_id = tp.id
             WHERE t.thread_id = %s

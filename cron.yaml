@@ -29,7 +29,7 @@ cron:
 
 - description: "Scrape trending topics from the web via DDG + Grok"
   url: /api/cron/scrape-topics
-  schedule: every 6 hours
+  schedule: every 3 hours
   retry_parameters:
     min_backoff_seconds: 60
     max_doublings: 2

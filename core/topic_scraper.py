@@ -127,9 +127,11 @@ def scrape_and_add_topics(worker_url, max_new=5):
 
                 cur.execute("""
                     INSERT INTO kindness_topics
-                        (topic_id, post_text, topic_type, controversy_level, submitted_by, is_approved)
-                    VALUES (%s, %s, %s, %s, %s, TRUE)
-                """, (topic_id, topic['text'], topic['category'], 5, 'scraper'))
+                        (topic_id, post_text, topic_type, controversy_level, submitted_by,
+                         is_approved, source_url, source_headline)
+                    VALUES (%s, %s, %s, %s, %s, TRUE, %s, %s)
+                """, (topic_id, topic['text'], topic['category'], 5, 'scraper',
+                      headline.get('url', ''), headline.get('title', '')))
 
             added += 1
             logger.info(f"Added topic: [{topic['category']}] {topic['text'][:60]}...")
