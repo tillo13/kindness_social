@@ -201,6 +201,22 @@
 
     updateThemeIcons();
 
+    /* ── Avatar fallback: local → GCS → hide ── */
+    window.avatarFallback = function(img) {
+        var src = img.src;
+        var gcs = 'https://storage.googleapis.com/kindness-io-avatars/';
+        if (src.indexOf(gcs) === -1) {
+            // Try GCS
+            var filename = src.split('/').pop();
+            img.src = gcs + filename;
+        } else {
+            // GCS also failed — show fallback initial
+            img.style.display = 'none';
+            var next = img.nextElementSibling;
+            if (next) next.style.display = 'flex';
+        }
+    };
+
     /* ── Dropdown toggle + close on click outside ── */
     function updateChevrons() {
         ['agents', 'data', 'about'].forEach(function(name) {

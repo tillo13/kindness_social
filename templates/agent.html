@@ -19,7 +19,7 @@
                      class="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover cursor-pointer flex-shrink-0"
                      alt="{{ agent.display_name }}"
                      style="border: 2px solid {{ color }}40;"
-                     onerror="this.outerHTML='<div class=\'k-avatar\' style=\'color: {{ color }}; background: {{ color }}15;\'>{{ agent.display_name[0]|upper }}</div>'">
+                     onerror="avatarFallback(this)">
                 <div class="min-w-0">
                     <h1 class="font-mono text-base sm:text-xl font-bold truncate" style="color: {{ color }}; letter-spacing: -0.02em;">
                         {{ agent.display_name }}

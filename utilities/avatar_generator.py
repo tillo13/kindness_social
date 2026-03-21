@@ -1,6 +1,8 @@
 """
-Avatar Generator - Creates cartoon profile photos for agents via Flux Kontext Pro.
-~$0.05-0.10 per image. Generated once, stored in static/images/avatars/.
+Avatar Generator - Creates cartoon profile photos for agents via Flux Schnell (Replicate).
+Local dev: saves to static/images/avatars/ (deployed with code).
+App Engine: uploads to GCS bucket (served via public URL).
+Both paths checked when resolving avatar URLs.
 """
 
 import logging
@@ -14,8 +16,16 @@ logger = logging.getLogger(__name__)
 AVATAR_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static', 'images', 'avatars')
 os.makedirs(AVATAR_DIR, exist_ok=True)
 
+GCS_BUCKET = 'kindness-io-avatars'
+GCS_PUBLIC_URL = f'https://storage.googleapis.com/{GCS_BUCKET}'
+
 REPLICATE_API = "https://api.replicate.com/v1"
 _api_token = None
+_gcs_client = None
+
+
+def _is_appengine():
+    return os.environ.get('GAE_ENV', '').startswith('standard')
 
 
 def _get_token():
@@ -34,17 +44,43 @@ def _headers():
     }
 
 
+def _get_gcs_bucket():
+    global _gcs_client
+    if _gcs_client is None:
+        from google.cloud import storage
+        client = storage.Client(project='kindness-io')
+        _gcs_client = client.bucket(GCS_BUCKET)
+    return _gcs_client
+
+
+def _upload_to_gcs(agent_id, image_bytes):
+    """Upload avatar bytes to GCS. Returns public URL."""
+    try:
+        bucket = _get_gcs_bucket()
+        blob = bucket.blob(f'{agent_id}.jpg')
+        blob.upload_from_string(image_bytes, content_type='image/jpeg')
+        blob.make_public()
+        url = f'{GCS_PUBLIC_URL}/{agent_id}.jpg'
+        logger.info(f"Avatar uploaded to GCS: {url}")
+        return url
+    except Exception as e:
+        logger.error(f"GCS upload failed for {agent_id}: {e}")
+        return None
+
+
 def get_avatar_path(agent_id):
     """Get the local file path for an agent's avatar."""
     return os.path.join(AVATAR_DIR, f"{agent_id}.jpg")
 
 
 def get_avatar_url(agent_id):
-    """Get the web URL for an agent's avatar. Returns None if not generated."""
+    """Get the web URL for an agent's avatar. Checks local first, then GCS."""
+    # Local file (deployed with code)
     path = get_avatar_path(agent_id)
     if os.path.exists(path):
         return f"/static/images/avatars/{agent_id}.jpg"
-    return None
+    # GCS (runtime-generated)
+    return f"{GCS_PUBLIC_URL}/{agent_id}.jpg"
 
 
 def build_prompt(agent):
@@ -165,8 +201,19 @@ def generate_avatar(agent, force=False):
                     from io import BytesIO
                     img = Image.open(BytesIO(img_resp.content)).convert('RGB')
                     img = img.resize((256, 256), Image.LANCZOS)
-                    img.save(path, 'JPEG', quality=80, optimize=True)
-                    logger.info(f"Avatar saved: {path} ({os.path.getsize(path)} bytes)")
+                    buf = BytesIO()
+                    img.save(buf, 'JPEG', quality=80, optimize=True)
+                    img_bytes = buf.getvalue()
+
+                    # Save locally if possible, always upload to GCS
+                    try:
+                        with open(path, 'wb') as f:
+                            f.write(img_bytes)
+                        logger.info(f"Avatar saved locally: {path} ({len(img_bytes)} bytes)")
+                    except (OSError, IOError):
+                        logger.info(f"Local save failed (read-only fs), using GCS only")
+
+                    _upload_to_gcs(agent_id, img_bytes)
                     return path
                 break
             elif status == 'failed':

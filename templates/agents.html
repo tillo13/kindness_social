@@ -47,7 +47,7 @@
                      alt="{{ a.display_name }}"
                      class="w-9 h-9 rounded-full object-cover flex-shrink-0"
                      style="border: 1.5px solid {{ color }}40;"
-                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                     onerror="avatarFallback(this)">
                 <div class="w-9 h-9 rounded-full items-center justify-center text-xs font-bold flex-shrink-0 hidden"
                      style="color: {{ color }}; background: {{ color }}12; border: 1px solid {{ color }}25; display: none;">
                     {{ a.display_name.split('.')[-1] if '.' in a.display_name else a.display_name[0] }}

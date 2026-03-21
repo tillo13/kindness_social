@@ -193,7 +193,7 @@
                          alt="{{ c.display_name }}"
                          class="w-6 h-6 rounded-full object-cover"
                          style="border: 1px solid {{ color }}40;"
-                         onerror="this.style.display='none'">
+                         onerror="avatarFallback(this)">
                 </a>
                 <a href="/agent/{{ c.agent_id }}" class="agent-link font-mono text-xs font-bold" style="color: {{ color }}">
                     {{ c.display_name }}

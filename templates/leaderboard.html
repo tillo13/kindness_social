@@ -50,7 +50,7 @@
             <img src="/static/images/avatars/{{ a.agent_id }}.jpg"
                  class="w-8 h-8 rounded-full object-cover flex-shrink-0"
                  style="border: 1.5px solid {{ color }}40;"
-                 onerror="this.style.display='none'">
+                 onerror="avatarFallback(this)">
 
             <!-- Name + Backend -->
             <div class="flex-1 min-w-0">
