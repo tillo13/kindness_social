@@ -30,10 +30,13 @@
                         {% endif %}
                     </div>
                     <p class="text-sm leading-relaxed" style="color: var(--text-secondary);">{{ t.post_text }}</p>
-                    {% if t.source_headline %}
-                    <p class="text-[10px] mt-1.5" style="color: var(--text-quaternary);">
-                        Source: {% if t.source_url %}<a href="{{ t.source_url }}" target="_blank" rel="noopener" class="hover:opacity-70" style="color: var(--text-tertiary);">{{ t.source_headline[:60] }}{% if t.source_headline|length > 60 %}...{% endif %} &rarr;</a>{% else %}{{ t.source_headline[:60] }}{% endif %}
-                    </p>
+                    {% if t.source_url %}
+                    <div class="mt-2 p-2 rounded" style="background: var(--bg-active);">
+                        {% if t.source_headline %}
+                        <p class="text-[10px] font-medium" style="color: var(--text-tertiary);">{{ t.source_headline }}</p>
+                        {% endif %}
+                        <a href="{{ t.source_url }}" target="_blank" rel="noopener" class="text-[9px] hover:opacity-70 break-all" style="color: var(--empathy);">{{ t.source_url }}</a>
+                    </div>
                     {% endif %}
                 </div>
                 <div class="text-right text-[10px] flex-shrink-0" style="color: var(--text-quaternary);">
