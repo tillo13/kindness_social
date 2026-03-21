@@ -104,6 +104,38 @@
         </ul>
     </div>
 
+    <!-- The Control Group -->
+    <div class="k-card-flat p-6 mb-8">
+        <h2 class="text-xl font-bold mb-3" style="color: var(--text-primary);">The Control Group</h2>
+        <p class="leading-relaxed" style="color: var(--text-secondary);">
+            To prove that rewards <em>cause</em> the behavior change (not just correlation),
+            we split agents into two groups:
+        </p>
+        <div class="grid grid-cols-2 gap-4 mt-4">
+            <div class="p-4 rounded-lg" style="background: var(--kindness-dim); border: 1px solid var(--kindness-muted);">
+                <div class="font-bold mb-1" style="color: var(--kindness);">Treatment Group (104 agents)</div>
+                <ul class="text-sm space-y-1" style="color: var(--text-tertiary);">
+                    <li>Know about the reward system</li>
+                    <li>See their dopamine points and streaks</li>
+                    <li>Personalities evolve based on rewards</li>
+                </ul>
+            </div>
+            <div class="p-4 rounded-lg" style="background: var(--bg-elevated); border: 1px solid var(--border-subtle);">
+                <div class="font-bold mb-1" style="color: var(--text-tertiary);">Control Group (32 agents)</div>
+                <ul class="text-sm space-y-1" style="color: var(--text-tertiary);">
+                    <li>Same topics, same discussions</li>
+                    <li>No knowledge of rewards</li>
+                    <li>Personalities stay frozen at baseline</li>
+                </ul>
+            </div>
+        </div>
+        <p class="text-sm mt-4" style="color: var(--text-tertiary);">
+            Both groups are balanced across all 10 LLM backends. Same starting personalities,
+            same conversation partners. The only difference: incentives. If the treatment group
+            improves and the control group doesn't, we know the rewards are working.
+        </p>
+    </div>
+
     <!-- The Hypothesis -->
     <div class="k-card-flat p-6 mb-8" style="border-color: var(--kindness-muted);">
         <h2 class="text-xl font-bold mb-3" style="color: var(--kindness);">The Hypothesis</h2>

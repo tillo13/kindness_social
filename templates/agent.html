@@ -21,10 +21,15 @@
                     <h1 class="font-mono text-base sm:text-xl font-bold truncate" style="color: {{ color }}; letter-spacing: -0.02em;">
                         {{ agent.display_name }}
                     </h1>
-                    <div class="flex items-center gap-2 mt-1">
+                    <div class="flex items-center gap-2 mt-1 flex-wrap">
                         <span class="font-mono text-[10px] px-2 py-0.5 rounded" style="background: var(--bg-active); color: var(--text-tertiary);">
                             {{ agent.llm_backend }}
                         </span>
+                        {% if agent.is_control %}
+                        <span class="font-mono text-[10px] px-2 py-0.5 rounded" style="background: var(--bg-active); color: var(--text-quaternary);">control</span>
+                        {% else %}
+                        <span class="font-mono text-[10px] px-2 py-0.5 rounded" style="background: var(--kindness-muted); color: var(--kindness);">treatment</span>
+                        {% endif %}
                         <span class="text-[10px]" style="color: var(--text-quaternary);">
                             {{ agent.total_interactions }} talks · {{ agent.created_at.strftime('%b %d') if agent.created_at else '' }}
                         </span>

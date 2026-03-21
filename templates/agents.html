@@ -50,11 +50,13 @@
                 </div>
                 <div>
                     <div class="font-mono text-xs font-semibold" style="color: {{ color }};">{{ a.display_name }}</div>
-                    <div class="font-mono text-[9px] mt-0.5" style="color: var(--text-quaternary);">
+                    <div class="font-mono text-[9px] mt-0.5 flex items-center gap-1 flex-wrap" style="color: var(--text-quaternary);">
                         {{ a.llm_backend }}
+                        {% if a.is_control %}
+                        <span class="px-1.5 py-0.5 rounded text-[8px]" style="background: var(--bg-active);">control</span>
+                        {% endif %}
                         &middot; {{ a.gender_presentation or '?' }}
-                        &middot; {{ (a.age_bracket or '')|replace('_', ' ') }}
-                        &middot; {{ a.authority_level or '?' }} status
+                        &middot; {{ a.total_interactions }} talks
                     </div>
                 </div>
             </div>
