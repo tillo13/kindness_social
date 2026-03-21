@@ -67,7 +67,11 @@ def home():
     stats = db_ops.get_global_stats()
     model_data = db_ops.get_model_comparison()
     threads = db_ops.get_recent_threads(limit=3)
-    return render_template('home.html', stats=stats, model_data=model_data, threads=threads)
+    experiment = db_ops.get_control_vs_treatment()
+    summary_24h = db_ops.get_24h_summary()
+    featured = db_ops.get_featured_thread()
+    return render_template('home.html', stats=stats, model_data=model_data, threads=threads,
+                           experiment=experiment, summary_24h=summary_24h, featured=featured)
 
 
 @app.route('/dashboard')

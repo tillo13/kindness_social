@@ -1055,6 +1055,67 @@ def get_control_vs_treatment():
         return results
 
 
+def get_24h_summary():
+    """Get activity summary for the last 24 hours."""
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("""
+            SELECT COUNT(*) as comments_24h,
+                   AVG(kindness_score) as avg_kindness_24h,
+                   AVG(toxicity_score) as avg_toxicity_24h,
+                   SUM(dopamine_earned) as dopamine_24h,
+                   COUNT(CASE WHEN bridge_score >= 7 THEN 1 END) as bridges_24h
+            FROM kindness_comments
+            WHERE created_at >= NOW() - INTERVAL '24 hours'
+        """)
+        summary = dict(cur.fetchone())
+
+        cur.execute("""
+            SELECT COUNT(*) as threads_24h
+            FROM kindness_threads
+            WHERE created_at >= NOW() - INTERVAL '24 hours'
+        """)
+        summary.update(dict(cur.fetchone()))
+
+        cur.execute("""
+            SELECT COUNT(*) as agents_improved_24h
+            FROM kindness_agents
+            WHERE is_active = TRUE
+              AND total_interactions > 0
+              AND current_toxicity < toxicity_baseline - 0.1
+        """)
+        summary.update(dict(cur.fetchone()))
+
+        return summary
+
+
+def get_featured_thread():
+    """Get the thread with the biggest positive toxicity swing (most improvement)."""
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("""
+            SELECT t.thread_id, t.avg_kindness, t.avg_toxicity, t.participant_count,
+                   tp.post_text, tp.topic_type,
+                   first_c.toxicity_score as first_toxicity,
+                   last_c.toxicity_score as last_toxicity,
+                   (first_c.toxicity_score - last_c.toxicity_score) as tox_swing
+            FROM kindness_threads t
+            JOIN kindness_topics tp ON t.topic_id = tp.id
+            JOIN LATERAL (
+                SELECT toxicity_score FROM kindness_comments
+                WHERE thread_id = t.id ORDER BY position ASC LIMIT 1
+            ) first_c ON TRUE
+            JOIN LATERAL (
+                SELECT toxicity_score FROM kindness_comments
+                WHERE thread_id = t.id ORDER BY position DESC LIMIT 1
+            ) last_c ON TRUE
+            WHERE t.participant_count >= 3
+            ORDER BY (first_c.toxicity_score - last_c.toxicity_score) DESC,
+                     t.avg_kindness DESC NULLS LAST
+            LIMIT 1
+        """)
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+
 def snapshot_all_agents(hour_number):
     """Snapshot current state of all active agents. Called hourly."""
     with db_cursor(dict_cursor=True) as cur:
