@@ -12,17 +12,22 @@ import time
 logger = logging.getLogger(__name__)
 
 # Search queries to rotate through — diverse topic sources
+# Balanced mix: ~40% controversial, ~30% good news, ~20% everyday, ~10% bridge building
 SEARCH_QUERIES = [
+    # Controversial (4)
     "controversial debate trending today",
     "viral social media argument this week",
     "opinion people disagree about 2026",
-    "feel good news stories today",
-    "community kindness stories this week",
     "technology debate AI ethics 2026",
-    "parenting debate schools kids 2026",
-    "workplace culture debate remote work",
-    "health wellness controversial opinion",
-    "environment climate debate 2026",
+    # Good news (3)
+    "feel good news stories today",
+    "heartwarming news viral this week",
+    "community kindness stories 2026",
+    # Everyday (2)
+    "everyday debate opinions people have",
+    "workplace culture debate trending",
+    # Bridge building (1)
+    "people coming together across differences news",
 ]
 
 

@@ -133,6 +133,23 @@ def cron_log():
     return render_template('cron_log.html', summary=summary, log=log, current_job=job_filter)
 
 
+@app.route('/topics')
+def topics_page():
+    """View upcoming and recent topics."""
+    from utilities.postgres_utils import db_cursor
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("""
+            SELECT topic_id, post_text, topic_type, submitted_by, is_approved,
+                   times_used, source_url, source_headline, created_at
+            FROM kindness_topics
+            WHERE is_approved = TRUE
+            ORDER BY times_used ASC, created_at DESC
+            LIMIT 50
+        """)
+        topics = [dict(r) for r in cur.fetchall()]
+    return render_template('topics.html', topics=topics)
+
+
 @app.route('/thread/<thread_id>')
 def view_thread(thread_id):
     """View a single discussion thread."""
