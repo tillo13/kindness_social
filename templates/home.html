@@ -21,10 +21,14 @@
     </div>
 
     <!-- Live Proof Stats -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-12">
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-12">
         <div class="k-stat k-stat--neutral">
             <div class="k-stat-value" style="color: var(--text-primary);">{{ stats.total_comments or 0 }}</div>
             <div class="k-stat-label">Comments Generated</div>
+        </div>
+        <div class="k-stat k-stat--kindness">
+            <div class="k-stat-value" style="color: var(--kindness);">{{ "%.1f"|format(stats.avg_kindness|float) if stats.avg_kindness else "—" }}</div>
+            <div class="k-stat-label">Avg Kindness (1-10)</div>
         </div>
         <div class="k-stat k-stat--toxicity">
             <div class="k-stat-value" style="color: var(--toxicity);">{{ "%.1f"|format(stats.avg_toxicity|float) if stats.avg_toxicity else "—" }}</div>

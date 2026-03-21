@@ -491,7 +491,7 @@ def get_model_comparison():
             FROM kindness_comments c
             WHERE c.llm_backend_used IS NOT NULL
             GROUP BY c.llm_backend_used
-            HAVING COUNT(*) >= 5
+            HAVING COUNT(*) >= 2
             ORDER BY AVG(c.toxicity_score) DESC
         """)
         return [dict(row) for row in cur.fetchall()]

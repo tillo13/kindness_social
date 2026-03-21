@@ -20,6 +20,10 @@
         <div class="k-stat-value" style="color: var(--toxicity);">{{ "%.1f"|format(stats.avg_toxicity|float) if stats.avg_toxicity else "—" }}</div>
         <div class="k-stat-label">Avg Toxicity</div>
     </div>
+    <div class="k-stat k-stat--kindness">
+        <div class="k-stat-value" style="color: var(--kindness);">{{ "%.1f"|format(stats.avg_kindness|float) if stats.avg_kindness else "—" }}</div>
+        <div class="k-stat-label">Avg Kindness</div>
+    </div>
     <div class="k-stat k-stat--empathy">
         <div class="k-stat-value" style="color: var(--empathy);">{{ "%.1f"|format(stats.avg_empathy|float) if stats.avg_empathy else "—" }}</div>
         <div class="k-stat-label">Avg Empathy</div>
@@ -66,7 +70,12 @@
                         <span style="color: var(--text-tertiary);">{{ "%.1f"|format(m.avg_empathy|float) }}</span>
                     </div>
                     <div class="k-bar-track"><div class="k-bar-fill k-bar-fill--empathy" style="width: {{ (m.avg_empathy|float * 10)|int }}%"></div></div>
-                    <div class="text-[10px] mt-2" style="color: var(--text-quaternary);">{{ m.comment_count }} comments</div>
+                    <div class="flex justify-between text-[10px] mb-1 mt-1.5">
+                        <span style="color: var(--bridge);" title="Bridge-Building Score (1-10)">Bridge</span>
+                        <span style="color: var(--text-tertiary);">{{ "%.1f"|format(m.avg_bridge|float) if m.avg_bridge else "—" }}</span>
+                    </div>
+                    <div class="k-bar-track"><div class="k-bar-fill k-bar-fill--bridge" style="width: {{ (m.avg_bridge|float * 10)|int if m.avg_bridge else 0 }}%"></div></div>
+                    <div class="text-[10px] mt-2" style="color: var(--text-quaternary);">{{ m.comment_count }} comments · {{ "{:,}".format(m.total_dopamine|int) if m.total_dopamine else 0 }} dp</div>
                 </div>
                 {% endfor %}
             </div>
