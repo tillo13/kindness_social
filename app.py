@@ -123,6 +123,15 @@ def about():
     return render_template('about.html')
 
 
+@app.route('/cron-log')
+def cron_log():
+    """Cron execution history — when jobs ran, timing, results."""
+    job_filter = request.args.get('job')
+    summary = db_ops.get_cron_summary()
+    log = db_ops.get_cron_log(limit=200, job_name=job_filter if job_filter else None)
+    return render_template('cron_log.html', summary=summary, log=log, current_job=job_filter)
+
+
 @app.route('/thread/<thread_id>')
 def view_thread(thread_id):
     """View a single discussion thread."""
@@ -196,19 +205,30 @@ def api_stats():
 
 @app.route('/api/cron/generate-thread')
 def cron_generate_thread():
-    """Cron: Maybe generate a new discussion thread.
-    ~60% chance each call — staggered so threads don't arrive like clockwork."""
+    """Cron: Maybe generate a new discussion thread."""
     if not is_cron_request():
         return "Forbidden", 403
 
-    import random
-    if random.random() < 0.4:
-        logger.info("Cron: skipping thread generation this round (stagger)")
-        return jsonify({'skipped': 'stagger', 'status': 'ok'})
+    import random, time
+    log_id = db_ops.log_cron_start('generate-thread')
+    start = time.time()
 
-    logger.info("Cron: generating thread...")
-    result = run_thread()
-    return jsonify(result)
+    try:
+        if random.random() < 0.4:
+            ms = int((time.time() - start) * 1000)
+            db_ops.log_cron_end(log_id, 'skipped', ms, 'Stagger skip')
+            return jsonify({'skipped': 'stagger', 'status': 'ok'})
+
+        result = run_thread()
+        ms = int((time.time() - start) * 1000)
+        summary = f"Thread created: {result.get('thread_id', '?')}, {result.get('comments', '?')} comments"
+        db_ops.log_cron_end(log_id, 'ok', ms, summary, result)
+        return jsonify(result)
+    except Exception as e:
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'error', ms, error_text=str(e)[:500])
+        logger.exception("Cron generate-thread failed")
+        return jsonify({'error': str(e)[:200]}), 500
 
 
 @app.route('/api/cron/agent-responses')
@@ -217,10 +237,26 @@ def cron_agent_responses():
     if not is_cron_request():
         return "Forbidden", 403
 
+    import time
     from core.responder import run_agent_responses
-    logger.info("Cron: running agent responses...")
-    result = run_agent_responses()
-    return jsonify(result)
+    log_id = db_ops.log_cron_start('agent-responses')
+    start = time.time()
+
+    try:
+        result = run_agent_responses()
+        ms = int((time.time() - start) * 1000)
+        responses = result.get('responses_generated', 0) if isinstance(result, dict) else 0
+        skipped = result.get('skipped', '') if isinstance(result, dict) else ''
+        if skipped:
+            db_ops.log_cron_end(log_id, 'skipped', ms, f'Quiet period: {skipped}', result)
+        else:
+            db_ops.log_cron_end(log_id, 'ok', ms, f'{responses} responses generated', result)
+        return jsonify(result)
+    except Exception as e:
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'error', ms, error_text=str(e)[:500])
+        logger.exception("Cron agent-responses failed")
+        return jsonify({'error': str(e)[:200]}), 500
 
 
 @app.route('/api/cron/hourly-metrics')
@@ -229,9 +265,21 @@ def cron_hourly_metrics():
     if not is_cron_request():
         return "Forbidden", 403
 
-    hour = db_ops.get_hour_count() + 1
-    db_ops.save_hourly_metrics(hour)
-    return jsonify({'hour': hour, 'status': 'ok'})
+    import time
+    log_id = db_ops.log_cron_start('hourly-metrics')
+    start = time.time()
+
+    try:
+        hour = db_ops.get_hour_count() + 1
+        db_ops.save_hourly_metrics(hour)
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'ok', ms, f'Hour {hour} snapshot saved')
+        return jsonify({'hour': hour, 'status': 'ok'})
+    except Exception as e:
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'error', ms, error_text=str(e)[:500])
+        logger.exception("Cron hourly-metrics failed")
+        return jsonify({'error': str(e)[:200]}), 500
 
 
 @app.route('/api/cron/birth-agent')
@@ -240,10 +288,25 @@ def cron_birth_agent():
     if not is_cron_request():
         return "Forbidden", 403
 
-    agent = create_agent()
-    if agent:
-        return jsonify({'created': agent['agent_id'], 'backend': agent['llm_backend']})
-    return jsonify({'error': 'Could not create agent'}), 500
+    import time
+    log_id = db_ops.log_cron_start('birth-agent')
+    start = time.time()
+
+    try:
+        agent = create_agent()
+        ms = int((time.time() - start) * 1000)
+        if agent:
+            db_ops.log_cron_end(log_id, 'ok', ms,
+                                f"Born: {agent['agent_id']} ({agent['llm_backend']})",
+                                {'agent_id': agent['agent_id'], 'backend': agent['llm_backend']})
+            return jsonify({'created': agent['agent_id'], 'backend': agent['llm_backend']})
+        db_ops.log_cron_end(log_id, 'error', ms, 'Could not create agent')
+        return jsonify({'error': 'Could not create agent'}), 500
+    except Exception as e:
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'error', ms, error_text=str(e)[:500])
+        logger.exception("Cron birth-agent failed")
+        return jsonify({'error': str(e)[:200]}), 500
 
 
 # ============================================================================

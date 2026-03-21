@@ -143,6 +143,21 @@ def create_tables():
             );
             CREATE INDEX IF NOT EXISTS idx_kindness_roadmap_section
                 ON kindness_roadmap_comments(section_idx);
+
+            CREATE TABLE IF NOT EXISTS kindness_cron_log (
+                id SERIAL PRIMARY KEY,
+                job_name VARCHAR(50) NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'running',
+                duration_ms INTEGER,
+                result_summary TEXT,
+                result_json JSONB,
+                error_text TEXT,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_kindness_cron_log_created
+                ON kindness_cron_log(created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_kindness_cron_log_job
+                ON kindness_cron_log(job_name, created_at DESC);
         """)
     logger.info("Kindness tables created/verified")
 
@@ -932,3 +947,67 @@ def get_metrics_history(limit=168):
         rows = [dict(row) for row in cur.fetchall()]
         rows.reverse()
         return rows
+
+
+# ============================================================================
+# CRON LOG
+# ============================================================================
+
+def log_cron_start(job_name):
+    """Start a cron log entry. Returns the log ID."""
+    with db_cursor(commit=True) as cur:
+        cur.execute("""
+            INSERT INTO kindness_cron_log (job_name, status)
+            VALUES (%s, 'running')
+            RETURNING id
+        """, (job_name,))
+        return cur.fetchone()['id']
+
+
+def log_cron_end(log_id, status, duration_ms, result_summary=None, result_json=None, error_text=None):
+    """Complete a cron log entry."""
+    with db_cursor(commit=True) as cur:
+        cur.execute("""
+            UPDATE kindness_cron_log
+            SET status = %s, duration_ms = %s, result_summary = %s,
+                result_json = %s, error_text = %s
+            WHERE id = %s
+        """, (status, duration_ms, result_summary,
+              json.dumps(result_json) if result_json else None,
+              error_text, log_id))
+
+
+def get_cron_log(limit=100, job_name=None):
+    """Get cron execution history, newest first."""
+    with db_cursor(dict_cursor=True) as cur:
+        if job_name:
+            cur.execute("""
+                SELECT * FROM kindness_cron_log
+                WHERE job_name = %s
+                ORDER BY created_at DESC LIMIT %s
+            """, (job_name, limit))
+        else:
+            cur.execute("""
+                SELECT * FROM kindness_cron_log
+                ORDER BY created_at DESC LIMIT %s
+            """, (limit,))
+        return [dict(r) for r in cur.fetchall()]
+
+
+def get_cron_summary():
+    """Get per-job stats: last run, avg duration, success rate."""
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("""
+            SELECT job_name,
+                   COUNT(*) as total_runs,
+                   COUNT(CASE WHEN status = 'ok' THEN 1 END) as successes,
+                   COUNT(CASE WHEN status = 'error' THEN 1 END) as errors,
+                   COUNT(CASE WHEN status = 'skipped' THEN 1 END) as skipped,
+                   ROUND(AVG(duration_ms) FILTER (WHERE status = 'ok')) as avg_ms,
+                   MAX(created_at) as last_run
+            FROM kindness_cron_log
+            WHERE created_at > NOW() - INTERVAL '24 hours'
+            GROUP BY job_name
+            ORDER BY MAX(created_at) DESC
+        """)
+        return [dict(r) for r in cur.fetchall()]

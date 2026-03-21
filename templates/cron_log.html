@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Cron Log - Kindness Social{% endblock %}
+
+{% block content %}
+<!-- Summary Cards -->
+{% if summary %}
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+    {% for s in summary %}
+    <a href="/cron-log?job={{ s.job_name }}" class="p-4 rounded-lg transition-all hover:opacity-80"
+       style="background: var(--bg-elevated); border: 1px solid {{ 'var(--kindness)' if current_job == s.job_name else 'var(--border-subtle)' }};">
+        <div class="font-mono text-xs font-semibold mb-1" style="color: var(--text-secondary);">{{ s.job_name }}</div>
+        <div class="flex gap-3 text-[10px] mb-1">
+            <span style="color: var(--kindness);">{{ s.successes }} ok</span>
+            <span style="color: var(--text-quaternary);">{{ s.skipped }} skip</span>
+            {% if s.errors > 0 %}
+            <span style="color: var(--toxicity);">{{ s.errors }} err</span>
+            {% endif %}
+        </div>
+        <div class="text-[10px]" style="color: var(--text-quaternary);">
+            {% if s.avg_ms %}avg {{ s.avg_ms|int }}ms{% endif %}
+            · {{ s.total_runs }} runs (24h)
+        </div>
+        {% if s.last_run %}
+        <div class="text-[10px] mt-1" style="color: var(--text-quaternary);">
+            Last: {{ s.last_run.strftime('%b %d, %H:%M:%S') }}
+        </div>
+        {% endif %}
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Filter tabs -->
+<div class="flex items-center gap-3 mb-4">
+    <a href="/cron-log" class="text-xs px-3 py-1 rounded-full transition-all"
+       style="background: {{ 'var(--kindness)' if not current_job else 'var(--bg-elevated)' }}; color: {{ '#fff' if not current_job else 'var(--text-secondary)' }};">
+        All Jobs
+    </a>
+    {% for name in ['generate-thread', 'agent-responses', 'hourly-metrics', 'birth-agent'] %}
+    <a href="/cron-log?job={{ name }}" class="text-xs px-3 py-1 rounded-full transition-all"
+       style="background: {{ 'var(--kindness)' if current_job == name else 'var(--bg-elevated)' }}; color: {{ '#fff' if current_job == name else 'var(--text-secondary)' }};">
+        {{ name }}
+    </a>
+    {% endfor %}
+</div>
+
+<!-- Log Table -->
+<div class="k-card-flat overflow-hidden">
+    <table class="w-full text-xs">
+        <thead>
+            <tr style="background: var(--bg-elevated); border-bottom: 1px solid var(--border-subtle);">
+                <th class="px-3 py-2 text-left font-mono font-semibold" style="color: var(--text-tertiary);">Time</th>
+                <th class="px-3 py-2 text-left font-mono font-semibold" style="color: var(--text-tertiary);">Job</th>
+                <th class="px-3 py-2 text-center font-mono font-semibold" style="color: var(--text-tertiary);">Status</th>
+                <th class="px-3 py-2 text-right font-mono font-semibold" style="color: var(--text-tertiary);">Duration</th>
+                <th class="px-3 py-2 text-left font-mono font-semibold" style="color: var(--text-tertiary);">Result</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if log %}
+            {% for entry in log %}
+            <tr class="cron-row cursor-pointer" style="border-bottom: 1px solid var(--border-subtle);"
+                onclick="this.nextElementSibling && this.nextElementSibling.classList.toggle('hidden')"
+                onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='transparent'">
+                <td class="px-3 py-2 font-mono whitespace-nowrap" style="color: var(--text-quaternary);">
+                    {{ entry.created_at.strftime('%b %d, %H:%M:%S') }}
+                </td>
+                <td class="px-3 py-2 font-mono" style="color: var(--text-secondary);">
+                    {{ entry.job_name }}
+                </td>
+                <td class="px-3 py-2 text-center">
+                    {% if entry.status == 'ok' %}
+                    <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono" style="background: var(--kindness-muted); color: var(--kindness);">ok</span>
+                    {% elif entry.status == 'skipped' %}
+                    <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono" style="background: var(--bg-elevated); color: var(--text-quaternary);">skip</span>
+                    {% elif entry.status == 'error' %}
+                    <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono" style="background: rgba(196,122,122,0.15); color: var(--toxicity);">error</span>
+                    {% elif entry.status == 'running' %}
+                    <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono animate-pulse" style="background: rgba(196,182,122,0.15); color: var(--dopamine);">running</span>
+                    {% endif %}
+                </td>
+                <td class="px-3 py-2 text-right font-mono" style="color: var(--text-tertiary);">
+                    {% if entry.duration_ms is not none %}
+                    {% if entry.duration_ms >= 1000 %}
+                    {{ "%.1f"|format(entry.duration_ms / 1000) }}s
+                    {% else %}
+                    {{ entry.duration_ms }}ms
+                    {% endif %}
+                    {% else %}—{% endif %}
+                </td>
+                <td class="px-3 py-2 truncate max-w-xs" style="color: var(--text-tertiary);">
+                    {% if entry.error_text %}
+                    <span style="color: var(--toxicity);">{{ entry.error_text[:80] }}{% if entry.error_text|length > 80 %}...{% endif %}</span>
+                    {% elif entry.result_summary %}
+                    {{ entry.result_summary[:80] }}{% if entry.result_summary|length > 80 %}...{% endif %}
+                    {% else %}—{% endif %}
+                </td>
+            </tr>
+            <!-- Expandable detail row -->
+            {% if entry.result_json or entry.error_text %}
+            <tr class="hidden" style="border-bottom: 1px solid var(--border-subtle);">
+                <td colspan="5" class="px-3 py-3" style="background: var(--bg-elevated);">
+                    {% if entry.result_summary %}
+                    <div class="text-[11px] font-mono mb-2" style="color: var(--text-secondary);">{{ entry.result_summary }}</div>
+                    {% endif %}
+                    {% if entry.error_text %}
+                    <div class="text-[11px] font-mono mb-2" style="color: var(--toxicity);">{{ entry.error_text }}</div>
+                    {% endif %}
+                    {% if entry.result_json %}
+                    <pre class="text-[10px] font-mono p-2 rounded overflow-x-auto" style="background: var(--bg-surface); color: var(--text-tertiary); max-height: 200px;">{{ entry.result_json|tojson(indent=2) }}</pre>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+            {% else %}
+            <tr>
+                <td colspan="5" class="px-3 py-8 text-center" style="color: var(--text-quaternary);">
+                    No cron runs logged yet. Data will appear after the next cron cycle (every 10 minutes).
+                </td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+{% if log %}
+<div class="text-[10px] text-center mt-3" style="color: var(--text-quaternary);">
+    Showing {{ log|length }} entries · Click any row to expand details
+</div>
+{% endif %}
+{% endblock %}
