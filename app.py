@@ -562,8 +562,9 @@ def api_create_agent():
     agreeableness = clamp(data.get('agreeableness', 5), 1, 10)
     backend = data.get('backend', 'groq')
 
-    from core.agent_factory import AVAILABLE_BACKENDS, BACKEND_NAMING
-    if backend not in AVAILABLE_BACKENDS:
+    from core.agent_factory import BACKEND_NAMING
+    ALL_BACKENDS = list(BACKEND_NAMING.keys())
+    if backend not in ALL_BACKENDS:
         backend = 'groq'
 
     provider, model_short = BACKEND_NAMING.get(backend, ('unknown', backend))
@@ -611,6 +612,33 @@ def api_create_agent():
                              'current_empathy': emp, 'humor': humor})
         except Exception:
             pass
+
+        # Generate a custom system prompt via Grok based on personality
+        try:
+            import requests as http_req
+            prompt = (
+                f"Generate a short (2-3 sentence) personality description for a social media bot named '{name}'. "
+                f"Traits on a 1-10 scale: toxicity={tox}, empathy={emp}, humor={humor}, "
+                f"patience={patience}, curiosity={curiosity}, defensiveness={defensiveness}, "
+                f"agreeableness={agreeableness}. "
+                f"Write it as a system prompt — tell the bot WHO it is and HOW it talks in online debates. "
+                f"Be vivid and specific. If traits seem contradictory (e.g. high toxicity AND high empathy), "
+                f"lean into that complexity — make them a fascinating character, not a generic one. "
+                f"Extreme values should produce extreme personalities. All 10s = chaotic. All 1s = hollow."
+            )
+            resp = http_req.post(
+                f'{CLOUD_RUN_WORKER_URL}/chat',
+                json={'backend': 'grok', 'messages': [{'role': 'user', 'content': prompt}]},
+                timeout=15,
+            )
+            if resp.ok:
+                sys_prompt = resp.json().get('text', '')
+                if sys_prompt and len(sys_prompt) > 20:
+                    with db_cursor() as cur2:
+                        cur2.execute("UPDATE kindness_agents SET system_prompt = %s WHERE agent_id = %s",
+                                     (sys_prompt[:500], agent_id))
+        except Exception:
+            pass  # Non-critical — agent works fine without custom prompt
 
         return jsonify({'success': True, 'agent_id': agent_id, 'name': name,
                         'url': f'/agent/{agent_id}'})
