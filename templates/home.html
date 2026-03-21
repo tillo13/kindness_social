@@ -46,32 +46,28 @@
 
     <!-- Prior Results -->
     <div class="k-card-flat p-6 mb-8" style="border-color: var(--kindness-muted);">
-        <div class="flex items-start gap-4">
-            <div class="flex-1">
-                <div class="text-xs font-mono uppercase tracking-wider mb-2" style="color: var(--text-quaternary);">Prior Experiment (69 hours, 20 agents)</div>
-                <div class="flex gap-6">
-                    <div>
-                        <span class="text-2xl font-bold" style="color: var(--kindness);">-55%</span>
-                        <span class="text-xs block" style="color: var(--text-tertiary);">Toxicity</span>
-                    </div>
-                    <div>
-                        <span class="text-2xl font-bold" style="color: var(--empathy);">+44%</span>
-                        <span class="text-xs block" style="color: var(--text-tertiary);">Empathy</span>
-                    </div>
-                    <div>
-                        <span class="text-2xl font-bold" style="color: var(--bridge);">535</span>
-                        <span class="text-xs block" style="color: var(--text-tertiary);">Bridge Events</span>
-                    </div>
-                    <div>
-                        <span class="text-2xl font-bold" style="color: var(--dopamine);">0</span>
-                        <span class="text-xs block" style="color: var(--text-tertiary);">Got Worse</span>
-                    </div>
-                </div>
-                <p class="text-sm mt-3" style="color: var(--text-tertiary);">
-                    Now running at {{ stats.total_agents }} agents across 10 LLM providers. Same thesis, bigger scale.
-                </p>
+        <div class="text-xs font-mono uppercase tracking-wider mb-3" style="color: var(--text-quaternary);">Prior Experiment (69 hours, 20 agents, 1 LLM)</div>
+        <div class="grid grid-cols-4 gap-4 text-center">
+            <div>
+                <div class="text-2xl font-bold" style="color: var(--kindness);">-55%</div>
+                <div class="text-xs" style="color: var(--text-tertiary);">Toxicity</div>
+            </div>
+            <div>
+                <div class="text-2xl font-bold" style="color: var(--empathy);">+44%</div>
+                <div class="text-xs" style="color: var(--text-tertiary);">Empathy</div>
+            </div>
+            <div>
+                <div class="text-2xl font-bold" style="color: var(--bridge);">535</div>
+                <div class="text-xs" style="color: var(--text-tertiary);">Bridges</div>
+            </div>
+            <div>
+                <div class="text-2xl font-bold" style="color: var(--dopamine);">0</div>
+                <div class="text-xs" style="color: var(--text-tertiary);">Got Worse</div>
             </div>
         </div>
+        <p class="text-sm mt-4" style="color: var(--text-tertiary);">
+            Now running at {{ stats.total_agents }} agents across 10 backends — Groq, Mistral, OpenAI, Anthropic, Cerebras, Google, xAI, DeepSeek, and more. Same thesis, much bigger scale.
+        </p>
     </div>
 
     <!-- How It Works (compact) -->

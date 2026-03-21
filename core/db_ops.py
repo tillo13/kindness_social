@@ -626,7 +626,7 @@ def get_leaderboard(sort_by='kindness', limit=131):
                 JOIN kindness_comments c ON r.comment_id = c.id
                 WHERE c.agent_id = a.id
             ) rx ON TRUE
-            WHERE a.is_active = TRUE
+            WHERE a.is_active = TRUE AND a.total_interactions > 0
             ORDER BY {order}
             LIMIT %s
         """, (limit,))
