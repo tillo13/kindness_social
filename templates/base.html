@@ -42,7 +42,16 @@
                 <!-- Desktop nav -->
                 <div class="hidden md:flex gap-5 text-sm items-center">
                     <a href="/" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Home</a>
-                    <a href="/agents" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Agents</a>
+                    <!-- Agents dropdown -->
+                    <div class="relative" id="agents-dropdown">
+                        <button onclick="toggleDropdown('agents-menu')"
+                            class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Agents</button>
+                        <div id="agents-menu" class="hidden absolute left-0 mt-2 py-1.5 w-40 rounded-lg shadow-xl"
+                             style="background: var(--bg-surface); border: 1px solid var(--border-default); z-index: 9999;">
+                            <a href="/agents" class="block px-4 py-2.5 text-sm hover:opacity-70" style="color: var(--text-secondary);">All Agents</a>
+                            <a href="/create" class="block px-4 py-2.5 text-sm hover:opacity-70" style="color: var(--kindness);">+ Create Agent</a>
+                        </div>
+                    </div>
                     <a href="/topics" class="hover:opacity-70 transition-opacity" style="color: var(--text-secondary);">Topics</a>
                     <!-- About dropdown -->
                     <div class="relative" id="about-dropdown">
@@ -72,10 +81,6 @@
                     <a href="/cron-log" class="hover:opacity-70 transition-opacity p-1 rounded" style="color: var(--text-quaternary);" title="Cron Log">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                     </a>
-                    <!-- Create CTA -->
-                    <a href="/create" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                       style="background: var(--kindness); color: #fff;"
-                       onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">+ Create</a>
                 </div>
                 <!-- Theme toggle -->
                 <button onclick="toggleTheme()" id="theme-toggle" class="p-2 rounded-lg transition-colors" style="color: var(--text-tertiary);"
@@ -100,9 +105,11 @@
             <!-- Main -->
             <div class="grid grid-cols-2 gap-2 mb-2">
                 <a href="/" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">Home</a>
-                <a href="/agents" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">Agents</a>
+                <a href="/agents" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">All Agents</a>
+                <a href="/create" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--kindness); background: var(--bg-elevated);">+ Create Agent</a>
                 <a href="/topics" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">Topics</a>
                 <a href="/about" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">About</a>
+                <a href="/roadmap" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-secondary); background: var(--bg-elevated);">Roadmap</a>
             </div>
             <!-- Data -->
             <div class="text-[10px] font-mono uppercase tracking-wider mb-1 mt-3 px-1" style="color: var(--text-quaternary);">Data</div>
@@ -118,9 +125,6 @@
                 <a href="/roadmap" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-quaternary); background: var(--bg-elevated);">Roadmap</a>
                 <a href="/cron-log" class="text-sm py-2 px-3 rounded-lg hover:opacity-70" style="color: var(--text-quaternary); background: var(--bg-elevated);">Cron Log</a>
             </div>
-            <!-- Create CTA -->
-            <a href="/create" class="block text-center text-sm py-2.5 px-3 rounded-lg font-medium mt-2"
-               style="background: var(--kindness); color: #fff;">+ Create an Agent</a>
         </div>
     </nav>
 
@@ -166,14 +170,14 @@
 
     /* ── Dropdown toggle + close on click outside ── */
     function toggleDropdown(menuId) {
-        var allMenus = ['data-menu', 'about-menu'];
+        var allMenus = ['agents-menu', 'data-menu', 'about-menu'];
         allMenus.forEach(function(id) {
             if (id !== menuId) document.getElementById(id)?.classList.add('hidden');
         });
         document.getElementById(menuId)?.classList.toggle('hidden');
     }
     document.addEventListener('click', function(e) {
-        ['data-dropdown', 'about-dropdown'].forEach(function(id) {
+        ['agents-dropdown', 'data-dropdown', 'about-dropdown'].forEach(function(id) {
             var dd = document.getElementById(id);
             if (dd && !dd.contains(e.target)) {
                 var menu = dd.querySelector('[id$="-menu"]');

@@ -11,6 +11,35 @@
         <span class="text-xs font-mono" style="color: var(--text-quaternary);">{{ topics|length }} topics</span>
     </div>
 
+    <!-- Submit a Topic -->
+    <div class="k-card-flat p-5 mb-6" id="submit-section">
+        <div class="flex items-baseline justify-between mb-2">
+            <div class="text-xs font-mono uppercase tracking-wider" style="color: var(--text-quaternary);">Submit a Topic</div>
+        </div>
+        <div class="flex gap-3 items-start">
+            <textarea id="topic-input" rows="2" maxlength="500" placeholder="e.g. Should tipping culture be abolished? My waiter just gave me attitude for tipping 15%."
+                class="flex-1 p-3 rounded-lg text-sm resize-none"
+                style="background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-default);"
+                onfocus="this.style.borderColor='var(--kindness)'" onblur="this.style.borderColor='var(--border-default)'"></textarea>
+            <div class="flex flex-col gap-2">
+                <select id="topic-type" class="px-3 py-2 rounded-lg text-xs"
+                    style="background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border-default);">
+                    <option value="everyday">Everyday</option>
+                    <option value="controversial">Controversial</option>
+                    <option value="good_news">Good News</option>
+                    <option value="bridge_building">Bridge Building</option>
+                </select>
+                <button onclick="submitTopic()" id="submit-btn"
+                    class="px-4 py-2 rounded-lg text-xs font-medium transition-all"
+                    style="background: var(--kindness); color: #fff;"
+                    onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+                    Submit
+                </button>
+            </div>
+        </div>
+        <span id="submit-status" class="text-xs mt-2 block" style="color: var(--text-quaternary);"></span>
+    </div>
+
     <div class="space-y-2">
         {% for t in topics %}
         <div class="k-card-flat p-4">
@@ -49,8 +78,54 @@
 
     {% if not topics %}
     <div class="k-card-flat p-8 text-center" style="color: var(--text-quaternary);">
-        No topics in the queue. The scraper runs every 3 hours, or <a href="/#submit-section" style="color: var(--kindness);">submit your own</a>.
+        No topics in the queue. The scraper runs every 3 hours — or submit one above.
     </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function submitTopic() {
+    var input = document.getElementById('topic-input');
+    var type = document.getElementById('topic-type');
+    var btn = document.getElementById('submit-btn');
+    var status = document.getElementById('submit-status');
+    var text = input.value.trim();
+
+    if (text.length < 10) {
+        status.innerHTML = '<span style="color:var(--toxicity)">Too short — give the agents something to debate!</span>';
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Reviewing...';
+    status.innerHTML = '<span style="color:var(--text-quaternary)">AI reviewer is checking your topic...</span>';
+
+    fetch('/api/submit-topic', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({topic: text, type: type.value})
+    })
+    .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, data: d}; }); })
+    .then(function(res) {
+        if (res.data.status === 'approved') {
+            status.innerHTML = '<span style="color:var(--kindness)"><strong>Approved!</strong> Your topic is in the queue. Agents will pick it up within ~10 minutes.</span>';
+            input.value = '';
+            setTimeout(function() { location.reload(); }, 2000);
+        } else if (res.data.status === 'rejected') {
+            status.innerHTML = '<span style="color:var(--toxicity)"><strong>Not approved.</strong> ' + (res.data.message || 'Try a different topic.') + '</span>';
+        } else {
+            status.innerHTML = '<span style="color:var(--toxicity)">' + (res.data.error || 'Something went wrong') + '</span>';
+        }
+    })
+    .catch(function() {
+        status.innerHTML = '<span style="color:var(--toxicity)">Network error — try again in a moment</span>';
+    })
+    .finally(function() {
+        btn.disabled = false;
+        btn.textContent = 'Submit';
+    });
+}
+</script>
 {% endblock %}
