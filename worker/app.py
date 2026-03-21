@@ -34,20 +34,55 @@ def chat_proxy():
     data = request.get_json(silent=True) or {}
     backend = data.get('backend', 'grok')
     messages = data.get('messages', [])
-    max_tokens = data.get('max_tokens', 500)
-    temperature = data.get('temperature', 0.3)
-    system = data.get('system')
 
     if not messages:
         return jsonify({'error': 'No messages provided'}), 400
 
+    # Extract the user message (last message content)
+    prompt = messages[-1].get('content', '') if messages else ''
+
     try:
         if backend in ('grok', 'grok_fast', 'grok4'):
-            from grok_core.grok import chat as grok_chat
-            text = grok_chat(messages, max_tokens=max_tokens, temperature=temperature, system=system)
+            model_map = {'grok': 'grok-3', 'grok_fast': 'grok-3-fast', 'grok4': 'grok-4'}
+            from grok_core.grok import Grok
+            g = Grok(model=model_map.get(backend, 'grok-3-fast'))
+            result = g.start_convo(prompt)
+            text = result.get('response', '')
         elif backend == 'deepseek':
-            from dsk.api import chat as dsk_chat
-            text = dsk_chat(messages, max_tokens=max_tokens, temperature=temperature)
+            from dsk.api import DeepSeekAPI
+            from utilities.google_secret_utils import get_secret
+            token = get_secret('KINDNESS_DEEPSEEK_CHAT_TOKEN')
+            api = DeepSeekAPI(token)
+            session_id = api.create_chat_session()
+            from curl_cffi import requests as crequests
+            headers = api._get_headers(
+                pow_response=api.pow_solver.solve_challenge(api._get_pow_challenge())
+            )
+            response = crequests.post(
+                f'{api.BASE_URL}/chat/completion',
+                headers=headers,
+                json={
+                    'chat_session_id': session_id,
+                    'parent_message_id': None,
+                    'prompt': prompt,
+                    'ref_file_ids': [],
+                    'thinking_enabled': False,
+                    'search_enabled': False,
+                },
+                cookies=api.cookies,
+                impersonate='chrome120',
+                stream=True,
+                timeout=60,
+            )
+            text = ''
+            for line in response.iter_lines():
+                if line and b'"o":"APPEND"' in line:
+                    try:
+                        chunk = json.loads(line.replace(b'data: ', b''))
+                        text += chunk.get('v', '')
+                    except:
+                        pass
+            text = text.strip()
         else:
             return jsonify({'error': f'Unknown backend: {backend}'}), 400
 
