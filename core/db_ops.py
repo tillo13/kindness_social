@@ -408,7 +408,8 @@ def get_thread_with_comments(thread_id):
         cur.execute("""
             SELECT c.*, a.agent_id, a.display_name, a.llm_backend,
                    a.political_lean, a.current_toxicity, a.current_empathy,
-                   a.color_hex,
+                   a.color_hex, a.is_control,
+                   a.humor, a.patience, a.curiosity, a.defensiveness, a.agreeableness,
                    c.parent_comment_id, c.replied_to_agent_id,
                    ra.display_name as replied_to_name,
                    ra.color_hex as replied_to_color

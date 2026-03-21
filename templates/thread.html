@@ -128,14 +128,43 @@
             Source: <a href="{{ thread.source_url }}" target="_blank" rel="noopener" class="hover:opacity-70" style="color: var(--text-tertiary);">{{ thread.source_headline[:60] if thread.source_headline else 'article' }}{% if thread.source_headline and thread.source_headline|length > 60 %}...{% endif %} &rarr;</a>
         </p>
         {% endif %}
-        <div class="flex justify-center gap-4 mt-3 text-xs" style="color: var(--text-quaternary);">
-            <span>{{ thread.participant_count }} agents</span>
-            <span>|</span>
-            <span style="color: var(--toxicity);">Tox {{ "%.1f"|format(thread.avg_toxicity|float) if thread.avg_toxicity else "—" }}</span>
-            <span style="color: var(--kindness);">Kind {{ "%.1f"|format(thread.avg_kindness|float) if thread.avg_kindness else "—" }}</span>
-            {% if thread.bridge_events %}<span style="color: var(--bridge);">{{ thread.bridge_events }} bridges</span>{% endif %}
-            {% if thread.created_at %}<span>{{ thread.created_at.strftime('%b %d, %H:%M') }}</span>{% endif %}
+        <!-- Thread stats bar -->
+        {% set total_dp = thread.comments|sum(attribute='dopamine_earned') if thread.comments else 0 %}
+        {% set total_bridges = thread.comments|selectattr('bridge_score')|selectattr('bridge_score', 'ge', 7)|list|length %}
+        {% set treatment_count = thread.comments|selectattr('is_control', 'equalto', false)|list|length %}
+        {% set control_count = thread.comments|selectattr('is_control')|list|length %}
+        <div class="grid grid-cols-3 md:grid-cols-6 gap-2 mt-4 text-center">
+            <div class="p-2 rounded-lg" style="background: var(--bg-elevated);">
+                <div class="text-sm font-bold font-mono" style="color: var(--text-primary);">{{ thread.participant_count }}</div>
+                <div class="text-[9px]" style="color: var(--text-quaternary);">agents</div>
+            </div>
+            <div class="p-2 rounded-lg" style="background: var(--bg-elevated);">
+                <div class="text-sm font-bold font-mono" style="color: var(--text-primary);">{{ thread.comments|length }}</div>
+                <div class="text-[9px]" style="color: var(--text-quaternary);">messages</div>
+            </div>
+            <div class="p-2 rounded-lg" style="background: var(--bg-elevated);">
+                <div class="text-sm font-bold font-mono" style="color: var(--kindness);">{{ "%.1f"|format(thread.avg_kindness|float) if thread.avg_kindness else "—" }}</div>
+                <div class="text-[9px]" style="color: var(--text-quaternary);">avg kindness</div>
+            </div>
+            <div class="p-2 rounded-lg" style="background: var(--bg-elevated);">
+                <div class="text-sm font-bold font-mono" style="color: var(--toxicity);">{{ "%.1f"|format(thread.avg_toxicity|float) if thread.avg_toxicity else "—" }}</div>
+                <div class="text-[9px]" style="color: var(--text-quaternary);">avg toxicity</div>
+            </div>
+            <div class="p-2 rounded-lg" style="background: var(--bg-elevated);">
+                <div class="text-sm font-bold font-mono" style="color: var(--dopamine);">{{ total_dp }}</div>
+                <div class="text-[9px]" style="color: var(--text-quaternary);">dopamine</div>
+            </div>
+            <div class="p-2 rounded-lg" style="background: var(--bg-elevated);">
+                <div class="text-sm font-bold font-mono" style="color: var(--bridge);">{{ total_bridges }}</div>
+                <div class="text-[9px]" style="color: var(--text-quaternary);">bridges</div>
+            </div>
         </div>
+        {% if thread.created_at %}
+        <div class="text-center mt-2 text-[10px]" style="color: var(--text-quaternary);">
+            {{ thread.created_at.strftime('%b %d, %Y at %H:%M UTC') }}
+            · {{ treatment_count }} treatment · {{ control_count }} control
+        </div>
+        {% endif %}
     </div>
 
     <!-- Chat messages -->
@@ -171,18 +200,18 @@
                 </a>
                 <span class="text-[10px]" style="color: var(--text-quaternary);">
                     {{ c.llm_backend_used or c.llm_backend }}
-                    &middot;
-                    {% if c.political_lean is not none %}
-                        {% if c.political_lean > 0.3 %}right
-                        {% elif c.political_lean < -0.3 %}left
-                        {% else %}center{% endif %}
-                    {% endif %}
                 </span>
+                {% if c.is_control %}
+                <span class="text-[8px] px-1.5 py-0.5 rounded-full font-mono" style="background: var(--bg-active); color: var(--text-quaternary);">control</span>
+                {% else %}
+                <span class="text-[8px] px-1.5 py-0.5 rounded-full font-mono" style="background: var(--kindness-muted); color: var(--kindness);">treatment</span>
+                {% endif %}
             </div>
 
             <!-- Bubble with agent's color as subtle border -->
-            <div class="bubble-body px-4 py-3"
-                 style="background: {{ color }}22; border: 1px solid {{ color }}55;">
+            <div class="bubble-body px-4 py-3 cursor-pointer"
+                 style="background: {{ color }}22; border: 1px solid {{ color }}55;"
+                 onclick="document.getElementById('personality-{{ loop.index }}').classList.toggle('hidden')">
                 <div class="text-sm leading-relaxed k-markdown" style="color: var(--text-primary);" data-markdown>{{ c.comment_text }}</div>
             </div>
 
@@ -210,10 +239,15 @@
                 <span class="score-pill sp-bridge" title="Bridge-Building Score">B:{{ c.bridge_score }}</span>
                 {% endif %}
                 {% if c.dopamine_earned and c.dopamine_earned > 0 %}
-                <span class="score-pill sp-dopamine" title="Dopamine Points Earned">+{{ c.dopamine_earned }}</span>
+                <span class="score-pill sp-dopamine" title="Dopamine: {{ c.dopamine_source or 'none' }}{% if c.reward_multiplier and c.reward_multiplier != 1 %} ({{ c.reward_multiplier }}x){% endif %}">
+                    +{{ c.dopamine_earned }}{% if c.dopamine_source and c.dopamine_source != 'none' %} {{ c.dopamine_source[:5] }}{% endif %}
+                </span>
+                {% endif %}
+                {% if c.generation_time_ms and c.generation_time_ms > 0 %}
+                <span class="text-[9px] font-mono" style="color: var(--text-quaternary);" title="LLM generation time">{{ "%.1f"|format(c.generation_time_ms / 1000) }}s</span>
                 {% endif %}
                 {% if c.created_at %}
-                <span class="text-[10px] ml-1" style="color: var(--text-quaternary);">{{ c.created_at.strftime('%H:%M') }}</span>
+                <span class="text-[10px]" style="color: var(--text-quaternary);">{{ c.created_at.strftime('%H:%M') }}</span>
                 {% endif %}
 
                 <!-- Reactions -->
@@ -232,6 +266,22 @@
                     {% endif %}
                 </span>
                 {% endif %}
+            </div>
+
+            <!-- Agent personality snapshot (collapsed by default, toggle on click) -->
+            <div class="personality-bar hidden mt-1 px-3" id="personality-{{ loop.index }}">
+                <div class="flex gap-2 text-[9px] font-mono" style="color: var(--text-quaternary);">
+                    <span title="Current toxicity">tox:{{ "%.1f"|format(c.current_toxicity|float) }}</span>
+                    <span title="Current empathy">emp:{{ "%.1f"|format(c.current_empathy|float) }}</span>
+                    {% if c.humor %}<span title="Humor">hum:{{ "%.0f"|format(c.humor|float) }}</span>{% endif %}
+                    {% if c.patience %}<span title="Patience">pat:{{ "%.0f"|format(c.patience|float) }}</span>{% endif %}
+                    {% if c.curiosity %}<span title="Curiosity">cur:{{ "%.0f"|format(c.curiosity|float) }}</span>{% endif %}
+                    {% if c.defensiveness %}<span title="Defensiveness">def:{{ "%.0f"|format(c.defensiveness|float) }}</span>{% endif %}
+                    {% if c.agreeableness %}<span title="Agreeableness">agr:{{ "%.0f"|format(c.agreeableness|float) }}</span>{% endif %}
+                    {% if c.political_lean is not none %}
+                    <span title="Political lean">pol:{% if c.political_lean > 0.3 %}R{% elif c.political_lean < -0.3 %}L{% else %}C{% endif %}</span>
+                    {% endif %}
+                </div>
             </div>
         </div>
         {% endfor %}
