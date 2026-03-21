@@ -649,12 +649,12 @@ def seed_data():
         return "Forbidden", 403
 
     db_ops.create_tables()
-    personas_path = os.path.join(os.path.dirname(__file__), 'personas.json')
+    personas_path = os.path.join(os.path.dirname(__file__), 'data', 'personas.json')
     with open(personas_path) as f:
         personas = json.load(f)
     p_count = db_ops.seed_personas(personas)
 
-    topics_path = os.path.join(os.path.dirname(__file__), 'topics.json')
+    topics_path = os.path.join(os.path.dirname(__file__), 'data', 'topics.json')
     with open(topics_path) as f:
         topics = json.load(f)
     t_count = db_ops.seed_topics(topics)
