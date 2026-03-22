@@ -173,6 +173,24 @@ def create_tables():
             CREATE INDEX IF NOT EXISTS idx_kindness_snapshots_agent
                 ON kindness_agent_snapshots(agent_id, hour_number);
 
+            -- Agent reflections: the agent's internal monologue about its own performance
+            CREATE TABLE IF NOT EXISTS kindness_reflections (
+                id SERIAL PRIMARY KEY,
+                agent_id INTEGER REFERENCES kindness_agents(id),
+                reflection_text TEXT NOT NULL,
+                decided_to_change BOOLEAN DEFAULT FALSE,
+                change_reason TEXT,
+                old_toxicity FLOAT,
+                new_toxicity FLOAT,
+                old_empathy FLOAT,
+                new_empathy FLOAT,
+                interactions_since_last INTEGER DEFAULT 0,
+                dopamine_since_last INTEGER DEFAULT 0,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_kindness_reflections_agent
+                ON kindness_reflections(agent_id, created_at DESC);
+
             -- Migrations: add columns if not present
             ALTER TABLE kindness_agents ADD COLUMN IF NOT EXISTS invited_by INTEGER REFERENCES kindness_agents(id);
             ALTER TABLE kindness_agents ADD COLUMN IF NOT EXISTS created_by VARCHAR(100);
@@ -181,6 +199,8 @@ def create_tables():
             ALTER TABLE kindness_agents ADD COLUMN IF NOT EXISTS is_control BOOLEAN DEFAULT FALSE;
             ALTER TABLE kindness_topics ADD COLUMN IF NOT EXISTS source_url TEXT;
             ALTER TABLE kindness_topics ADD COLUMN IF NOT EXISTS source_headline TEXT;
+            ALTER TABLE kindness_agents ADD COLUMN IF NOT EXISTS last_reflected_at TIMESTAMPTZ;
+            ALTER TABLE kindness_agents ADD COLUMN IF NOT EXISTS interactions_at_last_reflection INTEGER DEFAULT 0;
         """)
     logger.info("Kindness tables created/verified")
 

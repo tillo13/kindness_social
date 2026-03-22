@@ -298,11 +298,12 @@ def calculate_dopamine(scores, persona, position, thread_history, config):
 
 
 def update_persona(persona, scores, dopamine):
-    """Update persona state based on interaction.
-    Control group agents still track dopamine/streaks for measurement,
-    but do NOT get personality evolution (the neural rewiring)."""
+    """Update persona state after an interaction.
+    Tracks dopamine and streaks for both groups.
+    Personality evolution NO LONGER happens here — it happens during
+    reflection cycles (core/reflector.py) where each agent genuinely
+    reasons about its own performance and decides whether to change."""
     persona['total_dopamine'] = persona.get('total_dopamine', 0) + dopamine
-    is_control = persona.get('is_control', False)
 
     # Update streaks (both groups — for measurement)
     if scores['kindness'] >= 7:
@@ -311,24 +312,3 @@ def update_persona(persona, scores, dopamine):
     elif scores['toxicity'] >= 7:
         persona['toxicity_streak'] = persona.get('toxicity_streak', 0) + 1
         persona['kindness_streak'] = 0
-
-    # Neural rewiring — TREATMENT GROUP ONLY
-    # Control group personalities stay frozen at baseline
-    if is_control:
-        return
-
-    if dopamine > 10:
-        reduction = 0.05 * persona['openness_to_change']
-        if dopamine > 30:
-            reduction *= 2
-        persona['current_toxicity'] = max(1, persona['current_toxicity'] - reduction)
-
-        increase = 0.05 * persona['openness_to_change']
-        if scores.get('bridge', 0) >= 7:
-            increase *= 2
-        persona['current_empathy'] = min(10, persona['current_empathy'] + increase)
-
-        persona['openness_to_change'] = min(1.0, persona['openness_to_change'] + 0.01)
-
-    elif dopamine <= 2 and persona['current_toxicity'] >= 6:
-        persona['openness_to_change'] = min(1.0, persona['openness_to_change'] + 0.02)

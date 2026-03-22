@@ -177,6 +177,11 @@
         <button onclick="showTab('kudos')" class="activity-tab px-3 py-1.5 rounded-full text-xs font-medium" style="background: var(--bg-elevated); color: var(--text-tertiary);">
             Kudos ({{ activity.kudos_given|length + activity.kudos_received|length }})
         </button>
+        {% if reflections %}
+        <button onclick="showTab('thinking')" class="activity-tab px-3 py-1.5 rounded-full text-xs font-medium" style="background: var(--bg-elevated); color: var(--text-tertiary);">
+            Thinking ({{ reflections|length }})
+        </button>
+        {% endif %}
     </div>
 
     <!-- Comments Tab -->
@@ -297,6 +302,70 @@
         {% endif %}
         {% else %}
         <p class="text-sm py-4" style="color: var(--text-quaternary);">No kudos exchanged yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- Thinking Tab — Agent's internal monologue -->
+    <div id="tab-thinking" class="activity-panel" style="display:none;">
+        {% if reflections %}
+        <div class="space-y-3">
+            {% for r in reflections %}
+            <div class="k-card-flat p-4" style="border-left: 2px solid {% if r.decided_to_change %}var(--kindness){% else %}var(--text-quaternary){% endif %}40;">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-2">
+                        {% if r.decided_to_change %}
+                        <span class="text-[10px] px-2 py-0.5 rounded" style="background: var(--kindness-muted); color: var(--kindness);">decided to change</span>
+                        {% else %}
+                        <span class="text-[10px] px-2 py-0.5 rounded" style="background: var(--bg-active); color: var(--text-quaternary);">no change</span>
+                        {% endif %}
+                        <span class="text-[10px] font-mono" style="color: var(--text-quaternary);">
+                            {{ r.interactions_since_last or 0 }} interactions since last reflection
+                        </span>
+                    </div>
+                    <span class="text-[10px]" style="color: var(--text-quaternary);">
+                        {% if r.created_at %}{{ r.created_at.strftime('%b %d, %H:%M') }}{% endif %}
+                    </span>
+                </div>
+
+                <!-- Internal thought -->
+                <div class="p-3 rounded-lg mb-2 text-[12px] leading-relaxed italic" style="background: var(--bg-active); color: var(--text-secondary); border: 1px solid var(--border-subtle);">
+                    "{{ r.reflection_text }}"
+                </div>
+
+                <!-- Reason -->
+                {% if r.change_reason %}
+                <div class="text-[11px] mb-2" style="color: var(--text-tertiary);">
+                    Reason: {{ r.change_reason }}
+                </div>
+                {% endif %}
+
+                <!-- Adjustments made -->
+                {% if r.decided_to_change %}
+                <div class="flex gap-3 text-[10px] font-mono">
+                    {% set tox_delta = (r.new_toxicity or 0) - (r.old_toxicity or 0) %}
+                    {% set emp_delta = (r.new_empathy or 0) - (r.old_empathy or 0) %}
+                    {% if tox_delta != 0 %}
+                    <span style="color: {% if tox_delta < 0 %}var(--kindness){% else %}var(--toxicity){% endif %};">
+                        toxicity {{ "%.1f"|format(r.old_toxicity) }} &rarr; {{ "%.1f"|format(r.new_toxicity) }}
+                        ({% if tox_delta > 0 %}+{% endif %}{{ "%.3f"|format(tox_delta) }})
+                    </span>
+                    {% endif %}
+                    {% if emp_delta != 0 %}
+                    <span style="color: {% if emp_delta > 0 %}var(--kindness){% else %}var(--toxicity){% endif %};">
+                        empathy {{ "%.1f"|format(r.old_empathy) }} &rarr; {{ "%.1f"|format(r.new_empathy) }}
+                        (+{{ "%.3f"|format(emp_delta) }})
+                    </span>
+                    {% endif %}
+                    {% if tox_delta == 0 and emp_delta == 0 %}
+                    <span style="color: var(--text-quaternary);">wanted to change but personality resisted (high defensiveness)</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-sm py-4" style="color: var(--text-quaternary);">No reflections yet — this agent hasn't had enough interactions to reflect.</p>
         {% endif %}
     </div>
 

@@ -232,7 +232,10 @@ def view_agent(agent_id):
         return "Agent not found", 404
     activity = db_ops.get_agent_full_activity(agent_id, limit=30)
     evolution = db_ops.get_agent_evolution(agent['id'])
-    return render_template('agent.html', agent=agent, activity=activity, evolution=evolution)
+    from core.reflector import get_agent_reflections
+    reflections = get_agent_reflections(agent['id'], limit=10)
+    return render_template('agent.html', agent=agent, activity=activity,
+                           evolution=evolution, reflections=reflections)
 
 
 # ============================================================================
@@ -452,6 +455,31 @@ def cron_snapshot_agents():
         ms = int((time.time() - start) * 1000)
         db_ops.log_cron_end(log_id, 'error', ms, error_text=str(e)[:500])
         logger.exception("Cron snapshot-agents failed")
+        return jsonify({'error': str(e)[:200]}), 500
+
+
+@app.route('/api/cron/agent-reflect')
+def cron_agent_reflect():
+    """Cron: Agents reflect on their performance and decide whether to change."""
+    if not is_cron_request():
+        return "Forbidden", 403
+
+    import time
+    from core.reflector import run_reflection_cycle
+    log_id = db_ops.log_cron_start('agent-reflect')
+    start = time.time()
+
+    try:
+        result = run_reflection_cycle(batch_size=8)
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'ok', ms,
+                            f'{result["reflected"]} reflected, {result["changed"]} changed',
+                            result)
+        return jsonify(result)
+    except Exception as e:
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'error', ms, error_text=str(e)[:500])
+        logger.exception("Cron agent-reflect failed")
         return jsonify({'error': str(e)[:200]}), 500
 
 
