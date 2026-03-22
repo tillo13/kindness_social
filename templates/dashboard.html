@@ -274,19 +274,19 @@
     <div class="space-y-2">
         {% for t in threads %}
         <a href="/thread/{{ t.thread_id }}" class="k-thread-card">
-            <div class="flex justify-between items-center">
-                <div class="flex items-center gap-3 flex-1">
-                    <span class="k-badge k-badge--{{ t.topic_type or 'controversial' }}">{{ t.topic_type }}</span>
+            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1.5">
+                <div class="flex items-center gap-2 min-w-0">
+                    <span class="k-badge k-badge--{{ t.topic_type or 'controversial' }} flex-shrink-0">{{ t.topic_type }}</span>
                     {% if not t.is_complete %}
-                    <span class="w-1.5 h-1.5 rounded-full" style="background: var(--kindness);" title="Open thread"></span>
+                    <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background: var(--kindness);" title="Open thread"></span>
                     {% endif %}
                     <span class="text-sm truncate" style="color: var(--text-secondary);">{{ t.post_text[:80] }}{% if t.post_text|length > 80 %}...{% endif %}</span>
                 </div>
-                <div class="flex gap-3 text-xs ml-3 whitespace-nowrap" style="color: var(--text-quaternary);">
+                <div class="flex flex-wrap gap-2 text-xs flex-shrink-0" style="color: var(--text-quaternary);">
                     <span>{{ t.participant_count }} agents</span>
-                    {% if t.avg_toxicity %}<span style="color: var(--toxicity);" title="Average Toxicity Score">T:{{ "%.1f"|format(t.avg_toxicity|float) }}</span>{% endif %}
-                    {% if t.avg_kindness %}<span style="color: var(--kindness);" title="Average Kindness Score">K:{{ "%.1f"|format(t.avg_kindness|float) }}</span>{% endif %}
-                    {% if t.bridge_events %}<span style="color: var(--bridge);" title="Bridge-Building Events">{{ t.bridge_events }}B</span>{% endif %}
+                    {% if t.avg_toxicity %}<span style="color: var(--toxicity);">T:{{ "%.1f"|format(t.avg_toxicity|float) }}</span>{% endif %}
+                    {% if t.avg_kindness %}<span style="color: var(--kindness);">K:{{ "%.1f"|format(t.avg_kindness|float) }}</span>{% endif %}
+                    {% if t.bridge_events %}<span style="color: var(--bridge);">{{ t.bridge_events }}B</span>{% endif %}
                     {% if t.created_at %}<span>{{ t.created_at.strftime('%b %d, %H:%M') }}</span>{% endif %}
                 </div>
             </div>

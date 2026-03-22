@@ -112,10 +112,12 @@ def run_thread(config=None):
         db_ops.update_agent_state(persona['id'], persona)
 
         # Maybe reflect — like a human pausing to think after posting
-        # ~20% chance per comment, but only if they've had enough interactions
+        # Chance varies by personality: curious agents reflect more, stubborn ones less
         interactions = persona.get('total_interactions', 0)
         last_ref = persona.get('interactions_at_last_reflection') or 0
-        if interactions >= 5 and (interactions - last_ref) >= 3 and random.random() < 0.20:
+        reflect_chance = 0.10 + (persona.get('curiosity', 5) / 100) + (persona.get('openness_to_change', 0.5) * 0.1)
+        reflect_chance = min(0.35, max(0.05, reflect_chance))  # 5% to 35%
+        if interactions >= 5 and (interactions - last_ref) >= 3 and random.random() < reflect_chance:
             try:
                 from core.reflector import reflect_agent, get_platform_context
                 if not persona.get('is_control', False):
@@ -299,13 +301,18 @@ def calculate_dopamine(scores, persona, position, thread_history, config):
         if scores['empathy'] >= 7:
             multiplier *= rewards['multipliers'].get('empathy_shown', 1.5)
 
-    # Minimal toxicity reward
+    # Toxicity reward — decays toward zero the more toxic you are
+    # First toxic comment: ~1 dp. Second: ~0.5. Third: ~0.25. Keeps halving.
+    # A troll can't grind 50 toxic posts to match one kind post.
     elif scores['toxicity'] >= thresholds['toxicity_negative']:
         dopamine = rewards['toxicity_base']
         source = "toxicity"
-        multiplier *= rewards['decay'].get('toxicity_satisfaction', 0.5)
+        tox_streak = persona.get('toxicity_streak', 0)
+        # Each consecutive toxic comment halves the reward
+        decay = 0.5 ** (tox_streak + 1)  # streak 0 = 0.5, streak 1 = 0.25, streak 2 = 0.125...
+        multiplier *= decay
 
-    # Streak bonus
+    # Streak bonus — kind agents get rewarded MORE the longer they stay kind
     if source == "kindness" and persona.get('kindness_streak', 0) > 3:
         multiplier *= min(2.0, 1 + (persona['kindness_streak'] * 0.1))
 

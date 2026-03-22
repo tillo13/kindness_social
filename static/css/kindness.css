@@ -422,12 +422,16 @@ nav a:first-child {
     background: var(--bg-surface);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
-    padding: 16px 20px;
+    padding: 12px 14px;
     display: block;
     text-decoration: none;
     transition: border-color var(--duration-normal) var(--ease-out),
                 background var(--duration-normal) var(--ease-out),
                 transform var(--duration-normal) var(--ease-out);
+}
+
+@media (min-width: 640px) {
+    .k-thread-card { padding: 16px 20px; }
 }
 
 .k-thread-card:hover {

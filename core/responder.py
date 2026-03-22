@@ -321,7 +321,9 @@ def run_agent_responses(config=None):
                 # Maybe reflect after posting — like a human rethinking what they just said
                 interactions = agent.get('total_interactions', 0)
                 last_ref = agent.get('interactions_at_last_reflection') or 0
-                if interactions >= 5 and (interactions - last_ref) >= 3 and random.random() < 0.20:
+                reflect_chance = 0.10 + (agent.get('curiosity', 5) / 100) + (agent.get('openness_to_change', 0.5) * 0.1)
+                reflect_chance = min(0.35, max(0.05, reflect_chance))
+                if interactions >= 5 and (interactions - last_ref) >= 3 and random.random() < reflect_chance:
                     try:
                         from core.reflector import reflect_agent, get_platform_context
                         if not agent.get('is_control', False):

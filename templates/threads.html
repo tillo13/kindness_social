@@ -12,12 +12,12 @@
     <div class="space-y-2 mb-8">
         {% for t in threads %}
         <a href="/thread/{{ t.thread_id }}" class="k-thread-card">
-            <div class="flex justify-between items-center">
-                <div class="flex items-center gap-3 flex-1">
-                    <span class="k-badge k-badge--{{ t.topic_type or 'controversial' }}">{{ t.topic_type }}</span>
+            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1.5">
+                <div class="flex items-center gap-2 min-w-0">
+                    <span class="k-badge k-badge--{{ t.topic_type or 'controversial' }} flex-shrink-0">{{ t.topic_type }}</span>
                     <span class="text-sm truncate" style="color: var(--text-secondary);">{{ t.post_text[:100] }}{% if t.post_text|length > 100 %}...{% endif %}</span>
                 </div>
-                <div class="flex gap-3 text-xs ml-3 flex-shrink-0" style="color: var(--text-quaternary);">
+                <div class="flex flex-wrap gap-2 text-xs flex-shrink-0" style="color: var(--text-quaternary);">
                     <span>{{ t.participant_count }} agents</span>
                     {% if t.avg_kindness %}<span style="color: var(--kindness);">K:{{ "%.1f"|format(t.avg_kindness|float) }}</span>{% endif %}
                     {% if t.bridge_events %}<span style="color: var(--bridge);">{{ t.bridge_events }} bridges</span>{% endif %}

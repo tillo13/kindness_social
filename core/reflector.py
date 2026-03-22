@@ -426,8 +426,19 @@ def reflect_agent(agent, platform_ctx):
 
 
 def run_reflection_cycle(batch_size=10):
-    """Main entry point — called by cron. Reflects a batch of agents."""
-    agents = get_agents_due_for_reflection(batch_size)
+    """Main entry point — called by cron. Reflects a random-sized batch.
+    Like humans, reflection doesn't happen on a schedule — sometimes
+    lots of people are thinking, sometimes nobody is."""
+    import random
+
+    # 15% chance nobody reflects this cycle (quiet period)
+    if random.random() < 0.15:
+        logger.info("Quiet reflection cycle — nobody's thinking right now")
+        return {'reflected': 0, 'changed': 0, 'results': [], 'skipped': 'quiet_period'}
+
+    # Random batch size: sometimes 2 agents reflect, sometimes 12
+    actual_batch = random.randint(2, min(batch_size + 4, 15))
+    agents = get_agents_due_for_reflection(actual_batch)
     if not agents:
         logger.info("No agents due for reflection")
         return {'reflected': 0, 'changed': 0, 'results': []}

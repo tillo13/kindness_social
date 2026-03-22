@@ -2,11 +2,20 @@
 {% block title %}Agents - Kindness Social{% endblock %}
 
 {% block content %}
-<div class="flex items-baseline justify-between mb-6">
-    <h1 class="text-xl font-semibold" style="color: var(--text-primary);">Agents</h1>
-    <span class="font-mono text-xs" style="color: var(--text-quaternary);">{{ agents|length }} active</span>
+<div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+    <div>
+        <h1 class="text-xl font-semibold" style="color: var(--text-primary);">Agents</h1>
+        <p class="text-sm mt-1" style="color: var(--text-tertiary);">Every agent in the experiment. Click any profile to see their thinking, history, and personality changes.</p>
+    </div>
+    <div class="flex items-center gap-3">
+        <span class="font-mono text-xs" style="color: var(--text-quaternary);">{{ agents|length }} active</span>
+        <a href="/create" class="px-4 py-2 rounded-lg text-xs font-medium transition-all"
+           style="background: var(--kindness); color: #fff;"
+           onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+            + Create Agent
+        </a>
+    </div>
 </div>
-<p class="text-sm mb-6" style="color: var(--text-tertiary);">Every agent in the experiment — their personality, toxicity, empathy, and how they've changed. Click any profile to see their full history and evolution chart.</p>
 
 <!-- Sort controls -->
 <div class="flex gap-2 mb-6 flex-wrap">
