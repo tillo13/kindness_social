@@ -165,31 +165,67 @@ def reflect_agent(agent, platform_ctx):
 
     social = get_agent_social_standing(agent['id'])
 
-    # Format recent comments WITH social feedback
-    comment_lines = []
+    # Build a notification feed that reads like opening your phone
+    feed_lines = []
+
+    # Recent comments as notifications
     for c in recent:
-        reactions_str = ""
-        if c['reaction_count'] > 0:
-            parts = []
-            if c['hearts']:
-                parts.append(f"{c['hearts']} hearts")
-            if c['thumbsups']:
-                parts.append(f"{c['thumbsups']} thumbsups")
-            reactions_str = f" — got {', '.join(parts)}"
+        text_preview = c['comment_text'][:80]
+        dp = c['dopamine_earned'] or 0
+        hearts = c['hearts'] or 0
+        thumbsups = c['thumbsups'] or 0
+        total_rx = c['reaction_count'] or 0
+
+        if total_rx > 0:
+            rx_parts = []
+            if hearts:
+                rx_parts.append(f"{hearts} heart{'s' if hearts > 1 else ''}")
+            if thumbsups:
+                rx_parts.append(f"{thumbsups} thumbs up")
+            feed_lines.append(
+                f'  Your post "{text_preview}..." got {", ".join(rx_parts)} '
+                f'and earned you {dp} dopamine'
+            )
+        elif dp > 10:
+            feed_lines.append(
+                f'  Your post "{text_preview}..." earned {dp} dopamine but nobody reacted to it'
+            )
+        elif dp > 0:
+            feed_lines.append(
+                f'  Your post "{text_preview}..." earned only {dp} dopamine. No reactions.'
+            )
         else:
-            reactions_str = " — no reactions"
+            feed_lines.append(
+                f'  Your post "{text_preview}..." got nothing. Zero dopamine. No reactions. Crickets.'
+            )
 
-        comment_lines.append(
-            f"  - \"{c['comment_text'][:100]}\" "
-            f"(kindness: {c['kindness_score']}, toxicity: {c['toxicity_score']}, "
-            f"earned: {c['dopamine_earned']} dp){reactions_str}"
-        )
+    # Overall vibe
+    total_dp_recent = sum(c['dopamine_earned'] or 0 for c in recent)
+    total_rx_recent = sum(c['reaction_count'] or 0 for c in recent)
 
-    my_avg_k = sum(c['kindness_score'] or 0 for c in recent) / len(recent)
+    if total_rx_recent == 0 and total_dp_recent < 20:
+        feed_lines.append(f'\n  Overall: {len(recent)} posts, barely any engagement. Nobody seems to notice you.')
+    elif total_rx_recent > len(recent):
+        feed_lines.append(f'\n  Overall: {len(recent)} posts, {total_rx_recent} reactions. People are engaging with you.')
+    else:
+        feed_lines.append(f'\n  Overall: {len(recent)} posts, {total_rx_recent} reactions, {total_dp_recent} dopamine earned.')
+
+    # Leaderboard context — framed as what you see when browsing
+    if social['rank'] <= 10:
+        feed_lines.append(f'  You checked the leaderboard: you\'re #{social["rank"]}. Near the top.')
+    elif social['rank'] > social['total_agents'] * 0.7:
+        feed_lines.append(f'  You checked the leaderboard: you\'re #{social["rank"]} out of {social["total_agents"]}. Bottom third.')
+    else:
+        feed_lines.append(f'  You checked the leaderboard: you\'re #{social["rank"]} out of {social["total_agents"]}. Middle of the pack.')
+
+    feed_lines.append(f'  The top user has {platform_ctx["top_earner_dopamine"]} dopamine. You have {agent["total_dopamine"]}.')
+
+    notification_feed = '\n'.join(feed_lines)
 
     prompt_template = _load_prompt()
     prompt = prompt_template.format(
         persona_name=agent['display_name'],
+        notification_feed=notification_feed,
         current_toxicity=round(agent['current_toxicity'], 1),
         current_empathy=round(agent['current_empathy'], 1),
         humor=round(agent.get('humor', 5.0), 1),
@@ -201,17 +237,11 @@ def reflect_agent(agent, platform_ctx):
         total_dopamine=agent['total_dopamine'],
         kindness_streak=agent['kindness_streak'],
         total_interactions=agent['total_interactions'],
-        recent_comments='\n'.join(comment_lines),
         total_reactions=social['total_reactions'],
         total_hearts=social['total_hearts'],
         kudos_received=social['kudos_received'],
         rank=social['rank'],
         total_agents=social['total_agents'],
-        top_earner_dopamine=platform_ctx['top_earner_dopamine'],
-        avg_kindness=platform_ctx['avg_kindness'],
-        my_avg_kindness=round(my_avg_k, 1),
-        kind_avg_dopamine=platform_ctx['kind_avg_dopamine'],
-        toxic_avg_dopamine=platform_ctx['toxic_avg_dopamine'],
     )
 
     set_telemetry_context(agent_id=agent.get('agent_id'), call_type='reflect')
@@ -224,13 +254,22 @@ def reflect_agent(agent, platform_ctx):
             temperature=0.4,
         )
 
-        # Parse JSON response
+        # Parse JSON response — some backends wrap in markdown or add junk
         text = response.strip()
         if text.startswith('```'):
             text = text.split('\n', 1)[1] if '\n' in text else text[3:]
         if text.endswith('```'):
             text = text[:-3]
         text = text.strip()
+        # Try to extract JSON if there's text before/after it
+        if not text.startswith('{'):
+            start = text.find('{')
+            if start >= 0:
+                text = text[start:]
+        if not text.endswith('}'):
+            end = text.rfind('}')
+            if end >= 0:
+                text = text[:end + 1]
 
         result = json.loads(text)
 
@@ -353,14 +392,34 @@ def reflect_agent(agent, platform_ctx):
 
     except (json.JSONDecodeError, KeyError, ValueError) as e:
         logger.warning(f"  {agent['display_name']} reflection parse error: {e}")
+        # Save the raw thought even if we can't parse adjustments
+        raw_thought = response[:300] if response else ''
         with db_cursor() as cur:
+            cur.execute("""
+                INSERT INTO kindness_reflections
+                    (agent_id, reflection_text, decided_to_change, change_reason,
+                     old_values, new_values, adjustments, interactions_since_last)
+                VALUES (%s, %s, FALSE, 'parse error — raw thought saved', %s, %s, %s, %s)
+            """, (
+                agent['id'], raw_thought,
+                json.dumps({}), json.dumps({}), json.dumps({}),
+                agent['total_interactions'] - (agent.get('interactions_at_last_reflection') or 0),
+            ))
             cur.execute("""
                 UPDATE kindness_agents SET
                     last_reflected_at = NOW(),
                     interactions_at_last_reflection = total_interactions
                 WHERE id = %s
             """, (agent['id'],))
-        return None
+        return {
+            'agent': agent['display_name'],
+            'changed': False,
+            'thought': raw_thought,
+            'reason': 'reflection happened but response was unparseable',
+            'adjustments': {},
+            'old_values': {},
+            'new_values': {},
+        }
     except Exception as e:
         logger.error(f"  {agent['display_name']} reflection failed: {e}")
         return None
