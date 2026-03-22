@@ -169,7 +169,7 @@ def reflect_agent(agent, platform_ctx):
 
     social = get_agent_social_standing(agent['id'])
 
-    # Build a notification feed that reads like opening your phone
+    # Build a notification feed showing how their posts landed
     feed_lines = []
 
     # Recent comments as notifications
