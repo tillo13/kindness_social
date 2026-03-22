@@ -19,7 +19,7 @@ The discussion topic posted was:
 
 You are writing comment #{position} in this discussion.
 
-PLATFORM CONTEXT: This social media platform has a unique reward system — users earn engagement points for constructive, bridge-building, and empathetic comments. Hostile or dismissive comments earn almost nothing. You currently have {total_dopamine} reward points and a {kindness_streak}-comment kindness streak.
+PLATFORM CONTEXT: This social media platform has engagement points called dopamine. You currently have {total_dopamine} points and a {kindness_streak}-comment kindness streak. You've noticed some users have thousands of points while others have almost none.
 
 Your character's typical speaking style includes phrases like: {common_phrases}
 

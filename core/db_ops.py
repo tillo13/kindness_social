@@ -180,16 +180,26 @@ def create_tables():
                 reflection_text TEXT NOT NULL,
                 decided_to_change BOOLEAN DEFAULT FALSE,
                 change_reason TEXT,
-                old_toxicity FLOAT,
-                new_toxicity FLOAT,
-                old_empathy FLOAT,
-                new_empathy FLOAT,
+                old_values JSONB,
+                new_values JSONB,
+                adjustments JSONB,
                 interactions_since_last INTEGER DEFAULT 0,
-                dopamine_since_last INTEGER DEFAULT 0,
                 created_at TIMESTAMPTZ DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS idx_kindness_reflections_agent
                 ON kindness_reflections(agent_id, created_at DESC);
+
+            -- Migration: drop old columns if they exist, add new JSONB columns
+            DO $$ BEGIN
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'kindness_reflections' AND column_name = 'old_toxicity') THEN
+                    ALTER TABLE kindness_reflections DROP COLUMN old_toxicity, DROP COLUMN new_toxicity, DROP COLUMN old_empathy, DROP COLUMN new_empathy;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'kindness_reflections' AND column_name = 'old_values') THEN
+                    ALTER TABLE kindness_reflections ADD COLUMN old_values JSONB;
+                    ALTER TABLE kindness_reflections ADD COLUMN new_values JSONB;
+                    ALTER TABLE kindness_reflections ADD COLUMN adjustments JSONB;
+                END IF;
+            END $$;
 
             -- Migrations: add columns if not present
             ALTER TABLE kindness_agents ADD COLUMN IF NOT EXISTS invited_by INTEGER REFERENCES kindness_agents(id);
