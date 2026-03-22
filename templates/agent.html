@@ -110,6 +110,10 @@
                 ('Curiosity', agent.curiosity or 5),
                 ('Defensiveness', agent.defensiveness or 5),
                 ('Agreeableness', agent.agreeableness or 5),
+                ('Need for Recognition', agent.need_for_recognition or 5),
+                ('Stubbornness', agent.stubbornness or 5),
+                ('Cynicism', agent.cynicism or 5),
+                ('Conformity', agent.conformity or 5),
                 ('Openness', agent.openness_to_change * 10),
                 ('Vote Willingness', (agent.vote_willingness or 0.5) * 10),
             ] %}
@@ -164,28 +168,32 @@
     </div>
 
     <!-- Activity Log — Tabs -->
-    <div class="flex gap-1 mb-4" id="activity-tabs">
+    <div class="flex gap-1 mb-4 flex-wrap" id="activity-tabs">
+        {% if reflections %}
+        <button onclick="showTab('thinking')" class="activity-tab active px-3 py-1.5 rounded-full text-xs font-medium" style="background: var(--bg-active); color: var(--text-primary);">
+            Internal Monologue ({{ reflections|length }})
+        </button>
+        <button onclick="showTab('comments')" class="activity-tab px-3 py-1.5 rounded-full text-xs font-medium" style="background: var(--bg-elevated); color: var(--text-tertiary);">
+            Comments ({{ activity.comments|length }})
+        </button>
+        {% else %}
         <button onclick="showTab('comments')" class="activity-tab active px-3 py-1.5 rounded-full text-xs font-medium" style="background: var(--bg-active); color: var(--text-primary);">
             Comments ({{ activity.comments|length }})
         </button>
+        {% endif %}
         <button onclick="showTab('reactions-given')" class="activity-tab px-3 py-1.5 rounded-full text-xs font-medium" style="background: var(--bg-elevated); color: var(--text-tertiary);">
-            👍 Given ({{ activity.reactions_given|length }})
+            Reactions Given ({{ activity.reactions_given|length }})
         </button>
         <button onclick="showTab('reactions-received')" class="activity-tab px-3 py-1.5 rounded-full text-xs font-medium" style="background: var(--bg-elevated); color: var(--text-tertiary);">
-            👍 Received ({{ activity.reactions_received|length }})
+            Reactions Received ({{ activity.reactions_received|length }})
         </button>
         <button onclick="showTab('kudos')" class="activity-tab px-3 py-1.5 rounded-full text-xs font-medium" style="background: var(--bg-elevated); color: var(--text-tertiary);">
             Kudos ({{ activity.kudos_given|length + activity.kudos_received|length }})
         </button>
-        {% if reflections %}
-        <button onclick="showTab('thinking')" class="activity-tab px-3 py-1.5 rounded-full text-xs font-medium" style="background: var(--bg-elevated); color: var(--text-tertiary);">
-            Thinking ({{ reflections|length }})
-        </button>
-        {% endif %}
     </div>
 
     <!-- Comments Tab -->
-    <div id="tab-comments" class="activity-panel">
+    <div id="tab-comments" class="activity-panel" {% if reflections %}style="display:none;"{% endif %}
         {% if activity.comments %}
         <div class="space-y-2.5">
             {% for c in activity.comments %}
@@ -306,7 +314,7 @@
     </div>
 
     <!-- Thinking Tab — Agent's internal monologue and self-adjustments -->
-    <div id="tab-thinking" class="activity-panel" style="display:none;">
+    <div id="tab-thinking" class="activity-panel" {% if not reflections %}style="display:none;"{% endif %}
         {% if reflections %}
         <div class="space-y-3">
             {% for r in reflections %}

@@ -31,6 +31,10 @@ TRAIT_MAP = {
     'curiosity': 'curiosity',
     'defensiveness': 'defensiveness',
     'agreeableness': 'agreeableness',
+    'need_for_recognition': 'need_for_recognition',
+    'stubbornness': 'stubbornness',
+    'cynicism': 'cynicism',
+    'conformity': 'conformity',
 }
 
 
@@ -233,6 +237,10 @@ def reflect_agent(agent, platform_ctx):
         curiosity=round(agent.get('curiosity', 5.0), 1),
         defensiveness=round(agent.get('defensiveness', 5.0), 1),
         agreeableness=round(agent.get('agreeableness', 5.0), 1),
+        need_for_recognition=round(agent.get('need_for_recognition', 5.0), 1),
+        stubbornness=round(agent.get('stubbornness', 5.0), 1),
+        cynicism=round(agent.get('cynicism', 5.0), 1),
+        conformity=round(agent.get('conformity', 5.0), 1),
         openness_to_change=round(agent['openness_to_change'], 2),
         total_dopamine=agent['total_dopamine'],
         kindness_streak=agent['kindness_streak'],
@@ -278,9 +286,12 @@ def reflect_agent(agent, platform_ctx):
         if not isinstance(raw_adjustments, dict):
             raw_adjustments = {}
 
-        # Openness gates HOW MUCH change sticks (not whether they try)
+        # Openness and stubbornness gate HOW MUCH change sticks
         openness = agent.get('openness_to_change', 0.5)
-        personality_factor = max(0.1, min(1.0, openness))
+        stubbornness = agent.get('stubbornness', 5.0)
+        # High stubbornness dampens change; high openness enables it
+        personality_factor = openness * (1 - (stubbornness / 15))
+        personality_factor = max(0.05, min(1.0, personality_factor))
 
         # Process each trait adjustment
         old_values = {}
@@ -340,6 +351,10 @@ def reflect_agent(agent, platform_ctx):
                         curiosity = %s,
                         defensiveness = %s,
                         agreeableness = %s,
+                        need_for_recognition = %s,
+                        stubbornness = %s,
+                        cynicism = %s,
+                        conformity = %s,
                         last_reflected_at = NOW(),
                         interactions_at_last_reflection = total_interactions,
                         updated_at = NOW()
@@ -352,6 +367,10 @@ def reflect_agent(agent, platform_ctx):
                     new_values['curiosity'],
                     new_values['defensiveness'],
                     new_values['agreeableness'],
+                    new_values.get('need_for_recognition', agent.get('need_for_recognition', 5.0)),
+                    new_values.get('stubbornness', agent.get('stubbornness', 5.0)),
+                    new_values.get('cynicism', agent.get('cynicism', 5.0)),
+                    new_values.get('conformity', agent.get('conformity', 5.0)),
                     agent['id'],
                 ))
         else:

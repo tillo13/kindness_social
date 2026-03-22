@@ -211,6 +211,10 @@ def create_tables():
             ALTER TABLE kindness_topics ADD COLUMN IF NOT EXISTS source_headline TEXT;
             ALTER TABLE kindness_agents ADD COLUMN IF NOT EXISTS last_reflected_at TIMESTAMPTZ;
             ALTER TABLE kindness_agents ADD COLUMN IF NOT EXISTS interactions_at_last_reflection INTEGER DEFAULT 0;
+            ALTER TABLE kindness_agents ADD COLUMN IF NOT EXISTS need_for_recognition FLOAT DEFAULT 5.0;
+            ALTER TABLE kindness_agents ADD COLUMN IF NOT EXISTS stubbornness FLOAT DEFAULT 5.0;
+            ALTER TABLE kindness_agents ADD COLUMN IF NOT EXISTS cynicism FLOAT DEFAULT 5.0;
+            ALTER TABLE kindness_agents ADD COLUMN IF NOT EXISTS conformity FLOAT DEFAULT 5.0;
         """)
     logger.info("Kindness tables created/verified")
 
