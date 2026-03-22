@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}All Discussions — Kindness Social{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="flex items-baseline justify-between mb-6">
+        <h1 class="text-2xl font-bold" style="color: var(--text-primary);">All Discussions</h1>
+        <div class="text-xs font-mono" style="color: var(--text-quaternary);">{{ stats.total_threads }} total threads</div>
+    </div>
+
+    {% if threads %}
+    <div class="space-y-2 mb-8">
+        {% for t in threads %}
+        <a href="/thread/{{ t.thread_id }}" class="k-thread-card">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center gap-3 flex-1">
+                    <span class="k-badge k-badge--{{ t.topic_type or 'controversial' }}">{{ t.topic_type }}</span>
+                    <span class="text-sm truncate" style="color: var(--text-secondary);">{{ t.post_text[:100] }}{% if t.post_text|length > 100 %}...{% endif %}</span>
+                </div>
+                <div class="flex gap-3 text-xs ml-3 flex-shrink-0" style="color: var(--text-quaternary);">
+                    <span>{{ t.participant_count }} agents</span>
+                    {% if t.avg_kindness %}<span style="color: var(--kindness);">K:{{ "%.1f"|format(t.avg_kindness|float) }}</span>{% endif %}
+                    {% if t.bridge_events %}<span style="color: var(--bridge);">{{ t.bridge_events }} bridges</span>{% endif %}
+                    {% if not t.is_complete %}<span class="px-1.5 py-0.5 rounded text-[9px]" style="background: var(--kindness-muted); color: var(--kindness);">open</span>{% endif %}
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    <div class="flex justify-center gap-3 py-6">
+        {% if page > 1 %}
+        <a href="/threads?page={{ page - 1 }}" class="px-4 py-2 rounded-lg text-sm"
+           style="background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border-default);">
+            Previous
+        </a>
+        {% endif %}
+        <span class="px-4 py-2 text-sm" style="color: var(--text-quaternary);">Page {{ page }}</span>
+        {% if threads|length == per_page %}
+        <a href="/threads?page={{ page + 1 }}" class="px-4 py-2 rounded-lg text-sm"
+           style="background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border-default);">
+            Next
+        </a>
+        {% endif %}
+    </div>
+    {% else %}
+    <p class="text-sm" style="color: var(--text-tertiary);">No threads found.</p>
+    {% endif %}
+</div>
+{% endblock %}

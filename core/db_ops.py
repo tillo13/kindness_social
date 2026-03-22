@@ -246,6 +246,13 @@ def seed_topics(topics_data):
 # AGENT OPERATIONS
 # ============================================================================
 
+def get_active_agent_count():
+    """Fast count of active agents."""
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("SELECT COUNT(*) as cnt FROM kindness_agents WHERE is_active = TRUE")
+        return cur.fetchone()['cnt']
+
+
 def get_active_agents(limit=5):
     """Get random sample of active agents."""
     with db_cursor(dict_cursor=True) as cur:
@@ -374,7 +381,7 @@ def complete_thread(db_id, avg_kindness, avg_toxicity, bridge_events):
         """, (avg_kindness, avg_toxicity, bridge_events, db_id))
 
 
-def get_recent_threads(limit=20):
+def get_recent_threads(limit=20, offset=0):
     """Get recent threads with topic info (both open and complete)."""
     with db_cursor(dict_cursor=True) as cur:
         cur.execute("""
@@ -383,8 +390,8 @@ def get_recent_threads(limit=20):
             JOIN kindness_topics tp ON t.topic_id = tp.id
             WHERE EXISTS (SELECT 1 FROM kindness_comments c WHERE c.thread_id = t.id)
             ORDER BY t.created_at DESC
-            LIMIT %s
-        """, (limit,))
+            LIMIT %s OFFSET %s
+        """, (limit, offset))
         return [dict(row) for row in cur.fetchall()]
 
 
@@ -1122,6 +1129,151 @@ def get_24h_summary():
         summary.update(dict(cur.fetchone()))
 
         return summary
+
+
+def get_experiment_pulse():
+    """Multi-period experiment health dashboard data.
+    Returns stats for 24h, 48h, 7d, 30d, all-time with deltas."""
+    with db_cursor(dict_cursor=True) as cur:
+        # Experiment runtime
+        cur.execute("""
+            SELECT MIN(created_at) as first_comment,
+                   MAX(created_at) as last_comment,
+                   EXTRACT(EPOCH FROM (MAX(created_at) - MIN(created_at))) / 3600 as runtime_hours
+            FROM kindness_comments
+        """)
+        runtime = dict(cur.fetchone())
+
+        # Multi-period comment stats: current period vs previous period for delta
+        periods = [
+            ('24h', '24 hours', '48 hours'),
+            ('48h', '48 hours', '96 hours'),
+            ('7d', '7 days', '14 days'),
+            ('30d', '30 days', '60 days'),
+        ]
+        period_stats = {}
+        for label, current_interval, prev_interval in periods:
+            cur.execute("""
+                SELECT
+                    COUNT(*) as comments,
+                    AVG(kindness_score) as avg_kindness,
+                    AVG(toxicity_score) as avg_toxicity,
+                    SUM(dopamine_earned) as dopamine,
+                    COUNT(CASE WHEN bridge_score >= 7 THEN 1 END) as bridges
+                FROM kindness_comments
+                WHERE created_at >= NOW() - INTERVAL '{current}'
+            """.format(current=current_interval))
+            current = dict(cur.fetchone())
+
+            # Previous same-length period for comparison
+            cur.execute("""
+                SELECT
+                    COUNT(*) as comments,
+                    AVG(kindness_score) as avg_kindness,
+                    AVG(toxicity_score) as avg_toxicity,
+                    SUM(dopamine_earned) as dopamine,
+                    COUNT(CASE WHEN bridge_score >= 7 THEN 1 END) as bridges
+                FROM kindness_comments
+                WHERE created_at >= NOW() - INTERVAL '{prev}'
+                  AND created_at < NOW() - INTERVAL '{current}'
+            """.format(prev=prev_interval, current=current_interval))
+            prev = dict(cur.fetchone())
+
+            # Compute deltas
+            def delta(curr_val, prev_val):
+                c = float(curr_val or 0)
+                p = float(prev_val or 0)
+                if p == 0:
+                    return None
+                return round(((c - p) / p) * 100, 1) if p != 0 else None
+
+            period_stats[label] = {
+                'comments': current['comments'] or 0,
+                'avg_kindness': round(float(current['avg_kindness'] or 0), 1),
+                'avg_toxicity': round(float(current['avg_toxicity'] or 0), 1),
+                'dopamine': int(current['dopamine'] or 0),
+                'bridges': current['bridges'] or 0,
+                'delta_comments': delta(current['comments'], prev['comments']),
+                'delta_kindness': delta(current['avg_kindness'], prev['avg_kindness']),
+                'delta_toxicity': delta(current['avg_toxicity'], prev['avg_toxicity']),
+                'delta_bridges': delta(current['bridges'], prev['bridges']),
+            }
+
+        # Threads per period
+        for label, current_interval, prev_interval in periods:
+            cur.execute("""
+                SELECT COUNT(*) as threads
+                FROM kindness_threads
+                WHERE created_at >= NOW() - INTERVAL '{current}'
+            """.format(current=current_interval))
+            period_stats[label]['threads'] = cur.fetchone()['threads']
+
+        # Agent health: improved vs worsened (all-time, from baselines)
+        cur.execute("""
+            SELECT
+                COUNT(*) as total_active,
+                COUNT(CASE WHEN current_toxicity < toxicity_baseline - 0.1 THEN 1 END) as improved,
+                COUNT(CASE WHEN current_toxicity > toxicity_baseline + 0.1 THEN 1 END) as worsened,
+                COUNT(CASE WHEN ABS(current_toxicity - toxicity_baseline) <= 0.1 THEN 1 END) as unchanged
+            FROM kindness_agents
+            WHERE is_active = TRUE AND total_interactions > 0
+        """)
+        agent_health = dict(cur.fetchone())
+
+        # New agents introduced (by period)
+        for label, current_interval, _ in periods:
+            cur.execute("""
+                SELECT COUNT(*) as new_agents
+                FROM kindness_agents
+                WHERE created_at >= NOW() - INTERVAL '{current}'
+                  AND is_active = TRUE
+            """.format(current=current_interval))
+            period_stats[label]['new_agents'] = cur.fetchone()['new_agents']
+
+        # New topics introduced (by period)
+        for label, current_interval, _ in periods:
+            cur.execute("""
+                SELECT COUNT(*) as new_topics
+                FROM kindness_topics
+                WHERE created_at >= NOW() - INTERVAL '{current}'
+            """.format(current=current_interval))
+            period_stats[label]['new_topics'] = cur.fetchone()['new_topics']
+
+        # Top factor driving kindness: which dopamine_source yields highest avg kindness
+        cur.execute("""
+            SELECT dopamine_source, COUNT(*) as cnt,
+                   AVG(kindness_score) as avg_k, AVG(toxicity_score) as avg_t
+            FROM kindness_comments
+            WHERE dopamine_source IS NOT NULL AND dopamine_source != ''
+            GROUP BY dopamine_source
+            HAVING COUNT(*) >= 5
+            ORDER BY avg_k DESC
+            LIMIT 3
+        """)
+        top_drivers = [dict(r) for r in cur.fetchall()]
+
+        # Best backend for kindness improvement
+        cur.execute("""
+            SELECT llm_backend_used as backend,
+                   AVG(kindness_score) as avg_k,
+                   AVG(toxicity_score) as avg_t,
+                   COUNT(*) as cnt
+            FROM kindness_comments
+            WHERE llm_backend_used IS NOT NULL
+            GROUP BY llm_backend_used
+            HAVING COUNT(*) >= 10
+            ORDER BY avg_k DESC
+            LIMIT 1
+        """)
+        kindest_backend = dict(cur.fetchone()) if cur.rowcount else None
+
+        return {
+            'runtime_hours': round(float(runtime['runtime_hours'] or 0), 1),
+            'periods': period_stats,
+            'agent_health': agent_health,
+            'top_drivers': top_drivers,
+            'kindest_backend': kindest_backend,
+        }
 
 
 def get_featured_thread():

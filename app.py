@@ -70,8 +70,21 @@ def home():
     experiment = db_ops.get_control_vs_treatment()
     summary_24h = db_ops.get_24h_summary()
     featured = db_ops.get_featured_thread()
+    pulse = db_ops.get_experiment_pulse()
     return render_template('home.html', stats=stats, model_data=model_data, threads=threads,
-                           experiment=experiment, summary_24h=summary_24h, featured=featured)
+                           experiment=experiment, summary_24h=summary_24h, featured=featured,
+                           pulse=pulse)
+
+
+@app.route('/threads')
+def threads_page():
+    """All discussions — paginated listing."""
+    page = request.args.get('page', 1, type=int)
+    per_page = 30
+    threads = db_ops.get_recent_threads(limit=per_page, offset=(page - 1) * per_page)
+    stats = db_ops.get_global_stats()
+    return render_template('threads.html', threads=threads, stats=stats,
+                           page=page, per_page=per_page)
 
 
 @app.route('/dashboard')

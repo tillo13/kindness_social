@@ -17,20 +17,40 @@ logger = logging.getLogger(__name__)
 
 
 def get_open_threads(limit=5):
-    """Get threads that are still open for responses."""
+    """Get threads that are still open for responses.
+    Mix of recent threads + older threads that deserve a necro-bump,
+    just like real forums where someone replies to a month-old post."""
     from utilities.postgres_utils import db_cursor
     with db_cursor(dict_cursor=True) as cur:
+        # Recent threads (most activity happens here)
         cur.execute("""
             SELECT t.*, tp.post_text, tp.topic_type, tp.keywords
             FROM kindness_threads t
             JOIN kindness_topics tp ON t.topic_id = tp.id
             WHERE t.is_complete = FALSE
-              AND (t.expires_at IS NULL OR t.expires_at > NOW())
-              AND (SELECT COUNT(*) FROM kindness_comments WHERE thread_id = t.id) < COALESCE(t.max_comments, 30)
+              AND (SELECT COUNT(*) FROM kindness_comments WHERE thread_id = t.id) < COALESCE(t.max_comments, 50)
             ORDER BY t.created_at DESC
             LIMIT %s
-        """, (limit,))
-        return [dict(row) for row in cur.fetchall()]
+        """, (max(1, limit - 2),))
+        recent = [dict(row) for row in cur.fetchall()]
+
+        # Older threads — necro-bump candidates (random older open threads)
+        cur.execute("""
+            SELECT t.*, tp.post_text, tp.topic_type, tp.keywords
+            FROM kindness_threads t
+            JOIN kindness_topics tp ON t.topic_id = tp.id
+            WHERE t.is_complete = FALSE
+              AND (SELECT COUNT(*) FROM kindness_comments WHERE thread_id = t.id) < COALESCE(t.max_comments, 50)
+              AND t.created_at < NOW() - INTERVAL '6 hours'
+            ORDER BY RANDOM()
+            LIMIT 2
+        """)
+        older = [dict(row) for row in cur.fetchall()]
+
+        # Dedupe (older might overlap with recent)
+        seen = {t['id'] for t in recent}
+        combined = recent + [t for t in older if t['id'] not in seen]
+        return combined[:limit + 2]
 
 
 def get_thread_comments(thread_db_id):
@@ -208,16 +228,16 @@ def run_agent_responses(config=None):
     config = config or DEFAULT_CONFIG
     from utilities.usage_limiter import is_backend_in_backoff
 
-    # Pick up to 3 open threads
-    open_threads = get_open_threads(limit=5)
+    # Check more threads — mix of recent and older ones
+    open_threads = get_open_threads(limit=8)
     if not open_threads:
         logger.info("No open threads for responses")
         return {'threads_checked': 0, 'responses': 0, 'reactions': 0}
 
-    threads_to_check = random.sample(open_threads, min(random.randint(2, 3), len(open_threads)))
+    threads_to_check = random.sample(open_threads, min(random.randint(3, 5), len(open_threads)))
 
-    # Higher batch cap — 3-6 responses per cycle
-    max_responses_this_round = random.randint(3, 6)
+    # Higher batch cap — 4-8 responses per cycle for more engagement
+    max_responses_this_round = random.randint(4, 8)
     total_responses = 0
 
     for thread in threads_to_check:

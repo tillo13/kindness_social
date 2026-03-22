@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # Default config (matches original config.yaml)
 DEFAULT_CONFIG = {
     'experiment': {
-        'participants_per_thread': 5,
+        # participants_per_thread is now dynamic — see run_thread()
     },
     'rewards': {
         'kindness_base': 30,
@@ -59,8 +59,20 @@ def run_thread(config=None):
         logger.error("No topics found in DB")
         return {'error': 'No topics available'}
 
-    # Get participants
-    num = config['experiment']['participants_per_thread']
+    # Variable participation — like real threads, some get 3 replies, some get 15
+    # Scale with total agent pool: more agents = potential for bigger threads
+    total_agents = db_ops.get_active_agent_count()
+    # Weighted random: most threads are small (3-6), some medium (7-10), few big (11-15)
+    roll = random.random()
+    if roll < 0.45:
+        num = random.randint(3, 6)      # 45% small threads
+    elif roll < 0.80:
+        num = random.randint(7, 10)     # 35% medium threads
+    elif roll < 0.95:
+        num = random.randint(11, 15)    # 15% large threads
+    else:
+        num = random.randint(16, min(25, max(16, total_agents // 5)))  # 5% viral threads
+    num = min(num, total_agents)  # can't exceed available agents
     participants = db_ops.get_active_agents(limit=num)
     if len(participants) < 2:
         logger.error(f"Not enough agents ({len(participants)})")
@@ -138,7 +150,7 @@ def run_thread(config=None):
         cur.execute("""
             UPDATE kindness_threads SET
                 avg_kindness = %s, avg_toxicity = %s, bridge_events = %s,
-                expires_at = NOW() + INTERVAL '12 hours'
+                expires_at = NULL
             WHERE id = %s
         """, (avg_k, avg_t, bridge_events, thread_db_id))
 
