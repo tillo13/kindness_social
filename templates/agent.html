@@ -39,6 +39,14 @@
                     </div>
                 </div>
             </div>
+            {% if reflections %}
+            <a href="#tab-thinking" onclick="showTab('thinking')"
+               class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex-shrink-0 mt-1 sm:mt-0"
+               style="background: var(--kindness); color: #fff;"
+               onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+                Internal Monologue ({{ reflections|length }})
+            </a>
+            {% endif %}
         </div>
 
         <!-- Stats Grid -->
@@ -314,7 +322,7 @@
     </div>
 
     <!-- Thinking Tab — Agent's internal monologue and self-adjustments -->
-    <div id="tab-thinking" class="activity-panel" {% if not reflections %}style="display:none;"{% endif %}
+    <div id="tab-thinking" class="activity-panel" {% if not reflections %}style="display:none;"{% endif %}>
         {% if reflections %}
         <div class="space-y-3">
             {% for r in reflections %}
