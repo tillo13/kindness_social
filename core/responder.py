@@ -318,6 +318,20 @@ def run_agent_responses(config=None):
                 update_persona(agent, scores, dopamine)
                 db_ops.update_agent_state(agent['id'], agent)
 
+                # Maybe reflect after posting — like a human rethinking what they just said
+                interactions = agent.get('total_interactions', 0)
+                last_ref = agent.get('interactions_at_last_reflection') or 0
+                if interactions >= 5 and (interactions - last_ref) >= 3 and random.random() < 0.20:
+                    try:
+                        from core.reflector import reflect_agent, get_platform_context
+                        if not agent.get('is_control', False):
+                            ctx = get_platform_context()
+                            fresh = db_ops.get_agent_by_db_id(agent['id'])
+                            if fresh:
+                                reflect_agent(fresh, ctx)
+                    except Exception as e:
+                        logger.debug(f"Reflection skipped for {agent.get('display_name')}: {e}")
+
                 parent_id = target['id'] if target and isinstance(target, dict) and 'id' in target else None
                 replied_to = target.get('agent_id') if target and isinstance(target, dict) else None
 

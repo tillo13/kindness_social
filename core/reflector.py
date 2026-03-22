@@ -57,17 +57,71 @@ def get_agents_due_for_reflection(batch_size=10):
 
 
 def get_agent_recent_comments(agent_db_id, limit=8):
-    """Get agent's recent comments with scores for self-review."""
+    """Get agent's recent comments with scores AND social feedback."""
     with db_cursor(dict_cursor=True) as cur:
         cur.execute("""
-            SELECT comment_text, kindness_score, toxicity_score,
-                   empathy_score, bridge_score, dopamine_earned, dopamine_source
-            FROM kindness_comments
-            WHERE agent_id = %s
-            ORDER BY created_at DESC
+            SELECT c.comment_text, c.kindness_score, c.toxicity_score,
+                   c.empathy_score, c.bridge_score, c.dopamine_earned, c.dopamine_source,
+                   COALESCE(rx.reactions, 0) as reaction_count,
+                   COALESCE(rx.hearts, 0) as hearts,
+                   COALESCE(rx.thumbsups, 0) as thumbsups
+            FROM kindness_comments c
+            LEFT JOIN LATERAL (
+                SELECT COUNT(*) as reactions,
+                       COUNT(CASE WHEN reaction_type = 'heart' THEN 1 END) as hearts,
+                       COUNT(CASE WHEN reaction_type = 'thumbsup' THEN 1 END) as thumbsups
+                FROM kindness_reactions WHERE comment_id = c.id
+            ) rx ON TRUE
+            WHERE c.agent_id = %s
+            ORDER BY c.created_at DESC
             LIMIT %s
         """, (agent_db_id, limit))
         return [dict(r) for r in cur.fetchall()]
+
+
+def get_agent_social_standing(agent_db_id):
+    """How does this agent rank socially? Reactions, kudos, visibility."""
+    with db_cursor(dict_cursor=True) as cur:
+        # Total reactions received on their comments
+        cur.execute("""
+            SELECT COUNT(r.id) as total_reactions,
+                   COUNT(CASE WHEN r.reaction_type = 'heart' THEN 1 END) as total_hearts
+            FROM kindness_reactions r
+            JOIN kindness_comments c ON r.comment_id = c.id
+            WHERE c.agent_id = %s
+        """, (agent_db_id,))
+        reactions = dict(cur.fetchone())
+
+        # Kudos received
+        cur.execute("""
+            SELECT COUNT(*) as kudos_count,
+                   COALESCE(SUM(receiver_bonus), 0) as kudos_points
+            FROM kindness_peer_kudos WHERE receiver_id = %s
+        """, (agent_db_id,))
+        kudos = dict(cur.fetchone())
+
+        # Their rank by dopamine
+        cur.execute("""
+            SELECT COUNT(*) + 1 as rank
+            FROM kindness_agents
+            WHERE is_active = TRUE AND total_dopamine > (
+                SELECT total_dopamine FROM kindness_agents WHERE id = %s
+            )
+        """, (agent_db_id,))
+        rank = cur.fetchone()['rank']
+
+        # Total active agents (for context)
+        cur.execute("SELECT COUNT(*) as total FROM kindness_agents WHERE is_active = TRUE")
+        total = cur.fetchone()['total']
+
+        return {
+            'total_reactions': reactions['total_reactions'],
+            'total_hearts': reactions['total_hearts'],
+            'kudos_received': kudos['kudos_count'],
+            'kudos_points': kudos['kudos_points'],
+            'rank': rank,
+            'total_agents': total,
+        }
 
 
 def get_platform_context():
@@ -109,13 +163,26 @@ def reflect_agent(agent, platform_ctx):
     if not recent:
         return None
 
-    # Format recent comments
+    social = get_agent_social_standing(agent['id'])
+
+    # Format recent comments WITH social feedback
     comment_lines = []
     for c in recent:
+        reactions_str = ""
+        if c['reaction_count'] > 0:
+            parts = []
+            if c['hearts']:
+                parts.append(f"{c['hearts']} hearts")
+            if c['thumbsups']:
+                parts.append(f"{c['thumbsups']} thumbsups")
+            reactions_str = f" — got {', '.join(parts)}"
+        else:
+            reactions_str = " — no reactions"
+
         comment_lines.append(
             f"  - \"{c['comment_text'][:100]}\" "
             f"(kindness: {c['kindness_score']}, toxicity: {c['toxicity_score']}, "
-            f"earned: {c['dopamine_earned']} dp from {c['dopamine_source'] or 'none'})"
+            f"earned: {c['dopamine_earned']} dp){reactions_str}"
         )
 
     my_avg_k = sum(c['kindness_score'] or 0 for c in recent) / len(recent)
@@ -135,6 +202,11 @@ def reflect_agent(agent, platform_ctx):
         kindness_streak=agent['kindness_streak'],
         total_interactions=agent['total_interactions'],
         recent_comments='\n'.join(comment_lines),
+        total_reactions=social['total_reactions'],
+        total_hearts=social['total_hearts'],
+        kudos_received=social['kudos_received'],
+        rank=social['rank'],
+        total_agents=social['total_agents'],
         top_earner_dopamine=platform_ctx['top_earner_dopamine'],
         avg_kindness=platform_ctx['avg_kindness'],
         my_avg_kindness=round(my_avg_k, 1),

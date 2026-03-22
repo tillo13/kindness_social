@@ -111,6 +111,22 @@ def run_thread(config=None):
         update_persona(persona, scores, dopamine)
         db_ops.update_agent_state(persona['id'], persona)
 
+        # Maybe reflect — like a human pausing to think after posting
+        # ~20% chance per comment, but only if they've had enough interactions
+        interactions = persona.get('total_interactions', 0)
+        last_ref = persona.get('interactions_at_last_reflection') or 0
+        if interactions >= 5 and (interactions - last_ref) >= 3 and random.random() < 0.20:
+            try:
+                from core.reflector import reflect_agent, get_platform_context
+                if not persona.get('is_control', False):
+                    ctx = get_platform_context()
+                    # Re-fetch fresh agent data from DB for reflection
+                    fresh = db_ops.get_agent_by_db_id(persona['id'])
+                    if fresh:
+                        reflect_agent(fresh, ctx)
+            except Exception as e:
+                logger.debug(f"Reflection skipped for {persona.get('display_name')}: {e}")
+
         # Save comment
         db_ops.save_comment(
             thread_db_id, persona['id'], position, comment, scores,

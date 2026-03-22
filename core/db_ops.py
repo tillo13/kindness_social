@@ -322,6 +322,14 @@ def get_agent(agent_id):
         return dict(row) if row else None
 
 
+def get_agent_by_db_id(db_id):
+    """Get single agent by numeric DB id."""
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("SELECT * FROM kindness_agents WHERE id = %s", (db_id,))
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+
 def update_agent_state(db_id, updates):
     """Update agent state after an interaction."""
     with db_cursor() as cur:
