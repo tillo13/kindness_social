@@ -370,13 +370,17 @@ def update_agent_state(db_id, updates):
 # ============================================================================
 
 def get_random_topic():
-    """Get the freshest unused topic. Only real topics — scraped or visitor-submitted."""
+    """Get the freshest unused topic, skipping any with an open thread already."""
     with db_cursor(dict_cursor=True) as cur:
-        # Pick the least-used, newest approved topic (any type)
+        # Pick the least-used, newest approved topic that doesn't already have an open thread
         cur.execute("""
-            SELECT * FROM kindness_topics
-            WHERE is_approved = TRUE
-            ORDER BY times_used ASC, created_at DESC
+            SELECT t.* FROM kindness_topics t
+            WHERE t.is_approved = TRUE
+              AND NOT EXISTS (
+                  SELECT 1 FROM kindness_threads th
+                  WHERE th.topic_id = t.id AND th.is_complete = FALSE
+              )
+            ORDER BY t.times_used ASC, t.created_at DESC
             LIMIT 1
         """)
         row = cur.fetchone()
