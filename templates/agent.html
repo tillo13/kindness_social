@@ -417,9 +417,9 @@
                 <div class="flex items-center justify-between mb-2">
                     <div class="flex items-center gap-2">
                         {% if r.decided_to_change %}
-                        <span class="text-xs px-2.5 py-1 rounded-lg" style="background: var(--kindness-muted); color: var(--kindness); border: 1px solid var(--kindness-muted);">adjusted</span>
+                        <span class="text-xs px-3 py-1.5 rounded-lg" style="background: var(--kindness-muted); color: var(--kindness); border: 1px solid var(--kindness-muted);">adjusted</span>
                         {% else %}
-                        <span class="text-xs px-2.5 py-1 rounded-lg" style="background: var(--bg-active); color: var(--text-quaternary); border: 1px solid var(--border-subtle);">no change</span>
+                        <span class="text-xs px-3 py-1.5 rounded-lg" style="background: var(--bg-active); color: var(--text-quaternary); border: 1px solid var(--border-subtle);">no change</span>
                         {% endif %}
                         <span class="text-[10px] font-mono" style="color: var(--text-quaternary);">
                             after {{ r.interactions_since_last or 0 }} interactions
@@ -449,7 +449,7 @@
                     {% if adj and adj != 0 %}
                     {% set old_val = r.old_values[trait] if r.old_values else 0 %}
                     {% set new_val = r.new_values[trait] if r.new_values else 0 %}
-                    <span class="px-2.5 py-1 rounded-lg"
+                    <span class="px-3 py-1.5 rounded-lg"
                           style="border: 1px solid;
                           {% if adj > 0 and trait in ['compassion', 'humor', 'patience', 'curiosity', 'agreeableness', 'conformity'] %}background: var(--kindness-muted); color: var(--kindness); border-color: var(--kindness-muted);
                           {% elif adj < 0 and trait in ['frustration', 'defensiveness', 'stubbornness', 'cynicism'] %}background: var(--kindness-muted); color: var(--kindness); border-color: var(--kindness-muted);
