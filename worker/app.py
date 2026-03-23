@@ -54,34 +54,11 @@ def chat_proxy():
             token = get_secret('KINDNESS_DEEPSEEK_CHAT_TOKEN')
             api = DeepSeekAPI(token)
             session_id = api.create_chat_session()
-            from curl_cffi import requests as crequests
-            headers = api._get_headers(
-                pow_response=api.pow_solver.solve_challenge(api._get_pow_challenge())
-            )
-            response = crequests.post(
-                f'{api.BASE_URL}/chat/completion',
-                headers=headers,
-                json={
-                    'chat_session_id': session_id,
-                    'parent_message_id': None,
-                    'prompt': prompt,
-                    'ref_file_ids': [],
-                    'thinking_enabled': False,
-                    'search_enabled': False,
-                },
-                cookies=api.cookies,
-                impersonate='chrome120',
-                stream=True,
-                timeout=60,
-            )
             text = ''
-            for line in response.iter_lines():
-                if line and b'"o":"APPEND"' in line:
-                    try:
-                        chunk = json.loads(line.replace(b'data: ', b''))
-                        text += chunk.get('v', '')
-                    except:
-                        pass
+            for chunk in api.chat_completion(session_id, prompt, thinking_enabled=False):
+                content = chunk.get('content', '')
+                if content:
+                    text += content
             text = text.strip()
         else:
             return jsonify({'error': f'Unknown backend: {backend}'}), 400
