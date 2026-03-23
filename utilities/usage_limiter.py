@@ -12,100 +12,145 @@ logger = logging.getLogger(__name__)
 
 # Per-backend daily limits (free tier caps)
 # Per-backend daily limits and cost info
+# Actual free tier daily caps — never exceed these so we never get 429s or charges.
+# When a backend hits its cap, skip it till midnight UTC. No retries, no waste.
 BACKEND_INFO = {
     'gemini': {
-        'daily_limit': 1400,
+        'daily_limit': 1400,       # 1500 req/day free, leave 100 buffer
         'cost_per_1k_tokens': 0.0,
-        'notes': 'Gemini 2.0 Flash free tier: 1500 req/day',
+        'notes': 'Gemini 2.5 Flash free tier: 1500 req/day',
         'tier': 'free',
     },
     'groq': {
-        'daily_limit': 14000,
+        'daily_limit': 14000,      # 14400 req/day free, 30 RPM
         'cost_per_1k_tokens': 0.0,
-        'notes': 'Groq: Llama 3.3 70B, 14400 req/day free, ultra-fast inference',
+        'notes': 'Groq: Llama 3.3 70B, 14400 req/day free',
         'tier': 'free',
     },
     'cerebras': {
-        'daily_limit': 10000,
+        'daily_limit': 9500,       # ~1M tokens/day free, ~950 calls at 1K avg
         'cost_per_1k_tokens': 0.0,
-        'notes': 'Cerebras: Llama 3.3 70B, 1M tokens/day free, fastest inference',
+        'notes': 'Cerebras: Llama 3.1 8B, 1M tokens/day free',
         'tier': 'free',
     },
     'together': {
-        'daily_limit': 1000,
+        'daily_limit': 900,        # ~1000/day on free tier
         'cost_per_1k_tokens': 0.0,
-        'notes': 'Together AI: Llama 3.3 70B free variant, may need deposit to unlock',
-        'tier': 'free_credits',
+        'notes': 'Together AI: Llama 3.3 70B free variant',
+        'tier': 'free',
     },
     'mistral': {
-        'daily_limit': 5000,
+        'daily_limit': 4500,       # ~5000 req/day free tier
         'cost_per_1k_tokens': 0.0,
-        'notes': 'Mistral Small: 500K tokens/min free tier',
+        'notes': 'Mistral Small: generous free tier',
         'tier': 'free',
     },
     'openrouter': {
-        'daily_limit': 2000,
+        'daily_limit': 45,         # 50 req/day free (no credits), 20 RPM
         'cost_per_1k_tokens': 0.0,
-        'notes': 'OpenRouter: Llama 3.1 8B free community tier',
+        'notes': 'OpenRouter: 50/day free, 20 RPM. All :free models share this cap.',
         'tier': 'free',
     },
     'grok': {
-        'daily_limit': 500,
+        'daily_limit': 500,        # No official limit, PoW bypass via Cloud Run worker
         'cost_per_1k_tokens': 0.0,
-        'notes': 'Grok 3 zero-auth free tier (xAI) — Cloud Run / local only',
+        'notes': 'Grok 3 via Cloud Run worker reverse-proxy — free, no API key',
         'tier': 'free',
     },
     'deepseek': {
-        'daily_limit': 1000,
-        'cost_per_1k_tokens': 0.00014,
-        'notes': 'DeepSeek Chat: 5M free tokens on signup, then $0.14/M input',
-        'tier': 'free_credits',
+        'daily_limit': 500,        # No official limit, PoW bypass via Cloud Run worker
+        'cost_per_1k_tokens': 0.0,
+        'notes': 'DeepSeek via Cloud Run worker PoW bypass — free, unlimited',
+        'tier': 'free',
     },
     'haiku': {
         'daily_limit': 500,
         'cost_per_1k_tokens': 0.001,
-        'notes': 'Claude Haiku 4.5 via Max plan',
-        'tier': 'paid',
+        'notes': 'Claude Haiku 4.5 via Max plan ($0)',
+        'tier': 'max_plan',
     },
     'sonnet': {
         'daily_limit': 100,
         'cost_per_1k_tokens': 0.003,
-        'notes': 'Claude Sonnet 4.5 via Max plan',
-        'tier': 'paid',
+        'notes': 'Claude Sonnet 4.5 via Max plan ($0)',
+        'tier': 'max_plan',
     },
     'opus': {
         'daily_limit': 20,
         'cost_per_1k_tokens': 0.015,
-        'notes': 'Claude Opus 4.5 via Max plan',
-        'tier': 'paid',
+        'notes': 'Claude Opus 4.5 via Max plan ($0)',
+        'tier': 'max_plan',
     },
     'gpt4o_mini': {
-        'daily_limit': 500,
+        'daily_limit': 450,        # $5 free credits, ~3.3M tokens
         'cost_per_1k_tokens': 0.00015,
-        'notes': 'GPT-4o Mini: $5 free credits on signup (~3.3M tokens), then $0.15/M input',
+        'notes': 'GPT-4o Mini: $5 free signup credits',
         'tier': 'free_credits',
     },
     'gpt4o': {
-        'daily_limit': 50,
+        'daily_limit': 45,         # Shares $5 free credits, expensive per token
         'cost_per_1k_tokens': 0.0025,
-        'notes': 'GPT-4o: shares $5 free credits, then $2.50/M input',
+        'notes': 'GPT-4o: shares $5 free credits',
         'tier': 'free_credits',
     },
     'local': {
         'daily_limit': 999999,
         'cost_per_1k_tokens': 0.0,
-        'notes': 'Local LLMs via LM Studio (Qwen, Llama, etc.)',
+        'notes': 'Local LLMs via LM Studio',
         'tier': 'free',
     },
 }
 
 BACKEND_LIMITS = {k: v['daily_limit'] for k, v in BACKEND_INFO.items()}
 
-GLOBAL_DAILY_LIMIT = 3000  # Total across all backends
+GLOBAL_DAILY_LIMIT = 50000  # Total across all backends (effectively unlimited with proper per-backend caps)
 
-# In-memory counters (reset on cold start, fine for min-0 scaling)
-_daily_counts = {}
-_count_date = None
+# Shared cross-app daily caps — delegates counting to llm_usage_caps module
+from utilities.llm_usage_caps import (
+    check_cap as _shared_check_cap,
+    record_call as _shared_record_call,
+    init as _init_shared_caps,
+    get_usage_summary as _shared_summary,
+)
+
+# Initialize shared caps with DB functions for cross-app sync
+def _init_db_caps():
+    try:
+        from utilities.postgres_utils import db_cursor
+
+        def _db_write(backend, app_name):
+            with db_cursor(commit=True) as cur:
+                cur.execute("""
+                    INSERT INTO kumori_llm_daily_caps (usage_date, backend, app_name, call_count)
+                    VALUES (CURRENT_DATE, %s, %s, 1)
+                    ON CONFLICT (usage_date, backend, app_name)
+                    DO UPDATE SET call_count = kumori_llm_daily_caps.call_count + 1
+                """, (backend, app_name))
+
+        def _db_read():
+            with db_cursor(dict_cursor=True) as cur:
+                cur.execute("""
+                    SELECT backend, SUM(call_count) as total
+                    FROM kumori_llm_daily_caps
+                    WHERE usage_date = CURRENT_DATE
+                    GROUP BY backend
+                """)
+                return {row['backend']: row['total'] for row in cur.fetchall()}
+
+        _init_shared_caps('kindness_social', db_write_fn=_db_write, db_read_fn=_db_read)
+        logger.info("Shared LLM caps initialized with DB sync")
+    except Exception as e:
+        logger.warning(f"Shared caps DB init failed (using local only): {e}")
+        _init_shared_caps('kindness_social')
+
+# Lazy init — runs on first usage
+_caps_initialized = False
+
+def _ensure_caps():
+    global _caps_initialized
+    if not _caps_initialized:
+        _caps_initialized = True
+        _init_db_caps()
 
 # Backoff tracking — when a backend fails with 429/rate limit, cool it off
 _backoff_until = {}  # backend -> timestamp when it's safe to retry
@@ -165,34 +210,27 @@ def clear_backend_backoff(backend: str):
 
 def check_backend_ok(backend: str) -> UsageStatus:
     """Check if a specific backend is within daily limits and not in backoff."""
+    _ensure_caps()
+
     if is_kill_switch_active():
         return UsageStatus(False, -1, "System paused for maintenance.", 'blocked')
 
-    # Check backoff first
+    # Check backoff first (per-instance, not shared)
     if is_backend_in_backoff(backend):
         return UsageStatus(False, -1, f"{backend} in cooldown after rate limit.", 'blocked')
 
-    _reset_if_new_day()
-    count = _daily_counts.get(backend, 0)
-    limit = BACKEND_LIMITS.get(backend, 100)
+    # Check shared cross-app daily cap
+    if not _shared_check_cap(backend):
+        return UsageStatus(False, -1, f"{backend} daily cap reached.", 'blocked')
 
-    total = sum(_daily_counts.values())
-    if total >= GLOBAL_DAILY_LIMIT:
-        return UsageStatus(False, total, "Daily global limit reached.", 'blocked')
-
-    if count >= limit:
-        return UsageStatus(False, count, f"{backend} daily limit reached ({limit}).", 'blocked')
-
-    if count >= limit * 0.8:
-        return UsageStatus(True, count, "", 'warning')
-
-    return UsageStatus(True, count, "", 'ok')
+    return UsageStatus(True, 0, "", 'ok')
 
 
 def record_usage(backend: str, count: int = 1):
-    """Record API calls for a backend."""
-    _reset_if_new_day()
-    _daily_counts[backend] = _daily_counts.get(backend, 0) + count
+    """Record API calls for a backend (shared cross-app counter)."""
+    _ensure_caps()
+    for _ in range(count):
+        _shared_record_call(backend)
 
 
 def get_usage_summary() -> dict:
