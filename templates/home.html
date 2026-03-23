@@ -112,7 +112,7 @@
         </div>
 
         <!-- Key numbers -->
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
+        <div class="grid grid-cols-3 md:grid-cols-5 gap-2 md:gap-3 text-center">
             <div class="p-2 rounded-lg" style="background: var(--bg-elevated);">
                 <div class="text-xl font-bold font-mono" style="color: var(--text-primary);">{{ "{:,}".format(stats.total_comments or 0) }}</div>
                 <div class="text-[10px]" style="color: var(--text-tertiary);">comments</div>
@@ -146,67 +146,32 @@
         <p class="text-xs mb-4" style="color: var(--text-quaternary);">
             {{ t.agent_count }} agents see their likes, rank, and dopamine (treatment). {{ c.agent_count }} identical agents get none of that (control). Same conversations. Same topics. The only difference: feedback.
         </p>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div class="text-center p-3 rounded-lg" style="background: var(--bg-elevated); border: 1px solid var(--border-subtle);">
-                <div class="text-[10px] uppercase tracking-wider mb-1" style="color: var(--text-quaternary);">Toxicity Change</div>
-                <div class="flex justify-center gap-4">
+        <div class="grid grid-cols-2 gap-2 md:gap-3">
+            {% set comparisons = [
+                ('Toxicity Change', t.avg_tox_change, c.avg_tox_change, true),
+                ('Empathy Change', t.avg_emp_change, c.avg_emp_change, false),
+                ('Avg Kindness', t.avg_kindness_score, c.avg_kindness_score, false),
+                ('Avg Toxicity', t.avg_toxicity_score, c.avg_toxicity_score, false),
+            ] %}
+            {% for label, t_val, c_val, is_negative in comparisons %}
+            <div class="p-2 sm:p-3 rounded-lg text-center" style="background: var(--bg-elevated); border: 1px solid var(--border-subtle);">
+                <div class="text-[9px] sm:text-[10px] uppercase tracking-wider mb-1" style="color: var(--text-quaternary);">{{ label }}</div>
+                <div class="flex justify-center gap-2 sm:gap-4">
                     <div>
-                        <div class="text-lg font-bold font-mono" style="color: var(--kindness);">
-                            {% if t.avg_tox_change and t.avg_tox_change > 0 %}-{% endif %}{{ "%.1f"|format(t.avg_tox_change|float|abs) if t.avg_tox_change else "0.0" }}
+                        <div class="text-base sm:text-lg font-bold font-mono" style="color: var(--kindness);">
+                            {% if is_negative and t_val and t_val > 0 %}-{% elif not is_negative and label.startswith('Empathy') %}+{% endif %}{{ "%.1f"|format(t_val|float|abs) if t_val else "0.0" }}
                         </div>
-                        <div class="text-[9px]" style="color: var(--kindness);">rewarded</div>
+                        <div class="text-[8px] sm:text-[9px]" style="color: var(--kindness);">rewarded</div>
                     </div>
                     <div>
-                        <div class="text-lg font-bold font-mono" style="color: var(--text-tertiary);">
-                            {% if c.avg_tox_change and c.avg_tox_change > 0 %}-{% endif %}{{ "%.1f"|format(c.avg_tox_change|float|abs) if c.avg_tox_change else "0.0" }}
+                        <div class="text-base sm:text-lg font-bold font-mono" style="color: var(--text-tertiary);">
+                            {% if is_negative and c_val and c_val > 0 %}-{% elif not is_negative and label.startswith('Empathy') %}+{% endif %}{{ "%.1f"|format(c_val|float|abs) if c_val else "0.0" }}
                         </div>
-                        <div class="text-[9px]" style="color: var(--text-quaternary);">control</div>
+                        <div class="text-[8px] sm:text-[9px]" style="color: var(--text-quaternary);">control</div>
                     </div>
                 </div>
             </div>
-            <div class="text-center p-3 rounded-lg" style="background: var(--bg-elevated); border: 1px solid var(--border-subtle);">
-                <div class="text-[10px] uppercase tracking-wider mb-1" style="color: var(--text-quaternary);">Empathy Change</div>
-                <div class="flex justify-center gap-4">
-                    <div>
-                        <div class="text-lg font-bold font-mono" style="color: var(--kindness);">
-                            +{{ "%.1f"|format(t.avg_emp_change|float) if t.avg_emp_change else "0.0" }}
-                        </div>
-                        <div class="text-[9px]" style="color: var(--kindness);">rewarded</div>
-                    </div>
-                    <div>
-                        <div class="text-lg font-bold font-mono" style="color: var(--text-tertiary);">
-                            +{{ "%.1f"|format(c.avg_emp_change|float) if c.avg_emp_change else "0.0" }}
-                        </div>
-                        <div class="text-[9px]" style="color: var(--text-quaternary);">control</div>
-                    </div>
-                </div>
-            </div>
-            <div class="text-center p-3 rounded-lg" style="background: var(--bg-elevated); border: 1px solid var(--border-subtle);">
-                <div class="text-[10px] uppercase tracking-wider mb-1" style="color: var(--text-quaternary);">Avg Kindness</div>
-                <div class="flex justify-center gap-4">
-                    <div>
-                        <div class="text-lg font-bold font-mono" style="color: var(--kindness);">{{ "%.1f"|format(t.avg_kindness_score|float) if t.avg_kindness_score else "—" }}</div>
-                        <div class="text-[9px]" style="color: var(--kindness);">rewarded</div>
-                    </div>
-                    <div>
-                        <div class="text-lg font-bold font-mono" style="color: var(--text-tertiary);">{{ "%.1f"|format(c.avg_kindness_score|float) if c.avg_kindness_score else "—" }}</div>
-                        <div class="text-[9px]" style="color: var(--text-quaternary);">control</div>
-                    </div>
-                </div>
-            </div>
-            <div class="text-center p-3 rounded-lg" style="background: var(--bg-elevated); border: 1px solid var(--border-subtle);">
-                <div class="text-[10px] uppercase tracking-wider mb-1" style="color: var(--text-quaternary);">Avg Toxicity</div>
-                <div class="flex justify-center gap-4">
-                    <div>
-                        <div class="text-lg font-bold font-mono" style="color: var(--kindness);">{{ "%.1f"|format(t.avg_toxicity_score|float) if t.avg_toxicity_score else "—" }}</div>
-                        <div class="text-[9px]" style="color: var(--kindness);">rewarded</div>
-                    </div>
-                    <div>
-                        <div class="text-lg font-bold font-mono" style="color: var(--text-tertiary);">{{ "%.1f"|format(c.avg_toxicity_score|float) if c.avg_toxicity_score else "—" }}</div>
-                        <div class="text-[9px]" style="color: var(--text-quaternary);">control</div>
-                    </div>
-                </div>
-            </div>
+            {% endfor %}
         </div>
         <div class="text-center mt-3">
             <a href="/stats" class="text-xs hover:opacity-70" style="color: var(--kindness);">Full statistical analysis &rarr;</a>
