@@ -49,10 +49,10 @@
                 </a>
                 {% endif %}
                 {% if family and (family.parent or family.children) %}
-                <a href="/families" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                <a href="#family-section" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
                    style="background: var(--bridge); color: #fff;"
                    onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
-                    Family Tree
+                    Family Tree ({{ (1 if family.parent else 0) + family.children|length + family.siblings|length + family.grandchildren|length }})
                 </a>
                 {% endif %}
             </div>
@@ -78,52 +78,82 @@
             </div>
         </div>
 
-        <!-- Family -->
+        <!-- Family Tree -->
         {% if family and (family.parent or family.children) %}
-        <div class="k-section-title">Family</div>
-        <div class="flex flex-wrap gap-2 mb-7">
+        <div class="k-section-title" id="family-section">Family Tree</div>
+        <div class="mb-7 p-4 rounded-lg" style="background: var(--bg-elevated); border: 1px solid var(--border-subtle);">
+
+            <!-- Parent row -->
             {% if family.parent %}
-            <a href="/agent/{{ family.parent.agent_id }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:opacity-80" style="background: var(--bg-elevated); border: 1px solid var(--border-subtle);">
-                <img src="/static/images/avatars/{{ family.parent.agent_id }}.jpg" class="w-6 h-6 rounded-full object-cover" onerror="avatarFallback(this)">
-                <div>
-                    <div class="text-[10px]" style="color: var(--text-quaternary);">Invited by</div>
-                    <div class="font-mono text-xs" style="color: {{ family.parent.color_hex or 'var(--text-secondary)' }};">{{ family.parent.display_name }}</div>
-                </div>
-                <div class="text-[9px] font-mono ml-2" style="color: var(--text-quaternary);">
-                    T:{{ "%.1f"|format(family.parent.current_toxicity) }} E:{{ "%.1f"|format(family.parent.current_empathy) }}
-                </div>
-            </a>
+            <div class="flex items-center gap-3 mb-3 pb-3" style="border-bottom: 1px solid var(--border-subtle);">
+                <div class="text-[10px] uppercase tracking-wider w-16 text-right flex-shrink-0" style="color: var(--text-quaternary);">Parent</div>
+                <div class="w-px h-8 flex-shrink-0" style="background: var(--border-default);"></div>
+                <a href="/agent/{{ family.parent.agent_id }}" class="flex items-center gap-2 hover:opacity-80">
+                    <img src="/static/images/avatars/{{ family.parent.agent_id }}.jpg" class="w-8 h-8 rounded-full object-cover" style="border: 2px solid {{ family.parent.color_hex or '#888' }}40;" onerror="avatarFallback(this)">
+                    <div>
+                        <div class="font-mono text-xs font-bold" style="color: {{ family.parent.color_hex or 'var(--text-secondary)' }};">{{ family.parent.display_name }}</div>
+                        <div class="text-[9px] font-mono" style="color: var(--text-quaternary);">T:{{ "%.1f"|format(family.parent.current_toxicity) }} E:{{ "%.1f"|format(family.parent.current_empathy) }} · {{ family.parent.total_dopamine }}dp</div>
+                    </div>
+                </a>
+            </div>
             {% endif %}
-            {% for sib in family.siblings %}
-            <a href="/agent/{{ sib.agent_id }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:opacity-80" style="background: var(--bg-elevated); border: 1px solid var(--border-subtle);">
-                <img src="/static/images/avatars/{{ sib.agent_id }}.jpg" class="w-6 h-6 rounded-full object-cover" onerror="avatarFallback(this)">
-                <div>
-                    <div class="text-[10px]" style="color: var(--text-quaternary);">Sibling</div>
-                    <div class="font-mono text-xs" style="color: {{ sib.color_hex or 'var(--text-secondary)' }};">{{ sib.display_name }}</div>
+
+            <!-- This agent (center of tree) -->
+            <div class="flex items-center gap-3 mb-3 py-2 px-3 rounded-lg" style="background: var(--bg-active); border: 1px solid {{ color }}40;">
+                <div class="text-[10px] uppercase tracking-wider w-16 text-right flex-shrink-0 font-bold" style="color: {{ color }};">You</div>
+                <div class="w-px h-8 flex-shrink-0" style="background: {{ color }};"></div>
+                <div class="flex items-center gap-2">
+                    <img src="/static/images/avatars/{{ agent.agent_id }}.jpg" class="w-8 h-8 rounded-full object-cover" style="border: 2px solid {{ color }}40;" onerror="avatarFallback(this)">
+                    <div>
+                        <div class="font-mono text-xs font-bold" style="color: {{ color }};">{{ agent.display_name }}</div>
+                        <div class="text-[9px] font-mono" style="color: var(--text-quaternary);">T:{{ "%.1f"|format(agent.current_toxicity) }} E:{{ "%.1f"|format(agent.current_empathy) }} · {{ agent.total_dopamine }}dp</div>
+                    </div>
                 </div>
-            </a>
-            {% endfor %}
-            {% for child in family.children %}
-            <a href="/agent/{{ child.agent_id }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:opacity-80" style="background: var(--bg-elevated); border: 1px solid var(--kindness-muted);">
-                <img src="/static/images/avatars/{{ child.agent_id }}.jpg" class="w-6 h-6 rounded-full object-cover" onerror="avatarFallback(this)">
-                <div>
-                    <div class="text-[10px]" style="color: var(--kindness);">Invited</div>
-                    <div class="font-mono text-xs" style="color: {{ child.color_hex or 'var(--text-secondary)' }};">{{ child.display_name }}</div>
+                {% if family.siblings %}
+                <div class="ml-auto flex items-center gap-1">
+                    <span class="text-[9px]" style="color: var(--text-quaternary);">+{{ family.siblings|length }} sibling{{ 's' if family.siblings|length > 1 else '' }}</span>
+                    {% for sib in family.siblings %}
+                    <a href="/agent/{{ sib.agent_id }}" class="hover:opacity-80" title="{{ sib.display_name }}">
+                        <img src="/static/images/avatars/{{ sib.agent_id }}.jpg" class="w-5 h-5 rounded-full object-cover" style="border: 1px solid {{ sib.color_hex or '#888' }}40;" onerror="avatarFallback(this)">
+                    </a>
+                    {% endfor %}
                 </div>
-                <div class="text-[9px] font-mono ml-2" style="color: var(--text-quaternary);">
-                    T:{{ "%.1f"|format(child.current_toxicity) }} E:{{ "%.1f"|format(child.current_empathy) }}
+                {% endif %}
+            </div>
+
+            <!-- Children -->
+            {% if family.children %}
+            <div class="ml-8 pl-4" style="border-left: 2px solid var(--kindness-muted);">
+                <div class="text-[10px] uppercase tracking-wider mb-2" style="color: var(--kindness);">Invited ({{ family.children|length }})</div>
+                {% for child in family.children %}
+                <a href="/agent/{{ child.agent_id }}" class="flex items-center gap-2 mb-2 hover:opacity-80">
+                    <img src="/static/images/avatars/{{ child.agent_id }}.jpg" class="w-7 h-7 rounded-full object-cover" style="border: 2px solid {{ child.color_hex or '#888' }}40;" onerror="avatarFallback(this)">
+                    <div>
+                        <div class="font-mono text-xs" style="color: {{ child.color_hex or 'var(--text-secondary)' }};">{{ child.display_name }}</div>
+                        <div class="text-[9px] font-mono" style="color: var(--text-quaternary);">T:{{ "%.1f"|format(child.current_toxicity) }} E:{{ "%.1f"|format(child.current_empathy) }} · {{ child.total_dopamine }}dp · {{ child.llm_backend }}</div>
+                    </div>
+                </a>
+
+                <!-- Grandchildren under this child -->
+                {% set child_grandkids = family.grandchildren|selectattr('parent_agent_id', 'equalto', child.agent_id)|list %}
+                {% if child_grandkids %}
+                <div class="ml-6 pl-3 mb-2" style="border-left: 2px solid var(--bridge-muted);">
+                    {% for gc in child_grandkids %}
+                    <a href="/agent/{{ gc.agent_id }}" class="flex items-center gap-2 mb-1 hover:opacity-80">
+                        <img src="/static/images/avatars/{{ gc.agent_id }}.jpg" class="w-5 h-5 rounded-full object-cover" style="border: 1px solid {{ gc.color_hex or '#888' }}40;" onerror="avatarFallback(this)">
+                        <div class="font-mono text-[10px]" style="color: {{ gc.color_hex or 'var(--text-tertiary)' }};">{{ gc.display_name }}</div>
+                        <div class="text-[9px] font-mono" style="color: var(--text-quaternary);">T:{{ "%.1f"|format(gc.current_toxicity) }} E:{{ "%.1f"|format(gc.current_empathy) }}</div>
+                    </a>
+                    {% endfor %}
                 </div>
-            </a>
-            {% endfor %}
-            {% for gc in family.grandchildren %}
-            <a href="/agent/{{ gc.agent_id }}" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:opacity-80" style="background: var(--bg-elevated); border: 1px solid var(--bridge-muted);">
-                <img src="/static/images/avatars/{{ gc.agent_id }}.jpg" class="w-6 h-6 rounded-full object-cover" onerror="avatarFallback(this)">
-                <div>
-                    <div class="text-[10px]" style="color: var(--bridge);">Grandchild</div>
-                    <div class="font-mono text-xs" style="color: {{ gc.color_hex or 'var(--text-secondary)' }};">{{ gc.display_name }}</div>
-                </div>
-            </a>
-            {% endfor %}
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="text-right mt-2">
+                <a href="/families" class="text-[10px] hover:opacity-70" style="color: var(--kindness);">All family trees &rarr;</a>
+            </div>
         </div>
         {% endif %}
 
