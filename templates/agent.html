@@ -264,28 +264,27 @@
     </div>
 
     <!-- Activity Log — Tabs -->
-    <div class="flex gap-1 mb-4 flex-wrap" id="activity-tabs">
-        {% if reflections %}
-        <button onclick="showTab('thinking')" class="activity-tab active px-3 py-1.5 rounded-full text-xs font-medium" style="background: var(--bg-active); color: var(--text-primary);">
-            Internal Monologue ({{ reflections|length }})
+    {% set default_tab = 'thinking' if reflections else 'comments' %}
+    {% set tabs = [] %}
+    {% if reflections %}
+    {% set _ = tabs.append(('thinking', 'Internal Monologue', reflections|length)) %}
+    {% endif %}
+    {% set _ = tabs.append(('comments', 'Comments', activity.comments|length)) %}
+    {% set _ = tabs.append(('reactions-given', 'Reactions Given', activity.reactions_given|length)) %}
+    {% set _ = tabs.append(('reactions-received', 'Reactions Received', activity.reactions_received|length)) %}
+    {% set _ = tabs.append(('kudos', 'Kudos', activity.kudos_given|length + activity.kudos_received|length)) %}
+
+    <div class="flex gap-2 mb-4 flex-wrap" id="activity-tabs">
+        {% for tab_id, tab_label, tab_count in tabs %}
+        {% set is_active = (tab_id == default_tab) %}
+        <button onclick="showTab('{{ tab_id }}')"
+            class="activity-tab px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+            style="background: {{ 'var(--kindness)' if is_active else 'var(--bg-elevated)' }};
+                   color: {{ '#fff' if is_active else 'var(--text-tertiary)' }};
+                   border: 1px solid {{ 'var(--kindness)' if is_active else 'var(--border-subtle)' }};">
+            {{ tab_label }} ({{ tab_count }})
         </button>
-        <button onclick="showTab('comments')" class="activity-tab px-3 py-1.5 rounded-full text-xs font-medium" style="background: var(--bg-elevated); color: var(--text-tertiary);">
-            Comments ({{ activity.comments|length }})
-        </button>
-        {% else %}
-        <button onclick="showTab('comments')" class="activity-tab active px-3 py-1.5 rounded-full text-xs font-medium" style="background: var(--bg-active); color: var(--text-primary);">
-            Comments ({{ activity.comments|length }})
-        </button>
-        {% endif %}
-        <button onclick="showTab('reactions-given')" class="activity-tab px-3 py-1.5 rounded-full text-xs font-medium" style="background: var(--bg-elevated); color: var(--text-tertiary);">
-            Reactions Given ({{ activity.reactions_given|length }})
-        </button>
-        <button onclick="showTab('reactions-received')" class="activity-tab px-3 py-1.5 rounded-full text-xs font-medium" style="background: var(--bg-elevated); color: var(--text-tertiary);">
-            Reactions Received ({{ activity.reactions_received|length }})
-        </button>
-        <button onclick="showTab('kudos')" class="activity-tab px-3 py-1.5 rounded-full text-xs font-medium" style="background: var(--bg-elevated); color: var(--text-tertiary);">
-            Kudos ({{ activity.kudos_given|length + activity.kudos_received|length }})
-        </button>
+        {% endfor %}
     </div>
 
     <!-- Comments Tab -->
@@ -477,10 +476,13 @@
         document.querySelectorAll('.activity-tab').forEach(t => {
             t.style.background = 'var(--bg-elevated)';
             t.style.color = 'var(--text-tertiary)';
+            t.style.borderColor = 'var(--border-subtle)';
         });
         document.getElementById('tab-' + name).style.display = 'block';
-        event.target.style.background = 'var(--bg-active)';
-        event.target.style.color = 'var(--text-primary)';
+        var btn = event.target.closest('.activity-tab') || event.target;
+        btn.style.background = 'var(--kindness)';
+        btn.style.color = '#fff';
+        btn.style.borderColor = 'var(--kindness)';
     }
     </script>
 
