@@ -87,6 +87,15 @@ def threads_page():
                            page=page, per_page=per_page)
 
 
+@app.route('/families')
+def families_page():
+    """Agent family trees — who invited whom, lineage stats."""
+    recruiters = db_ops.get_top_recruiters(limit=20)
+    lineage = db_ops.get_all_family_trees()
+    stats = db_ops.get_global_stats()
+    return render_template('families.html', recruiters=recruiters, lineage=lineage, stats=stats)
+
+
 @app.route('/dashboard')
 def dashboard():
     """Full data dashboard: every metric, chart, leaderboard teaser."""
@@ -263,8 +272,9 @@ def view_agent(agent_id):
     evolution = db_ops.get_agent_evolution(agent['id'])
     from core.reflector import get_agent_reflections
     reflections = get_agent_reflections(agent['id'], limit=10)
+    family = db_ops.get_agent_family(agent['id'])
     return render_template('agent.html', agent=agent, activity=activity,
-                           evolution=evolution, reflections=reflections)
+                           evolution=evolution, reflections=reflections, family=family)
 
 
 # ============================================================================

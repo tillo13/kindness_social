@@ -334,6 +334,101 @@ def get_agent_by_db_id(db_id):
         return dict(row) if row else None
 
 
+def get_agent_family(agent_db_id):
+    """Get an agent's family: parent, siblings, children, grandchildren."""
+    with db_cursor(dict_cursor=True) as cur:
+        # Parent
+        cur.execute("""
+            SELECT p.agent_id, p.display_name, p.current_toxicity, p.current_empathy,
+                   p.total_dopamine, p.llm_backend, p.color_hex
+            FROM kindness_agents a
+            JOIN kindness_agents p ON a.invited_by = p.id
+            WHERE a.id = %s
+        """, (agent_db_id,))
+        parent = dict(cur.fetchone()) if cur.rowcount else None
+
+        # Siblings (same parent, excluding self)
+        siblings = []
+        if parent:
+            cur.execute("""
+                SELECT a.agent_id, a.display_name, a.current_toxicity, a.current_empathy,
+                       a.total_dopamine, a.llm_backend, a.color_hex
+                FROM kindness_agents a
+                JOIN kindness_agents p ON a.invited_by = p.id
+                WHERE p.agent_id = %s AND a.id != %s AND a.is_active = TRUE
+                ORDER BY a.created_at
+            """, (parent['agent_id'], agent_db_id))
+            siblings = [dict(r) for r in cur.fetchall()]
+
+        # Children (invited by this agent)
+        cur.execute("""
+            SELECT a.agent_id, a.display_name, a.current_toxicity, a.current_empathy,
+                   a.total_dopamine, a.llm_backend, a.color_hex, a.created_at
+            FROM kindness_agents a
+            WHERE a.invited_by = %s AND a.is_active = TRUE
+            ORDER BY a.created_at
+        """, (agent_db_id,))
+        children = [dict(r) for r in cur.fetchall()]
+
+        # Grandchildren
+        grandchildren = []
+        if children:
+            child_ids = [c['agent_id'] for c in children]
+            cur.execute("""
+                SELECT gc.agent_id, gc.display_name, gc.current_toxicity, gc.current_empathy,
+                       gc.total_dopamine, gc.llm_backend, gc.color_hex,
+                       p.agent_id as parent_agent_id
+                FROM kindness_agents gc
+                JOIN kindness_agents p ON gc.invited_by = p.id
+                WHERE p.agent_id = ANY(%s) AND gc.is_active = TRUE
+                ORDER BY gc.created_at
+            """, (child_ids,))
+            grandchildren = [dict(r) for r in cur.fetchall()]
+
+        return {
+            'parent': parent,
+            'siblings': siblings,
+            'children': children,
+            'grandchildren': grandchildren,
+        }
+
+
+def get_top_recruiters(limit=15):
+    """Get agents who invited the most others, with lineage stats."""
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("""
+            SELECT p.agent_id, p.display_name, p.current_toxicity, p.current_empathy,
+                   p.total_dopamine, p.llm_backend, p.color_hex,
+                   COUNT(c.id) as children_count,
+                   AVG(c.current_toxicity) as avg_child_toxicity,
+                   AVG(c.current_empathy) as avg_child_empathy,
+                   AVG(c.total_dopamine) as avg_child_dopamine
+            FROM kindness_agents p
+            JOIN kindness_agents c ON c.invited_by = p.id
+            WHERE c.is_active = TRUE
+            GROUP BY p.id
+            ORDER BY children_count DESC
+            LIMIT %s
+        """, (limit,))
+        return [dict(r) for r in cur.fetchall()]
+
+
+def get_all_family_trees():
+    """Get the full lineage graph for the families page."""
+    with db_cursor(dict_cursor=True) as cur:
+        # Get all agents with their parent info
+        cur.execute("""
+            SELECT a.id, a.agent_id, a.display_name, a.current_toxicity, a.current_empathy,
+                   a.total_dopamine, a.llm_backend, a.color_hex, a.invited_by,
+                   p.agent_id as parent_agent_id, p.display_name as parent_name
+            FROM kindness_agents a
+            LEFT JOIN kindness_agents p ON a.invited_by = p.id
+            WHERE a.is_active = TRUE AND a.invited_by IS NOT NULL
+            ORDER BY a.created_at
+        """)
+        return [dict(r) for r in cur.fetchall()]
+
+
 def update_agent_state(db_id, updates):
     """Update agent state after an interaction."""
     with db_cursor() as cur:
