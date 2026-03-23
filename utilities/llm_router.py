@@ -186,19 +186,21 @@ def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
     is_cloud_run_only = backend in CLOUD_RUN_ONLY
 
     if is_appengine and is_cloud_run_only:
-        # Proxy to Cloud Run worker instead of silently falling back
+        # Proxy to Cloud Run worker — no fallback, this agent uses this backend
         try:
             result = _proxy_to_worker(backend, messages, max_tokens, temperature, system)
             if result:
                 return result
         except Exception as e:
             logger.warning(f"Cloud Run proxy failed for {backend}: {e}")
-        # Fall back to App Engine backends only if worker fails
-        backends_to_try = [b for b in FALLBACK_ORDER if b not in CLOUD_RUN_ONLY]
-    else:
-        backends_to_try = [backend] + [b for b in FALLBACK_ORDER if b != backend]
-        if is_appengine:
-            backends_to_try = [b for b in backends_to_try if b not in CLOUD_RUN_ONLY]
+            mark_backend_backoff(backend, 300)
+            return None, backend
+
+    # No fallback chain — each agent uses ONLY its assigned backend.
+    # If it fails, the agent stays silent. That's honest.
+    backends_to_try = [backend]
+    if is_appengine:
+        backends_to_try = [b for b in backends_to_try if b not in CLOUD_RUN_ONLY]
 
     fallback_used = False
 
@@ -309,25 +311,41 @@ def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
                         backoff_secs = min(int(match.group(1)) + 10, 900)  # cap at 15 min
                 mark_backend_backoff(b, backoff_secs)
 
-            logger.warning(f"Backend {b} failed: {error_str[:80]}, trying next...")
-            fallback_used = True
-            continue
+            logger.warning(f"Backend {b} failed: {error_str[:80]}")
+            # No fallback — return None so the caller knows this agent can't speak right now
+            return None, backend
 
-    # All backends failed
-    logger.error("All LLM backends failed!")
-    _log_telemetry(
-        backend=backend, actual_backend=None, messages=messages,
-        max_tokens=max_tokens, temperature=temperature,
-        result_text=None, duration_ms=0,
-        success=False, error_message="All backends failed",
-    )
-    return "I appreciate your perspective.", backend
+    # Backend was blocked (in backoff or at limit)
+    logger.info(f"Backend {backend} unavailable — agent stays silent")
+    return None, backend
 
 
 def chat_eval(backend, prompt, system="Return ONLY a number 1-10."):
     """
     Shortcut for evaluation calls (low tokens, low temperature).
+    Evaluation is a SYSTEM function (scoring), not an agent voice —
+    so it gets a small fallback chain to keep scoring working.
     Returns: (response_text, actual_backend_used)
     """
     messages = [{"role": "user", "content": prompt}]
-    return chat(backend, messages, max_tokens=10, temperature=0.1, system=system)
+    # Try primary, then fallback for eval only
+    eval_backends = [backend, 'haiku', 'gpt4o_mini', 'cerebras']
+    for b in eval_backends:
+        status = check_backend_ok(b)
+        if not status.allowed:
+            continue
+        try:
+            module = _get_backend_module(b)
+            if b in ('haiku', 'sonnet', 'opus'):
+                result = module.chat(messages, 10, 0.1, system=system, tier=b)
+            elif b == 'gpt4o_mini':
+                result = module.chat(messages, 10, 0.1, system=system, model='gpt-4o-mini')
+            else:
+                result = module.chat(messages, 10, 0.1, system=system)
+            if result and result.strip():
+                record_usage(b)
+                clear_backend_backoff(b)
+                return result, b
+        except Exception:
+            continue
+    return None, backend

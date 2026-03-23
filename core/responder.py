@@ -306,6 +306,9 @@ def run_agent_responses(config=None):
                 comment_text, actual_backend, gen_time_ms = generate_comment(
                     agent, topic, thread_history, position, config
                 )
+                if comment_text is None:
+                    logger.info(f"    {agent['display_name']} stays silent — {agent['llm_backend']} unavailable")
+                    continue
 
                 scores, eval_time_ms = evaluate_comment(
                     comment_text, agent, thread_history, topic, config

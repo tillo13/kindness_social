@@ -92,10 +92,13 @@ def run_thread(config=None):
         logger.info(f"[{thread_slug}] Pos {position+1}/{len(participants)}: {persona['display_name']} ({persona['llm_backend']})")
         set_telemetry_context(agent_id=persona.get('agent_id'), thread_id=thread_slug)
 
-        # Generate comment
+        # Generate comment — if backend is down, agent stays silent
         comment, actual_backend, gen_time_ms = generate_comment(
             persona, topic, thread_history, position, config
         )
+        if comment is None:
+            logger.info(f"  {persona['display_name']} stays silent — {persona['llm_backend']} backend unavailable")
+            continue
 
         # Evaluate comment
         scores, eval_time_ms = evaluate_comment(

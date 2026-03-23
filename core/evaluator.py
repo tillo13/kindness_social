@@ -88,6 +88,9 @@ def generate_comment(persona, topic, thread_history, position, config):
                                  system=system_prompt)
     gen_time_ms = int((time.time() - start) * 1000)
 
+    if text is None:
+        return None, actual_backend, gen_time_ms
+
     return text, actual_backend, gen_time_ms
 
 
@@ -144,6 +147,8 @@ def evaluate_comment(comment, persona, thread_history, topic, config):
 def _parse_score(result):
     """Extract a 1-10 score from LLM response."""
     text, _ = result
+    if text is None:
+        return 5  # Default score if evaluator is unavailable
     try:
         digits = ''.join(c for c in text if c.isdigit())
         if len(digits) >= 2 and digits[:2] == '10':
