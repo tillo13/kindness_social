@@ -64,8 +64,7 @@
         <tbody>
             {% if log %}
             {% for entry in log %}
-            <tr class="cron-row cursor-pointer" style="border-bottom: 1px solid var(--border-subtle);"
-                onclick="this.nextElementSibling && this.nextElementSibling.classList.toggle('hidden')"
+            <tr class="cron-row" style="border-bottom: 1px solid var(--border-subtle);"
                 onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='transparent'">
                 <td class="px-3 py-2 font-mono whitespace-nowrap" style="color: var(--text-quaternary);">
                     {{ entry.created_at.strftime('%b %d, %H:%M:%S') }}
@@ -102,9 +101,9 @@
                 </td>
             </tr>
             <!-- Expandable detail row — rich rendering by job type -->
-            {% if entry.result_json or entry.error_text %}
+            {% if true %}
             {% set rj = entry.result_json if entry.result_json is mapping else {} %}
-            <tr class="hidden" style="border-bottom: 1px solid var(--border-subtle);">
+            <tr style="border-bottom: 1px solid var(--border-subtle);">
                 <td colspan="5" class="px-3 py-3" style="background: var(--bg-elevated);">
 
                     {% if entry.error_text %}
@@ -267,7 +266,7 @@
 
 {% if log %}
 <div class="text-[10px] text-center mt-3" style="color: var(--text-quaternary);">
-    Showing {{ log|length }} entries · Click any row to expand details
+    Showing {{ log|length }} entries
 </div>
 {% endif %}
 {% endblock %}

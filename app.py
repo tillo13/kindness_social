@@ -183,6 +183,35 @@ def cron_log():
     job_filter = request.args.get('job')
     summary = db_ops.get_cron_summary()
     log = db_ops.get_cron_log(limit=200, job_name=job_filter if job_filter else None)
+
+    # Enrich birth-agent entries that only have minimal data
+    for entry in log:
+        if entry.get('job_name') == 'birth-agent' and entry.get('result_json'):
+            rj = entry['result_json']
+            if isinstance(rj, dict) and rj.get('agent_id') and not rj.get('toxicity'):
+                agent = db_ops.get_agent(rj['agent_id'])
+                if agent:
+                    rj['toxicity'] = agent.get('toxicity_baseline')
+                    rj['empathy'] = agent.get('empathy_baseline')
+                    rj['personality'] = {
+                        'openness': agent.get('openness_to_change'),
+                        'political_lean': agent.get('political_lean'),
+                        'gender': agent.get('gender_presentation'),
+                        'age': agent.get('age_bracket'),
+                        'humor': agent.get('humor'),
+                        'patience': agent.get('patience'),
+                        'curiosity': agent.get('curiosity'),
+                        'defensiveness': agent.get('defensiveness'),
+                        'stubbornness': agent.get('stubbornness'),
+                        'cynicism': agent.get('cynicism'),
+                        'need_for_recognition': agent.get('need_for_recognition'),
+                        'conformity': agent.get('conformity'),
+                    }
+                    if agent.get('invited_by'):
+                        inviter = db_ops.get_agent_by_db_id(agent['invited_by'])
+                        if inviter:
+                            rj['invited_by'] = inviter['agent_id']
+
     return render_template('cron_log.html', summary=summary, log=log, current_job=job_filter)
 
 
