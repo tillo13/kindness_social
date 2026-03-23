@@ -238,7 +238,8 @@ def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
                                      system=system, model='grok-4')
             elif b in ('haiku', 'sonnet', 'opus'):
                 result = module.chat(messages, max_tokens, temperature,
-                                     system=system, tier=b)
+                                     system=system, tier=b,
+                                     feature=_telemetry_context.get('call_type', 'chat'))
             elif b == 'gpt4o_mini':
                 result = module.chat(messages, max_tokens, temperature,
                                      system=system, model='gpt-4o-mini')

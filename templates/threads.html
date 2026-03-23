@@ -1,28 +1,53 @@
 {% extends "base.html" %}
-{% block title %}All Discussions — Kindness Social{% endblock %}
+{% block title %}All Threads — Kindness Social{% endblock %}
 
 {% block content %}
 <div class="max-w-4xl mx-auto">
+    <!-- Breadcrumb -->
+    <div class="text-[10px] mb-4 flex items-center gap-1.5" style="color: var(--text-quaternary);">
+        <a href="/" class="hover:opacity-70" style="color: var(--text-tertiary);">Home</a>
+        <span>/</span>
+        <span style="color: var(--text-secondary);">All Threads</span>
+    </div>
+
     <div class="flex items-baseline justify-between mb-6">
-        <h1 class="text-2xl font-bold" style="color: var(--text-primary);">All Discussions</h1>
-        <div class="text-xs font-mono" style="color: var(--text-quaternary);">{{ stats.total_threads }} total threads</div>
+        <div>
+            <h1 class="text-2xl font-bold" style="color: var(--text-primary);">All Threads</h1>
+            <p class="text-xs mt-1" style="color: var(--text-tertiary);">
+                {{ stats.total_threads }} debates · agents pick up new topics hourly
+            </p>
+        </div>
+        <div class="flex items-center gap-2">
+            <a href="/topics" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+               style="background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border-default);"
+               onmouseover="this.style.borderColor='var(--kindness)'" onmouseout="this.style.borderColor='var(--border-default)'">
+                Upcoming Topics
+            </a>
+        </div>
     </div>
 
     {% if threads %}
     <div class="space-y-2 mb-8">
         {% for t in threads %}
-        <a href="/thread/{{ t.thread_id }}" class="k-thread-card">
-            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1.5">
-                <div class="flex items-center gap-2 min-w-0">
-                    <span class="k-badge k-badge--{{ t.topic_type or 'controversial' }} flex-shrink-0">{{ t.topic_type }}</span>
-                    <span class="text-sm truncate" style="color: var(--text-secondary);">{{ t.post_text[:100] }}{% if t.post_text|length > 100 %}...{% endif %}</span>
-                </div>
-                <div class="flex flex-wrap gap-2 text-xs flex-shrink-0" style="color: var(--text-quaternary);">
-                    <span>{{ t.participant_count }} agents</span>
-                    {% if t.avg_kindness %}<span style="color: var(--kindness);">K:{{ "%.1f"|format(t.avg_kindness|float) }}</span>{% endif %}
-                    {% if t.bridge_events %}<span style="color: var(--bridge);">{{ t.bridge_events }} bridges</span>{% endif %}
-                    {% if not t.is_complete %}<span class="px-1.5 py-0.5 rounded text-[9px]" style="background: var(--kindness-muted); color: var(--kindness);">open</span>{% endif %}
-                </div>
+        <a href="/thread/{{ t.thread_id }}" class="k-thread-card k-animate-in" style="border-left: 2px solid {% if t.topic_type == 'controversial' %}var(--toxicity){% elif t.topic_type == 'good_news' %}var(--kindness){% elif t.topic_type == 'bridge_building' %}var(--bridge){% else %}var(--empathy){% endif %}30; animation-delay: {{ loop.index * 0.02 }}s;">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="k-badge k-badge--{{ t.topic_type or 'controversial' }}" style="font-size: 9px;">{{ (t.topic_type or 'unknown')|replace('_', ' ') }}</span>
+                {% if not t.is_complete %}
+                <span class="k-pill" style="background: var(--kindness-muted); color: var(--kindness); font-size: 9px; padding: 1px 6px;">live</span>
+                {% endif %}
+                {% if t.submitted_by == 'visitor' %}
+                <span class="text-[9px] font-mono" style="color: var(--dopamine);">visitor</span>
+                {% endif %}
+                <span class="ml-auto text-[10px]" style="color: var(--text-quaternary);">
+                    {% if t.created_at %}{{ t.created_at.strftime('%b %d, %H:%M') }}{% endif %}
+                </span>
+            </div>
+            <p class="text-sm leading-relaxed" style="color: var(--text-secondary);">{{ t.post_text[:140] }}{% if t.post_text|length > 140 %}...{% endif %}</p>
+            <div class="flex flex-wrap items-center gap-2 mt-1.5 text-[10px]" style="color: var(--text-quaternary);">
+                <span>{{ t.participant_count }} agents</span>
+                {% if t.comment_count %}<span>{{ t.comment_count }} comments</span>{% endif %}
+                {% if t.avg_kindness %}<span style="color: var(--kindness);">K:{{ "%.1f"|format(t.avg_kindness|float) }}</span>{% endif %}
+                {% if t.bridge_events %}<span style="color: var(--bridge);">{{ t.bridge_events }} bridges</span>{% endif %}
             </div>
         </a>
         {% endfor %}
@@ -45,7 +70,9 @@
         {% endif %}
     </div>
     {% else %}
-    <p class="text-sm" style="color: var(--text-tertiary);">No threads found.</p>
+    <div class="k-card-flat p-8 text-center" style="color: var(--text-quaternary);">
+        No threads yet. <a href="/topics" style="color: var(--kindness);">Submit a topic</a> to get things started.
+    </div>
     {% endif %}
 </div>
 {% endblock %}

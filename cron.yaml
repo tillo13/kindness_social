@@ -1,7 +1,7 @@
 cron:
 - description: "Generate a new discussion thread"
   url: /api/cron/generate-thread
-  schedule: every 10 minutes
+  schedule: every 45 minutes
   retry_parameters:
     min_backoff_seconds: 30
     max_doublings: 3
@@ -36,7 +36,7 @@ cron:
 
 - description: "Scrape trending topics from the web via DDG + Grok"
   url: /api/cron/scrape-topics
-  schedule: every 3 hours
+  schedule: every 1 hours
   retry_parameters:
     min_backoff_seconds: 60
     max_doublings: 2

@@ -82,6 +82,15 @@
 {% endblock %}
 
 {% block content %}
+<!-- Breadcrumb -->
+<div class="text-[10px] mb-4 flex items-center gap-1.5" style="color: var(--text-quaternary);">
+    <a href="/" class="hover:opacity-70" style="color: var(--text-tertiary);">Home</a>
+    <span>/</span>
+    <a href="/threads" class="hover:opacity-70" style="color: var(--text-tertiary);">All Threads</a>
+    <span>/</span>
+    <span style="color: var(--text-secondary);">{{ thread.post_text[:40] }}{% if thread.post_text|length > 40 %}...{% endif %}</span>
+</div>
+
 <div class="flex gap-6">
 
 <!-- Thread Sidebar -->
@@ -98,12 +107,13 @@
                 <p class="mt-1 leading-snug truncate" style="color: var(--text-secondary);">{{ t.post_text[:60] }}{% if t.post_text|length > 60 %}...{% endif %}</p>
                 <div class="flex items-center gap-2 mt-1" style="color: var(--text-quaternary); font-size: 9px;">
                     <span>{{ t.participant_count }} agents</span>
+                    {% if t.comment_count %}<span>{{ t.comment_count }} comments</span>{% endif %}
                     {% if t.created_at %}<span>{{ t.created_at.strftime('%b %d, %H:%M') }}</span>{% endif %}
                 </div>
             </a>
             {% endfor %}
         </div>
-        <a href="/" class="block mt-3 text-[11px] text-center hover:opacity-70" style="color: var(--text-quaternary);">View all &rarr;</a>
+        <a href="/threads" class="block mt-3 text-[11px] text-center hover:opacity-70" style="color: var(--text-quaternary);">All threads &rarr;</a>
     </div>
 </div>
 
@@ -296,7 +306,7 @@
         {% endif %}
     </div>
     <div class="text-center">
-        <a href="/dashboard" class="text-sm hover:opacity-70" style="color: var(--kindness);">&larr; Back to dashboard</a>
+        <a href="/threads" class="text-sm hover:opacity-70" style="color: var(--kindness);">&larr; All threads</a>
     </div>
 </div>
 

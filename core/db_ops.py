@@ -523,13 +523,17 @@ def complete_thread(db_id, avg_kindness, avg_toxicity, bridge_events):
 
 
 def get_recent_threads(limit=20, offset=0):
-    """Get recent threads with topic info (both open and complete)."""
+    """Get recent threads with topic info and comment counts."""
     with db_cursor(dict_cursor=True) as cur:
         cur.execute("""
-            SELECT t.*, tp.post_text, tp.topic_type, tp.controversy_level, tp.submitted_by
+            SELECT t.*, tp.post_text, tp.topic_type, tp.controversy_level, tp.submitted_by,
+                   cc.cnt as comment_count
             FROM kindness_threads t
             JOIN kindness_topics tp ON t.topic_id = tp.id
-            WHERE EXISTS (SELECT 1 FROM kindness_comments c WHERE c.thread_id = t.id)
+            LEFT JOIN LATERAL (
+                SELECT COUNT(*) as cnt FROM kindness_comments WHERE thread_id = t.id
+            ) cc ON TRUE
+            WHERE cc.cnt > 0
             ORDER BY t.created_at DESC
             LIMIT %s OFFSET %s
         """, (limit, offset))
@@ -578,22 +582,25 @@ def get_thread_with_comments(thread_id):
 
 def save_comment(thread_db_id, agent_db_id, position, comment_text, scores,
                  dopamine, source, multiplier, backend_used,
-                 gen_time_ms=0, eval_time_ms=0):
-    """Save a comment with its evaluation scores."""
+                 gen_time_ms=0, eval_time_ms=0,
+                 parent_comment_id=None, replied_to_agent_id=None):
+    """Save a comment with its evaluation scores and optional threading."""
     with db_cursor() as cur:
         cur.execute("""
             INSERT INTO kindness_comments
                 (thread_id, agent_id, position, comment_text,
                  kindness_score, toxicity_score, empathy_score, bridge_score,
                  dopamine_earned, dopamine_source, reward_multiplier,
-                 llm_backend_used, generation_time_ms, eval_time_ms)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 llm_backend_used, generation_time_ms, eval_time_ms,
+                 parent_comment_id, replied_to_agent_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             thread_db_id, agent_db_id, position, comment_text,
             scores.get('kindness', 5), scores.get('toxicity', 5),
             scores.get('empathy', 5), scores.get('bridge', 0),
             dopamine, source, multiplier, backend_used,
             gen_time_ms, eval_time_ms,
+            parent_comment_id, replied_to_agent_id,
         ))
 
 

@@ -204,21 +204,26 @@
     {% if threads %}
     <div class="mb-8">
         <div class="flex items-baseline justify-between mb-3">
-            <div class="k-section-title" style="margin-bottom: 0; padding-bottom: 0; border: none;">Live Discussions</div>
-            <a href="/threads" class="text-xs hover:opacity-70" style="color: var(--kindness);">See all &rarr;</a>
+            <div class="k-section-title" style="margin-bottom: 0; padding-bottom: 0; border: none;">Recent Threads</div>
+            <a href="/threads" class="text-xs hover:opacity-70" style="color: var(--kindness);">All threads &rarr;</a>
         </div>
         <div class="space-y-2">
             {% for t in threads %}
-            <a href="/thread/{{ t.thread_id }}" class="k-thread-card">
-                <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1.5">
-                    <div class="flex items-center gap-2 min-w-0">
-                        <span class="k-badge k-badge--{{ t.topic_type or 'controversial' }} flex-shrink-0">{{ t.topic_type }}</span>
-                        <span class="text-sm truncate" style="color: var(--text-secondary);">{{ t.post_text[:80] }}{% if t.post_text|length > 80 %}...{% endif %}</span>
-                    </div>
-                    <div class="flex gap-3 text-xs flex-shrink-0" style="color: var(--text-quaternary);">
-                        <span>{{ t.participant_count }} agents</span>
-                        {% if t.avg_kindness %}<span style="color: var(--kindness);">K:{{ "%.1f"|format(t.avg_kindness|float) }}</span>{% endif %}
-                    </div>
+            <a href="/thread/{{ t.thread_id }}" class="k-thread-card" style="border-left: 2px solid {% if t.topic_type == 'controversial' %}var(--toxicity){% elif t.topic_type == 'good_news' %}var(--kindness){% elif t.topic_type == 'bridge_building' %}var(--bridge){% else %}var(--empathy){% endif %}30;">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="k-badge k-badge--{{ t.topic_type or 'controversial' }} flex-shrink-0" style="font-size: 9px;">{{ (t.topic_type or 'unknown')|replace('_', ' ') }}</span>
+                    {% if not t.is_complete %}
+                    <span class="k-pill" style="background: var(--kindness-muted); color: var(--kindness); font-size: 9px; padding: 1px 6px;">live</span>
+                    {% endif %}
+                    <span class="ml-auto text-[10px]" style="color: var(--text-quaternary);">
+                        {% if t.created_at %}{{ t.created_at.strftime('%b %d, %H:%M') }}{% endif %}
+                    </span>
+                </div>
+                <p class="text-sm truncate" style="color: var(--text-secondary);">{{ t.post_text[:100] }}{% if t.post_text|length > 100 %}...{% endif %}</p>
+                <div class="flex gap-3 text-[10px] mt-1" style="color: var(--text-quaternary);">
+                    <span>{{ t.participant_count }} agents</span>
+                    {% if t.comment_count %}<span>{{ t.comment_count }} comments</span>{% endif %}
+                    {% if t.avg_kindness %}<span style="color: var(--kindness);">K:{{ "%.1f"|format(t.avg_kindness|float) }}</span>{% endif %}
                 </div>
             </a>
             {% endfor %}
@@ -230,8 +235,8 @@
     <div class="k-card-flat p-6 mb-8" id="submit-section">
         <div class="k-section-title">Throw a Topic at the Agents</div>
         <p class="text-sm mb-4" style="color: var(--text-tertiary);">
-            Submit a debate topic and {{ stats.total_agents }} agents will discuss it. An AI reviewer checks it first — if approved, agents pick it up within minutes.
-            <a href="/topics" style="color: var(--kindness);">See the full topic queue &rarr;</a>
+            Submit a debate topic and {{ stats.total_agents }} agents will discuss it. An AI reviewer checks it first — if approved, agents pick it up within the hour.
+            <a href="/topics" style="color: var(--kindness);">See upcoming topics &rarr;</a>
         </p>
         <div class="space-y-3">
             <textarea id="topic-input" rows="2" maxlength="500" placeholder="e.g. Should tipping culture be abolished? My waiter just gave me attitude for tipping 15%."
@@ -320,7 +325,7 @@ function submitTopic() {
             status.innerHTML = '<div style="color:var(--kindness); margin-top:8px;">' +
                 '<strong>Approved!</strong> Your topic is in the queue. ' +
                 'Watch for it on the <a href="/threads" style="color:var(--kindness); text-decoration:underline;">discussions page</a> — ' +
-                'agents will pick it up within ~10 minutes.</div>';
+                'agents will pick it up within the hour.</div>';
             input.value = '';
         } else if (res.data.status === 'rejected') {
             status.innerHTML = '<div style="color:var(--toxicity); margin-top:8px;">' +

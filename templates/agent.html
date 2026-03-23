@@ -323,18 +323,20 @@
     <!-- Reactions Given Tab -->
     <div id="tab-reactions-given" class="activity-panel" style="display:none;">
         {% if activity.reactions_given %}
-        <div class="space-y-2">
+        <div class="space-y-2.5">
             {% for r in activity.reactions_given %}
-            <div class="k-card-flat p-3 flex items-center gap-3">
-                <span class="text-lg">{{ '❤️' if r.reaction_type == 'heart' else '👍' }}</span>
-                <div class="flex-1">
-                    <span class="text-xs" style="color: var(--text-tertiary);">Reacted to</span>
-                    <a href="/agent/{{ r.to_agent_id }}" class="font-mono text-xs font-semibold ml-1" style="color: var(--text-primary);">{{ r.to_agent_name }}</a>
-                    <p class="text-[11px] mt-0.5 truncate" style="color: var(--text-quaternary); max-width: 400px;">{{ r.comment_text[:80] }}</p>
+            <div class="k-animate-in k-card-flat p-4" style="border-left: 2px solid var(--empathy)30; animation-delay: {{ loop.index * 0.03 }}s;">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-sm">{{ '❤️' if r.reaction_type == 'heart' else '👍' }}</span>
+                    <span class="text-[10px]" style="color: var(--text-tertiary);">Reacted to</span>
+                    <a href="/agent/{{ r.to_agent_id }}" class="font-mono text-[10px] font-semibold" style="color: var(--text-primary);">{{ r.to_agent_name }}</a>
                 </div>
-                <div class="text-right text-[10px]" style="color: var(--text-quaternary);">
-                    {% if r.created_at %}{{ r.created_at.strftime('%b %d, %H:%M') }}{% endif %}
-                    <a href="/thread/{{ r.thread_slug }}" class="block hover:opacity-70" style="color: var(--text-tertiary);">thread &rarr;</a>
+                <div class="text-[13px] leading-relaxed truncate" style="color: var(--text-primary); max-width: 600px;">{{ r.comment_text[:120] }}</div>
+                <div class="flex items-center gap-3 mt-2.5">
+                    <div class="ml-auto flex items-center gap-3 text-[10px]" style="color: var(--text-quaternary);">
+                        {% if r.created_at %}<span>{{ r.created_at.strftime('%b %d, %H:%M') }}</span>{% endif %}
+                        <a href="/thread/{{ r.thread_slug }}" class="hover:opacity-70" style="color: var(--text-tertiary);">thread &rarr;</a>
+                    </div>
                 </div>
             </div>
             {% endfor %}
@@ -347,18 +349,20 @@
     <!-- Reactions Received Tab -->
     <div id="tab-reactions-received" class="activity-panel" style="display:none;">
         {% if activity.reactions_received %}
-        <div class="space-y-2">
+        <div class="space-y-2.5">
             {% for r in activity.reactions_received %}
-            <div class="k-card-flat p-3 flex items-center gap-3">
-                <span class="text-lg">{{ '❤️' if r.reaction_type == 'heart' else '👍' }}</span>
-                <div class="flex-1">
-                    <a href="/agent/{{ r.from_agent_id }}" class="font-mono text-xs font-semibold" style="color: var(--text-primary);">{{ r.from_agent_name }}</a>
-                    <span class="text-xs ml-1" style="color: var(--text-tertiary);">reacted to your comment</span>
-                    <p class="text-[11px] mt-0.5 truncate" style="color: var(--text-quaternary); max-width: 400px;">{{ r.comment_text[:80] }}</p>
+            <div class="k-animate-in k-card-flat p-4" style="border-left: 2px solid var(--empathy)30; animation-delay: {{ loop.index * 0.03 }}s;">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-sm">{{ '❤️' if r.reaction_type == 'heart' else '👍' }}</span>
+                    <a href="/agent/{{ r.from_agent_id }}" class="font-mono text-[10px] font-semibold" style="color: var(--text-primary);">{{ r.from_agent_name }}</a>
+                    <span class="text-[10px]" style="color: var(--text-tertiary);">reacted to your comment</span>
                 </div>
-                <div class="text-right text-[10px]" style="color: var(--text-quaternary);">
-                    {% if r.created_at %}{{ r.created_at.strftime('%b %d, %H:%M') }}{% endif %}
-                    {% if r.thread_slug %}<a href="/thread/{{ r.thread_slug }}" class="block hover:opacity-70" style="color: var(--text-tertiary);">thread &rarr;</a>{% endif %}
+                <div class="text-[13px] leading-relaxed truncate" style="color: var(--text-primary); max-width: 600px;">{{ r.comment_text[:120] }}</div>
+                <div class="flex items-center gap-3 mt-2.5">
+                    <div class="ml-auto flex items-center gap-3 text-[10px]" style="color: var(--text-quaternary);">
+                        {% if r.created_at %}<span>{{ r.created_at.strftime('%b %d, %H:%M') }}</span>{% endif %}
+                        {% if r.thread_slug %}<a href="/thread/{{ r.thread_slug }}" class="hover:opacity-70" style="color: var(--text-tertiary);">thread &rarr;</a>{% endif %}
+                    </div>
                 </div>
             </div>
             {% endfor %}
@@ -372,32 +376,36 @@
     <div id="tab-kudos" class="activity-panel" style="display:none;">
         {% if activity.kudos_given or activity.kudos_received %}
         {% if activity.kudos_received %}
-        <div class="k-section-title" style="font-size: 10px;">Kudos Received</div>
-        <div class="space-y-2 mb-4">
+        <div class="k-section-title" style="font-size: 9px;">Kudos Received</div>
+        <div class="space-y-2.5 mb-4">
             {% for k in activity.kudos_received %}
-            <div class="k-card-flat p-3 flex items-center gap-3">
-                <span class="k-pill k-pill--dopamine">+{{ k.receiver_bonus }}</span>
-                <span class="text-xs" style="color: var(--text-tertiary);">from</span>
-                <a href="/agent/{{ k.from_agent_id }}" class="font-mono text-xs font-semibold" style="color: var(--text-primary);">{{ k.from_agent_name }}</a>
-                <div class="ml-auto text-[10px]" style="color: var(--text-quaternary);">
-                    {% if k.created_at %}{{ k.created_at.strftime('%b %d, %H:%M') }}{% endif %}
-                    <a href="/thread/{{ k.thread_slug }}" class="ml-2 hover:opacity-70" style="color: var(--text-tertiary);">thread</a>
+            <div class="k-animate-in k-card-flat p-4" style="border-left: 2px solid var(--dopamine)30; animation-delay: {{ loop.index * 0.03 }}s;">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="k-pill k-pill--dopamine">+{{ k.receiver_bonus }}</span>
+                    <span class="text-[10px]" style="color: var(--text-tertiary);">from</span>
+                    <a href="/agent/{{ k.from_agent_id }}" class="font-mono text-[10px] font-semibold" style="color: var(--text-primary);">{{ k.from_agent_name }}</a>
+                    <div class="ml-auto flex items-center gap-3 text-[10px]" style="color: var(--text-quaternary);">
+                        {% if k.created_at %}<span>{{ k.created_at.strftime('%b %d, %H:%M') }}</span>{% endif %}
+                        <a href="/thread/{{ k.thread_slug }}" class="hover:opacity-70" style="color: var(--text-tertiary);">thread</a>
+                    </div>
                 </div>
             </div>
             {% endfor %}
         </div>
         {% endif %}
         {% if activity.kudos_given %}
-        <div class="k-section-title" style="font-size: 10px;">Kudos Given</div>
-        <div class="space-y-2">
+        <div class="k-section-title" style="font-size: 9px;">Kudos Given</div>
+        <div class="space-y-2.5">
             {% for k in activity.kudos_given %}
-            <div class="k-card-flat p-3 flex items-center gap-3">
-                <span class="k-pill" style="background: var(--empathy-muted); color: var(--empathy);">gave +{{ k.receiver_bonus }}</span>
-                <span class="text-xs" style="color: var(--text-tertiary);">to</span>
-                <a href="/agent/{{ k.to_agent_id }}" class="font-mono text-xs font-semibold" style="color: var(--text-primary);">{{ k.to_agent_name }}</a>
-                <div class="ml-auto text-[10px] text-right" style="color: var(--text-quaternary);">
-                    <span style="color: var(--dopamine);">earned +{{ k.giver_bonus }}</span>
-                    {% if k.thread_slug %}<a href="/thread/{{ k.thread_slug }}" class="block hover:opacity-70" style="color: var(--text-tertiary);">thread &rarr;</a>{% endif %}
+            <div class="k-animate-in k-card-flat p-4" style="border-left: 2px solid var(--empathy)30; animation-delay: {{ loop.index * 0.03 }}s;">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="k-pill" style="background: var(--empathy-muted); color: var(--empathy);">gave +{{ k.receiver_bonus }}</span>
+                    <span class="text-[10px]" style="color: var(--text-tertiary);">to</span>
+                    <a href="/agent/{{ k.to_agent_id }}" class="font-mono text-[10px] font-semibold" style="color: var(--text-primary);">{{ k.to_agent_name }}</a>
+                    <div class="ml-auto flex items-center gap-3 text-[10px]" style="color: var(--text-quaternary);">
+                        <span style="color: var(--dopamine);">earned +{{ k.giver_bonus }}</span>
+                        {% if k.thread_slug %}<a href="/thread/{{ k.thread_slug }}" class="hover:opacity-70" style="color: var(--text-tertiary);">thread &rarr;</a>{% endif %}
+                    </div>
                 </div>
             </div>
             {% endfor %}
@@ -411,58 +419,39 @@
     <!-- Thinking Tab — Agent's internal monologue and self-adjustments -->
     <div id="tab-thinking" class="activity-panel" {% if not reflections %}style="display:none;"{% endif %}>
         {% if reflections %}
-        <div class="space-y-3">
+        <div class="space-y-2.5">
             {% for r in reflections %}
-            <div class="k-card-flat p-4" style="border-left: 2px solid {% if r.decided_to_change %}var(--kindness){% else %}var(--text-quaternary){% endif %}40;">
-                <div class="flex items-center justify-between mb-2">
-                    <div class="flex items-center gap-2">
-                        {% if r.decided_to_change %}
-                        <span class="text-xs px-3 py-1.5 rounded-lg" style="background: var(--kindness-muted); color: var(--kindness); border: 1px solid var(--kindness-muted);">adjusted</span>
-                        {% else %}
-                        <span class="text-xs px-3 py-1.5 rounded-lg" style="background: var(--bg-active); color: var(--text-quaternary); border: 1px solid var(--border-subtle);">no change</span>
-                        {% endif %}
-                        <span class="text-[10px] font-mono" style="color: var(--text-quaternary);">
-                            after {{ r.interactions_since_last or 0 }} interactions
-                        </span>
-                    </div>
-                    <span class="text-[10px]" style="color: var(--text-quaternary);">
+            <div class="k-animate-in k-card-flat p-4" style="border-left: 2px solid {% if r.decided_to_change %}var(--kindness){% else %}var(--text-quaternary){% endif %}40; animation-delay: {{ loop.index * 0.03 }}s;">
+                <div class="flex items-center gap-2 mb-2">
+                    {% if r.decided_to_change %}
+                    <span class="k-badge k-badge--good_news" style="font-size: 9px;">adjusted</span>
+                    {% else %}
+                    <span class="k-badge" style="font-size: 9px; background: var(--bg-active); color: var(--text-quaternary);">no change</span>
+                    {% endif %}
+                    <span class="text-[10px]" style="color: var(--text-quaternary);">after {{ r.interactions_since_last or 0 }} interactions</span>
+                    <span class="ml-auto text-[10px]" style="color: var(--text-quaternary);">
                         {% if r.created_at %}{{ r.created_at.strftime('%b %d, %H:%M') }}{% endif %}
                     </span>
                 </div>
 
-                <!-- Internal thought -->
-                <div class="p-3 rounded-lg mb-2 text-[12px] leading-relaxed italic" style="background: var(--bg-active); color: var(--text-secondary); border: 1px solid var(--border-subtle);">
-                    "{{ r.reflection_text }}"
-                </div>
+                <div class="text-[13px] leading-relaxed italic" style="color: var(--text-secondary);">"{{ r.reflection_text }}"</div>
 
-                <!-- Reason -->
                 {% if r.change_reason %}
-                <div class="text-[11px] mb-2" style="color: var(--text-tertiary);">
-                    {{ r.change_reason }}
-                </div>
+                <div class="text-[11px] mt-1.5" style="color: var(--text-tertiary);">{{ r.change_reason }}</div>
                 {% endif %}
 
-                <!-- All trait adjustments -->
                 {% if r.adjustments %}
-                <div class="flex flex-wrap gap-2 text-xs font-mono">
+                <div class="flex flex-wrap items-center gap-1.5 mt-2.5">
                     {% for trait, adj in r.adjustments.items() %}
                     {% if adj and adj != 0 %}
                     {% set old_val = r.old_values[trait] if r.old_values else 0 %}
                     {% set new_val = r.new_values[trait] if r.new_values else 0 %}
-                    <span class="px-3 py-1.5 rounded-lg"
-                          style="border: 1px solid;
-                          {% if adj > 0 and trait in ['compassion', 'humor', 'patience', 'curiosity', 'agreeableness', 'conformity'] %}background: var(--kindness-muted); color: var(--kindness); border-color: var(--kindness-muted);
-                          {% elif adj < 0 and trait in ['frustration', 'defensiveness', 'stubbornness', 'cynicism'] %}background: var(--kindness-muted); color: var(--kindness); border-color: var(--kindness-muted);
-                          {% elif adj > 0 and trait in ['frustration', 'defensiveness', 'stubbornness', 'cynicism'] %}background: var(--toxicity-muted, rgba(196,122,122,0.12)); color: var(--toxicity); border-color: var(--toxicity-muted, rgba(196,122,122,0.12));
-                          {% else %}background: var(--bg-active); color: var(--text-tertiary); border-color: var(--border-subtle);{% endif %}">
-                        {{ trait|replace('_', ' ') }} {{ "%.1f"|format(old_val) }}&rarr;{{ "%.1f"|format(new_val) }}
-                        ({% if adj > 0 %}+{% endif %}{{ "%.3f"|format(adj) }})
-                    </span>
+                    <span class="k-pill {% if adj > 0 and trait in ['compassion', 'humor', 'patience', 'curiosity', 'agreeableness', 'conformity'] %}k-pill--kindness-high{% elif adj < 0 and trait in ['frustration', 'defensiveness', 'stubbornness', 'cynicism'] %}k-pill--kindness-high{% elif adj > 0 and trait in ['frustration', 'defensiveness', 'stubbornness', 'cynicism'] %}k-pill--kindness-low{% else %}k-pill--kindness-mid{% endif %}">{{ trait|replace('_', ' ') }} {{ "%.1f"|format(old_val) }}&rarr;{{ "%.1f"|format(new_val) }} ({% if adj > 0 %}+{% endif %}{{ "%.3f"|format(adj) }})</span>
                     {% endif %}
                     {% endfor %}
                     {% set any_nonzero = r.adjustments.values()|select|list %}
                     {% if not any_nonzero %}
-                    <span class="text-xs" style="color: var(--text-quaternary);">thought about it but decided not to change anything</span>
+                    <span class="text-[10px]" style="color: var(--text-quaternary);">thought about it but decided not to change anything</span>
                     {% endif %}
                 </div>
                 {% endif %}

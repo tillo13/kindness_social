@@ -16,41 +16,24 @@ from utilities.llm_router import set_telemetry_context
 logger = logging.getLogger(__name__)
 
 
-def get_open_threads(limit=5):
+def get_open_threads(limit=8):
     """Get threads that are still open for responses.
-    Mix of recent threads + older threads that deserve a necro-bump,
-    just like real forums where someone replies to a month-old post."""
+    Single fast query with LEFT JOIN for comment counts instead of correlated subqueries."""
     from utilities.postgres_utils import db_cursor
     with db_cursor(dict_cursor=True) as cur:
-        # Recent threads (most activity happens here)
         cur.execute("""
-            SELECT t.*, tp.post_text, tp.topic_type, tp.keywords
+            SELECT t.*, tp.post_text, tp.topic_type, tp.keywords, cc.cnt as comment_count
             FROM kindness_threads t
             JOIN kindness_topics tp ON t.topic_id = tp.id
+            LEFT JOIN LATERAL (
+                SELECT COUNT(*) as cnt FROM kindness_comments WHERE thread_id = t.id
+            ) cc ON TRUE
             WHERE t.is_complete = FALSE
-              AND (SELECT COUNT(*) FROM kindness_comments WHERE thread_id = t.id) < COALESCE(t.max_comments, 50)
+              AND cc.cnt < COALESCE(t.max_comments, 50)
             ORDER BY t.created_at DESC
             LIMIT %s
-        """, (max(1, limit - 2),))
-        recent = [dict(row) for row in cur.fetchall()]
-
-        # Older threads — necro-bump candidates (random older open threads)
-        cur.execute("""
-            SELECT t.*, tp.post_text, tp.topic_type, tp.keywords
-            FROM kindness_threads t
-            JOIN kindness_topics tp ON t.topic_id = tp.id
-            WHERE t.is_complete = FALSE
-              AND (SELECT COUNT(*) FROM kindness_comments WHERE thread_id = t.id) < COALESCE(t.max_comments, 50)
-              AND t.created_at < NOW() - INTERVAL '6 hours'
-            ORDER BY RANDOM()
-            LIMIT 2
-        """)
-        older = [dict(row) for row in cur.fetchall()]
-
-        # Dedupe (older might overlap with recent)
-        seen = {t['id'] for t in recent}
-        combined = recent + [t for t in older if t['id'] not in seen]
-        return combined[:limit + 2]
+        """, (limit,))
+        return [dict(row) for row in cur.fetchall()]
 
 
 def get_thread_comments(thread_db_id):
@@ -72,20 +55,18 @@ def get_thread_comments(thread_db_id):
 
 def get_agents_not_in_thread(thread_db_id, limit=10):
     """Get active agents who haven't participated in this thread yet.
-    Prioritizes agents who haven't talked recently (rotation)."""
+    Prioritizes agents who haven't talked recently (rotation).
+    Uses updated_at as proxy for last activity instead of correlated subquery."""
     from utilities.postgres_utils import db_cursor
     with db_cursor(dict_cursor=True) as cur:
         cur.execute("""
-            SELECT a.*, COALESCE(
-                (SELECT MAX(c.created_at) FROM kindness_comments c WHERE c.agent_id = a.id),
-                '2000-01-01'::timestamptz
-            ) as last_spoke
+            SELECT a.*
             FROM kindness_agents a
             WHERE a.is_active = TRUE
-              AND a.id NOT IN (
-                  SELECT DISTINCT agent_id FROM kindness_comments WHERE thread_id = %s
+              AND NOT EXISTS (
+                  SELECT 1 FROM kindness_comments c WHERE c.thread_id = %s AND c.agent_id = a.id
               )
-            ORDER BY last_spoke ASC, RANDOM()
+            ORDER BY a.updated_at ASC NULLS FIRST, RANDOM()
             LIMIT %s
         """, (thread_db_id, limit))
         return [dict(row) for row in cur.fetchall()]
@@ -97,7 +78,7 @@ def should_respond(agent, comment, thread_context):
     Uses personality dimensions to drive engagement decisions.
     Returns: (should_engage: bool, reason: str, target_comment: dict or None)
     """
-    score = 0.0
+    score = 0.1  # Baseline — agents are social creatures, they want to engage
     reason = []
 
     # Direct reply to my comment — almost always respond
@@ -161,13 +142,13 @@ def should_respond(agent, comment, thread_context):
         score += 0.1
         reason.append("agreeable")
 
-    # Lurker penalty (but floor at 0.3 so lurkers still occasionally engage)
-    score *= max(0.3, agent.get('vote_willingness', 0.5))
+    # Lurker penalty (but floor at 0.4 so lurkers still engage reasonably)
+    score *= max(0.4, agent.get('vote_willingness', 0.5))
 
-    # Random factor
-    score += random.uniform(-0.1, 0.1)
+    # Random factor — slight upward bias to keep things moving
+    score += random.uniform(-0.05, 0.15)
 
-    should = score > 0.25  # Lower threshold — we want active conversations
+    should = score > 0.15  # Low threshold — conversations need to flow
     return should, ', '.join(reason) if reason else 'random', comment
 
 
@@ -216,11 +197,9 @@ def build_reply_context(thread_context, target_comment=None):
 
 def run_agent_responses(config=None):
     """
-    Main response loop. Called by cron every 10 minutes.
+    Main response loop. Called by cron every 3 minutes.
 
-    Staggered like real humans:
-    - Random batch size per call (1-4 responses across 1-2 threads)
-    - 20% chance of a quiet period (nobody responds)
+    - 6-12 responses per cycle across 4-6 threads
     - Agents who haven't spoken recently get priority (rotation)
     - Agents whose backends are in backoff are silently skipped
     - Reactions happen ~50% of the time, from 2-3 random browsers
@@ -228,16 +207,16 @@ def run_agent_responses(config=None):
     config = config or DEFAULT_CONFIG
     from utilities.usage_limiter import is_backend_in_backoff
 
-    # Check more threads — mix of recent and older ones
+    # Check open threads — grab up to 8
     open_threads = get_open_threads(limit=8)
     if not open_threads:
         logger.info("No open threads for responses")
         return {'threads_checked': 0, 'responses': 0, 'reactions': 0}
 
-    threads_to_check = random.sample(open_threads, min(random.randint(3, 5), len(open_threads)))
+    threads_to_check = random.sample(open_threads, min(random.randint(4, 6), len(open_threads)))
 
-    # Higher batch cap — 4-8 responses per cycle for more engagement
-    max_responses_this_round = random.randint(4, 8)
+    # 6-12 responses per cycle — threads need to fill up faster
+    max_responses_this_round = random.randint(6, 12)
     total_responses = 0
     response_details = []  # Track each response for logging
 
@@ -345,16 +324,8 @@ def run_agent_responses(config=None):
                     thread['id'], agent['id'], position, comment_text, scores,
                     dopamine, source, multiplier, actual_backend,
                     gen_time_ms, eval_time_ms,
+                    parent_comment_id=parent_id, replied_to_agent_id=replied_to,
                 )
-
-                if parent_id or replied_to:
-                    from utilities.postgres_utils import db_cursor as _dc
-                    with _dc() as cur:
-                        cur.execute("""
-                            UPDATE kindness_comments
-                            SET parent_comment_id = %s, replied_to_agent_id = %s
-                            WHERE thread_id = %s AND position = %s
-                        """, (parent_id, replied_to, thread['id'], position))
 
                 total_responses += 1
                 response_details.append({
