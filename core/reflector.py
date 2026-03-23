@@ -258,7 +258,7 @@ def reflect_agent(agent, platform_ctx):
         response, actual_backend = chat(
             backend,
             [{"role": "user", "content": prompt}],
-            max_tokens=400,
+            max_tokens=700,
             temperature=0.4,
         )
 
