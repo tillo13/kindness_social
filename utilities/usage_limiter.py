@@ -109,6 +109,7 @@ _count_date = None
 
 # Backoff tracking — when a backend fails with 429/rate limit, cool it off
 _backoff_until = {}  # backend -> timestamp when it's safe to retry
+_backoff_count = {}  # backend -> consecutive failures (for exponential backoff)
 BACKOFF_SECONDS = 120  # 2 minutes default cooldown after a rate limit
 
 
@@ -132,11 +133,15 @@ def is_kill_switch_active():
 
 
 def mark_backend_backoff(backend: str, seconds: int = None):
-    """Mark a backend as needing cooldown (e.g., after 429 rate limit)."""
+    """Mark a backend as needing cooldown with exponential backoff.
+    First failure: base seconds. Second: 2x. Third: 4x. Caps at 30 min."""
     import time
-    cooldown = seconds or BACKOFF_SECONDS
+    _backoff_count[backend] = _backoff_count.get(backend, 0) + 1
+    base = seconds or BACKOFF_SECONDS
+    # Exponential: 120s -> 240s -> 480s -> 960s (cap 1800s/30min)
+    cooldown = min(base * (2 ** (_backoff_count[backend] - 1)), 1800)
     _backoff_until[backend] = time.time() + cooldown
-    logger.warning(f"Backend {backend} in backoff for {cooldown}s")
+    logger.warning(f"Backend {backend} in backoff for {cooldown}s (attempt #{_backoff_count[backend]})")
 
 
 def is_backend_in_backoff(backend: str) -> bool:
@@ -148,7 +153,14 @@ def is_backend_in_backoff(backend: str) -> bool:
     elif until > 0:
         # Cooldown expired, clear it
         _backoff_until.pop(backend, None)
+        # DON'T reset count here — reset on success instead
     return False
+
+
+def clear_backend_backoff(backend: str):
+    """Reset backoff counter on successful call."""
+    _backoff_until.pop(backend, None)
+    _backoff_count.pop(backend, None)
 
 
 def check_backend_ok(backend: str) -> UsageStatus:

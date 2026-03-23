@@ -6,7 +6,7 @@ Every call is logged to kindness_llm_telemetry for full observability.
 import logging
 import time
 from datetime import datetime, timezone
-from utilities.usage_limiter import check_backend_ok, record_usage, mark_backend_backoff
+from utilities.usage_limiter import check_backend_ok, record_usage, mark_backend_backoff, clear_backend_backoff
 
 logger = logging.getLogger(__name__)
 
@@ -265,6 +265,7 @@ def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
                 continue
 
             record_usage(b)
+            clear_backend_backoff(b)  # Reset exponential backoff on success
 
             # Log successful telemetry
             _log_telemetry(
@@ -291,13 +292,15 @@ def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
 
             # Auto-backoff on rate limit errors
             if '429' in error_str or 'rate limit' in error_str.lower() or 'quota' in error_str.lower():
-                # Backend-specific backoff durations
+                # Backend-specific base backoff (exponential multiplier applied in mark_backend_backoff)
                 if b == 'gemini':
-                    backoff_secs = 600  # 10 min — Gemini free tier has per-minute quota
+                    backoff_secs = 300  # 5 min base — Gemini free tier has strict per-minute quota
+                elif b == 'groq':
+                    backoff_secs = 180  # 3 min base — Groq rate limits frequently on free tier
                 elif b == 'openrouter':
-                    backoff_secs = 300  # 5 min — OpenRouter free models are flaky
+                    backoff_secs = 300  # 5 min base — OpenRouter free models are flaky
                 else:
-                    backoff_secs = 120  # 2 min default
+                    backoff_secs = 120  # 2 min base
                 # Override with retry-after header if available
                 if 'retry in' in error_str.lower():
                     import re

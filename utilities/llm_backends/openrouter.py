@@ -12,8 +12,13 @@ logger = logging.getLogger(__name__)
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 _api_key = None
 
-# Use a free community model by default
-DEFAULT_MODEL = "openrouter/free"  # Auto-routes to best available free model
+# Use specific free models — auto-router is unreliable
+FREE_MODELS = [
+    "google/gemma-3-4b-it:free",
+    "google/gemma-3n-e2b-it:free",
+    "meta-llama/llama-3.2-3b-instruct:free",
+]
+DEFAULT_MODEL = FREE_MODELS[0]
 
 
 def _get_key():
@@ -48,14 +53,32 @@ def chat(messages, max_tokens=500, temperature=0.3, system=None):
         "X-Title": "Kindness Social",
     }
 
-    try:
-        r = requests.post(API_URL, json=payload, headers=headers, timeout=60)
-        r.raise_for_status()
-        data = r.json()
-        content = data.get("choices", [{}])[0].get("message", {}).get("content")
-        if not content or not content.strip():
-            raise RuntimeError("Empty response from OpenRouter free model")
-        return content.strip()
-    except Exception as e:
-        logger.error(f"OpenRouter error: {e}")
-        raise
+    # Try each free model until one works
+    last_error = None
+    for model in FREE_MODELS:
+        payload["model"] = model
+        try:
+            r = requests.post(API_URL, json=payload, headers=headers, timeout=30)
+            if r.status_code == 429:
+                logger.warning(f"OpenRouter {model} rate limited")
+                last_error = RuntimeError(f"429 rate limited on {model}")
+                continue
+            r.raise_for_status()
+            data = r.json()
+            content = data.get("choices", [{}])[0].get("message", {}).get("content")
+            if not content or not content.strip():
+                logger.warning(f"OpenRouter {model} returned empty")
+                last_error = RuntimeError(f"Empty response from {model}")
+                continue
+            return content.strip()
+        except requests.exceptions.Timeout:
+            logger.warning(f"OpenRouter {model} timed out")
+            last_error = RuntimeError(f"Timeout on {model}")
+            continue
+        except Exception as e:
+            logger.warning(f"OpenRouter {model} error: {e}")
+            last_error = e
+            continue
+
+    logger.error(f"OpenRouter all models failed: {last_error}")
+    raise last_error or RuntimeError("All OpenRouter free models failed")
