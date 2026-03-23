@@ -239,6 +239,7 @@ def run_agent_responses(config=None):
     # Higher batch cap — 4-8 responses per cycle for more engagement
     max_responses_this_round = random.randint(4, 8)
     total_responses = 0
+    response_details = []  # Track each response for logging
 
     for thread in threads_to_check:
         if total_responses >= max_responses_this_round:
@@ -356,6 +357,17 @@ def run_agent_responses(config=None):
                         """, (parent_id, replied_to, thread['id'], position))
 
                 total_responses += 1
+                response_details.append({
+                    'agent_id': agent.get('agent_id', '?'),
+                    'agent_name': agent.get('display_name', '?'),
+                    'thread_id': thread.get('thread_id', '?'),
+                    'backend': actual_backend,
+                    'kindness': scores['kindness'],
+                    'toxicity': scores['toxicity'],
+                    'dopamine': dopamine,
+                    'source': source,
+                    'reason': reason,
+                })
                 logger.info(f"    -> K:{scores['kindness']} T:{scores['toxicity']} +{dopamine}dp ({source})")
 
             except Exception as e:
@@ -382,6 +394,7 @@ def run_agent_responses(config=None):
         'threads_checked': len(threads_to_check),
         'responses': total_responses,
         'reactions': total_reactions,
+        'details': response_details,
     }
 
 

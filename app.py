@@ -508,9 +508,23 @@ def cron_birth_agent():
         agent = create_agent()
         ms = int((time.time() - start) * 1000)
         if agent:
+            birth_data = {
+                'agent_id': agent['agent_id'],
+                'backend': agent['llm_backend'],
+                'toxicity': agent.get('current_toxicity'),
+                'empathy': agent.get('current_empathy'),
+                'personality': {
+                    'openness': agent.get('openness_to_change'),
+                    'political_lean': agent.get('political_lean'),
+                    'gender': agent.get('gender_presentation'),
+                    'age': agent.get('age_bracket'),
+                    'authority': agent.get('authority_level'),
+                },
+            }
             db_ops.log_cron_end(log_id, 'ok', ms,
-                                f"Born: {agent['agent_id']} ({agent['llm_backend']})",
-                                {'agent_id': agent['agent_id'], 'backend': agent['llm_backend']})
+                                f"Born: {agent['agent_id']} ({agent['llm_backend']}) "
+                                f"tox:{agent.get('current_toxicity', '?')} emp:{agent.get('current_empathy', '?')}",
+                                birth_data)
             return jsonify({'created': agent['agent_id'], 'backend': agent['llm_backend']})
         db_ops.log_cron_end(log_id, 'error', ms, 'Could not create agent')
         return jsonify({'error': 'Could not create agent'}), 500

@@ -175,15 +175,30 @@ def run_thread(config=None):
             WHERE id = %s
         """, (avg_k, avg_t, bridge_events, thread_db_id))
 
+    # Build per-agent results for detailed logging
+    agent_results = []
+    for entry in thread_history:
+        p = entry['persona']
+        s = entry['scores']
+        agent_results.append({
+            'name': p.get('display_name', '?'),
+            'backend': p.get('llm_backend', '?'),
+            'kindness': s.get('kindness'),
+            'toxicity': s.get('toxicity'),
+        })
+
     summary = {
         'thread_id': thread_slug,
         'topic': topic['topic_id'],
+        'topic_text': topic['post_text'][:100],
         'topic_type': topic['topic_type'],
         'participants': len(participants),
+        'participant_names': [p['display_name'] for p in participants],
         'avg_kindness': round(avg_k, 1),
         'avg_toxicity': round(avg_t, 1),
         'bridge_events': bridge_events,
         'peer_kudos': peer_kudos,
+        'agent_results': agent_results,
     }
     logger.info(f"Thread complete: {summary}")
     return summary

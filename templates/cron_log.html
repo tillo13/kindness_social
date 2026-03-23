@@ -41,7 +41,7 @@
        style="background: {{ 'var(--kindness)' if not current_job else 'var(--bg-elevated)' }}; color: {{ '#fff' if not current_job else 'var(--text-secondary)' }};">
         All Jobs
     </a>
-    {% for name in ['generate-thread', 'agent-responses', 'hourly-metrics', 'snapshot-agents', 'scrape-topics', 'birth-agent'] %}
+    {% for name in ['generate-thread', 'agent-responses', 'agent-reflect', 'hourly-metrics', 'snapshot-agents', 'scrape-topics', 'birth-agent', 'agent-invites'] %}
     <a href="/cron-log?job={{ name }}" class="text-xs px-3 py-1 rounded-full transition-all"
        style="background: {{ 'var(--kindness)' if current_job == name else 'var(--bg-elevated)' }}; color: {{ '#fff' if current_job == name else 'var(--text-secondary)' }};">
         {{ name }}
@@ -101,19 +101,155 @@
                     {% else %}—{% endif %}
                 </td>
             </tr>
-            <!-- Expandable detail row -->
+            <!-- Expandable detail row — rich rendering by job type -->
             {% if entry.result_json or entry.error_text %}
+            {% set rj = entry.result_json if entry.result_json is mapping else {} %}
             <tr class="hidden" style="border-bottom: 1px solid var(--border-subtle);">
                 <td colspan="5" class="px-3 py-3" style="background: var(--bg-elevated);">
+
+                    {% if entry.error_text %}
+                    <div class="text-[11px] font-mono mb-2 p-2 rounded" style="color: var(--toxicity); background: var(--toxicity-dim);">{{ entry.error_text }}</div>
+                    {% endif %}
+
+                    <!-- BIRTH AGENT -->
+                    {% if entry.job_name == 'birth-agent' and rj %}
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
+                        {% if rj.agent_id %}
+                        <div><span style="color: var(--text-quaternary);">Agent:</span> <a href="/agent/{{ rj.agent_id }}" class="font-mono" style="color: var(--kindness);">{{ rj.agent_id }}</a></div>
+                        {% endif %}
+                        {% if rj.backend %}<div><span style="color: var(--text-quaternary);">Backend:</span> <span class="font-mono" style="color: var(--text-secondary);">{{ rj.backend }}</span></div>{% endif %}
+                        {% if rj.toxicity is defined %}<div><span style="color: var(--text-quaternary);">Toxicity:</span> <span class="font-mono" style="color: var(--toxicity);">{{ "%.1f"|format(rj.toxicity) }}</span></div>{% endif %}
+                        {% if rj.empathy is defined %}<div><span style="color: var(--text-quaternary);">Empathy:</span> <span class="font-mono" style="color: var(--empathy);">{{ "%.1f"|format(rj.empathy) }}</span></div>{% endif %}
+                        {% if rj.invited_by %}<div><span style="color: var(--text-quaternary);">Invited by:</span> <a href="/agent/{{ rj.invited_by }}" class="font-mono" style="color: var(--bridge);">{{ rj.invited_by }}</a></div>{% endif %}
+                        {% if rj.personality %}
+                        {% for trait, val in rj.personality.items() %}
+                        <div><span style="color: var(--text-quaternary);">{{ trait }}:</span> <span class="font-mono">{{ "%.1f"|format(val) if val is number else val }}</span></div>
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+
+                    <!-- GENERATE THREAD -->
+                    {% elif entry.job_name == 'generate-thread' and rj %}
+                    <div class="space-y-2 text-[10px]">
+                        <div class="flex flex-wrap gap-3">
+                            {% if rj.thread_id %}<span><span style="color: var(--text-quaternary);">Thread:</span> <a href="/thread/{{ rj.thread_id }}" class="font-mono" style="color: var(--kindness);">{{ rj.thread_id }}</a></span>{% endif %}
+                            {% if rj.topic_type %}<span class="k-badge k-badge--{{ rj.topic_type }}" style="font-size: 9px;">{{ rj.topic_type }}</span>{% endif %}
+                            {% if rj.participants is defined %}<span style="color: var(--text-quaternary);">{{ rj.participants }} agents</span>{% endif %}
+                            {% if rj.avg_kindness is defined %}<span style="color: var(--kindness);">K:{{ "%.1f"|format(rj.avg_kindness) }}</span>{% endif %}
+                            {% if rj.avg_toxicity is defined %}<span style="color: var(--toxicity);">T:{{ "%.1f"|format(rj.avg_toxicity) }}</span>{% endif %}
+                            {% if rj.bridge_events %}<span style="color: var(--bridge);">{{ rj.bridge_events }} bridges</span>{% endif %}
+                        </div>
+                        {% if rj.topic %}<div style="color: var(--text-tertiary);">Topic: {{ rj.topic }}</div>{% endif %}
+                        {% if rj.silent_agents %}
+                        <div style="color: var(--text-quaternary);">Silent (backend down): {{ rj.silent_agents|join(', ') }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- AGENT RESPONSES -->
+                    {% elif entry.job_name == 'agent-responses' and rj %}
+                    <div class="space-y-1 text-[10px]">
+                        <div class="flex flex-wrap gap-3 mb-1">
+                            <span style="color: var(--text-quaternary);">Threads checked: {{ rj.threads_checked or 0 }}</span>
+                            <span style="color: var(--kindness);">{{ rj.responses or 0 }} responses</span>
+                            <span style="color: var(--empathy);">{{ rj.reactions or 0 }} reactions</span>
+                        </div>
+                        {% if rj.details %}
+                        {% for d in rj.details %}
+                        <div class="flex items-center gap-2 py-0.5" style="border-bottom: 1px solid var(--border-subtle);">
+                            <a href="/agent/{{ d.agent_id }}" class="font-mono" style="color: var(--text-secondary);">{{ d.agent_name or d.agent_id }}</a>
+                            <span style="color: var(--text-quaternary);">&rarr;</span>
+                            <a href="/thread/{{ d.thread_id }}" class="font-mono" style="color: var(--text-tertiary);">{{ d.thread_id[:20] }}...</a>
+                            {% if d.kindness %}<span style="color: var(--kindness);">K:{{ d.kindness }}</span>{% endif %}
+                            {% if d.toxicity %}<span style="color: var(--toxicity);">T:{{ d.toxicity }}</span>{% endif %}
+                            {% if d.dopamine %}<span style="color: var(--dopamine);">+{{ d.dopamine }}dp</span>{% endif %}
+                            {% if d.reason %}<span style="color: var(--text-quaternary);">({{ d.reason }})</span>{% endif %}
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+
+                    <!-- AGENT REFLECT -->
+                    {% elif entry.job_name == 'agent-reflect' and rj %}
+                    <div class="space-y-2 text-[10px]">
+                        <div class="flex flex-wrap gap-3 mb-1">
+                            <span style="color: var(--text-quaternary);">Reflected: {{ rj.reflected or 0 }}</span>
+                            <span style="color: var(--kindness);">{{ rj.changed or 0 }} changed</span>
+                            {% if rj.skipped %}<span style="color: var(--text-quaternary);">Skipped: {{ rj.skipped }}</span>{% endif %}
+                        </div>
+                        {% if rj.results %}
+                        {% for r in rj.results %}
+                        <div class="p-2 rounded" style="background: var(--bg-surface); border-left: 2px solid {% if r.changed %}var(--kindness){% else %}var(--text-quaternary){% endif %};">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="font-mono font-bold" style="color: var(--text-secondary);">{{ r.agent }}</span>
+                                {% if r.changed %}
+                                <span class="px-1.5 py-0.5 rounded" style="background: var(--kindness-muted); color: var(--kindness); font-size: 9px;">changed</span>
+                                {% else %}
+                                <span class="px-1.5 py-0.5 rounded" style="background: var(--bg-active); color: var(--text-quaternary); font-size: 9px;">no change</span>
+                                {% endif %}
+                            </div>
+                            {% if r.thought %}
+                            <div class="italic mb-1" style="color: var(--text-tertiary);">"{{ r.thought }}"</div>
+                            {% endif %}
+                            {% if r.reason %}
+                            <div style="color: var(--text-quaternary);">{{ r.reason }}</div>
+                            {% endif %}
+                            {% if r.adjustments %}
+                            <div class="flex flex-wrap gap-1 mt-1">
+                                {% for trait, adj in r.adjustments.items() %}
+                                {% if adj and adj != 0 %}
+                                <span class="font-mono px-1 rounded" style="background: {% if adj > 0 %}var(--kindness-muted){% else %}var(--toxicity-muted, rgba(196,122,122,0.12)){% endif %}; color: {% if adj > 0 %}var(--kindness){% else %}var(--toxicity){% endif %}; font-size: 9px;">
+                                    {{ trait }} {% if adj > 0 %}+{% endif %}{{ "%.3f"|format(adj) }}
+                                </span>
+                                {% endif %}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+
+                    <!-- AGENT INVITES -->
+                    {% elif entry.job_name == 'agent-invites' and rj %}
+                    <div class="space-y-1 text-[10px]">
+                        {% if rj.invites %}
+                        {% for inv in rj.invites %}
+                        <div class="flex items-center gap-2">
+                            <a href="/agent/{{ inv.inviter }}" class="font-mono" style="color: var(--text-secondary);">{{ inv.inviter }}</a>
+                            <span style="color: var(--text-quaternary);">invited</span>
+                            <a href="/agent/{{ inv.new_agent }}" class="font-mono" style="color: var(--kindness);">{{ inv.new_agent }}</a>
+                            {% if inv.similarity %}<span style="color: var(--text-quaternary);">({{ "%.0f"|format(inv.similarity * 100) }}% similar)</span>{% endif %}
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <span style="color: var(--text-quaternary);">{{ entry.result_summary or 'No invites this cycle' }}</span>
+                        {% endif %}
+                    </div>
+
+                    <!-- SCRAPE TOPICS -->
+                    {% elif entry.job_name == 'scrape-topics' and rj %}
+                    <div class="space-y-1 text-[10px]">
+                        {% if rj.topics_added is defined %}<div style="color: var(--kindness);">{{ rj.topics_added }} new topics added</div>{% endif %}
+                        {% if rj.topics %}
+                        {% for t in rj.topics %}
+                        <div class="py-0.5" style="border-bottom: 1px solid var(--border-subtle); color: var(--text-tertiary);">
+                            <span class="k-badge k-badge--{{ t.type or 'controversial' }}" style="font-size: 8px;">{{ t.type }}</span>
+                            {{ t.text[:100] }}{% if t.text|length > 100 %}...{% endif %}
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+
+                    <!-- DEFAULT: raw JSON -->
+                    {% else %}
                     {% if entry.result_summary %}
                     <div class="text-[11px] font-mono mb-2" style="color: var(--text-secondary);">{{ entry.result_summary }}</div>
                     {% endif %}
-                    {% if entry.error_text %}
-                    <div class="text-[11px] font-mono mb-2" style="color: var(--toxicity);">{{ entry.error_text }}</div>
-                    {% endif %}
                     {% if entry.result_json %}
-                    <pre class="text-[10px] font-mono p-2 rounded overflow-x-auto" style="background: var(--bg-surface); color: var(--text-tertiary); max-height: 200px;">{{ entry.result_json|tojson(indent=2) }}</pre>
+                    <pre class="text-[10px] font-mono p-2 rounded overflow-x-auto" style="background: var(--bg-surface); color: var(--text-tertiary); max-height: 300px;">{{ entry.result_json|tojson(indent=2) }}</pre>
                     {% endif %}
+                    {% endif %}
+
                 </td>
             </tr>
             {% endif %}
