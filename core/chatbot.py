@@ -190,12 +190,12 @@ def chat(message, history=None):
 
     # Free tier first — chatbot is informational, not science-critical
     try:
-        response = llm_chat(
-            messages=messages,
-            system=system,
-            backend='groq',
+        response, _ = llm_chat(
+            'haiku',
+            messages,
             max_tokens=1000,
             temperature=0.3,
+            system=system,
         )
         log_chat_message()
         return response or "I couldn't generate a response. Try again."
