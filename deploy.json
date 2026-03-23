@@ -10,7 +10,8 @@
             "source": ".",
             "dockerfile": "worker/Dockerfile",
             "memory": "512Mi",
-            "timeout": "900"
+            "timeout": "900",
+            "exclude_dirs": ["static", "templates", "docs", "tests", "prompts"]
         }
     ]
 }
