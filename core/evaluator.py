@@ -96,10 +96,10 @@ def generate_comment(persona, topic, thread_history, position, config):
 
 def evaluate_comment(comment, persona, thread_history, topic, config):
     """Evaluate a comment on kindness, toxicity, empathy, and bridge-building."""
-    # Groq (llama-3.3-70b) is the primary eval judge — free, fast, consistent.
+    # Cerebras (llama3.1-8b) is the primary eval judge — 100% success rate, free, fast.
     # chat_eval uses a sticky primary with free fallbacks; haiku is last resort.
     # All evals prefer the same model so 1-10 scores stay comparable across agents.
-    backend = 'groq'
+    backend = 'cerebras'
     eval_start = time.time()
 
     scores = {}

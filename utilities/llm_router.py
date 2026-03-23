@@ -326,11 +326,11 @@ def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
 # paid models dead last.  Sticky primary (no round-robin) so the same judge
 # scores every comment and 1-10 ratings stay comparable.
 EVAL_BACKENDS = [
-    'groq',          # primary — llama-3.3-70b, fast, free, consistent
-    'cerebras',      # free fallback
-    'mistral',       # free fallback
+    'cerebras',      # primary — 100% success rate, fast, free, consistent
+    'mistral',       # free fallback (99.7% success)
+    'groq',          # free fallback (fast but flaky ~59%)
     'together',      # free fallback
-    'gemini',        # free fallback (1500/day)
+    'gemini',        # free fallback (1500/day, low success)
     'gpt4o_mini',    # cheap paid fallback
     'haiku',         # absolute last resort
 ]
@@ -370,7 +370,7 @@ def chat_eval(backend, prompt, system="Return ONLY a number 1-10."):
                     backend='eval', actual_backend=b, messages=messages,
                     max_tokens=10, temperature=0.1,
                     result_text=result, duration_ms=elapsed_ms,
-                    success=True, fallback_used=(b != 'groq'),
+                    success=True, fallback_used=(b != 'cerebras'),
                 )
                 return result, b
         except Exception as e:
