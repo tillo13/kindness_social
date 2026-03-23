@@ -96,9 +96,10 @@ def generate_comment(persona, topic, thread_history, position, config):
 
 def evaluate_comment(comment, persona, thread_history, topic, config):
     """Evaluate a comment on kindness, toxicity, empathy, and bridge-building."""
-    # Haiku is the judge — fast, cheap, consistent for simple 1-10 scoring.
-    # All evals go through the same model so scores stay comparable across agents.
-    backend = 'haiku'
+    # Groq (llama-3.3-70b) is the primary eval judge — free, fast, consistent.
+    # chat_eval uses a sticky primary with free fallbacks; haiku is last resort.
+    # All evals prefer the same model so 1-10 scores stay comparable across agents.
+    backend = 'groq'
     eval_start = time.time()
 
     scores = {}

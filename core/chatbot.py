@@ -1,7 +1,7 @@
 """
 Experiment Chatbot — Answers questions about the kindness experiment's math,
 scoring, dopamine calculations, and statistical results.
-Uses Claude Haiku with experiment data as context.
+Uses free-tier LLMs (Groq primary) with experiment data as context.
 """
 
 import json
@@ -30,7 +30,7 @@ This is a live experiment testing whether rewarding kindness can change AI agent
 - Both groups participate in the same discussions and get scored identically
 
 SCORING SYSTEM:
-Every comment is evaluated by Claude Haiku (the judge) on 4 dimensions:
+Every comment is evaluated by a consistent LLM judge on 4 dimensions:
 - Kindness score (1-10): How kind/constructive the comment is
 - Toxicity score (1-10): How toxic/hostile the comment is
 - Empathy score (1-10): How empathetic/understanding the comment is
@@ -188,11 +188,12 @@ def chat(message, history=None):
             messages.append({'role': h['role'], 'content': h['content']})
     messages.append({'role': 'user', 'content': message})
 
+    # Free tier first — chatbot is informational, not science-critical
     try:
         response = llm_chat(
             messages=messages,
             system=system,
-            backend='haiku',
+            backend='groq',
             max_tokens=1000,
             temperature=0.3,
         )

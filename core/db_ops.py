@@ -1099,10 +1099,30 @@ def get_telemetry_summary():
         """)
         hourly = [dict(row) for row in cur.fetchall()]
 
+        # Free vs paid split — mirrors kumori api-costs view
+        from utilities.model_registry import FREE_BACKENDS
+        free_list = ', '.join(f"'{b}'" for b in FREE_BACKENDS)
+        cur.execute(f"""
+            SELECT
+                CASE WHEN actual_backend IN ({free_list}) THEN 'free' ELSE 'paid' END as tier,
+                COUNT(*) as calls,
+                COUNT(CASE WHEN success THEN 1 END) as successes,
+                AVG(duration_ms) as avg_ms,
+                SUM(input_tokens) as input_tokens,
+                SUM(output_tokens) as output_tokens,
+                SUM(estimated_cost_usd) as estimated_cost
+            FROM kindness_llm_telemetry
+            WHERE actual_backend IS NOT NULL
+            GROUP BY tier
+            ORDER BY tier
+        """)
+        by_tier = [dict(row) for row in cur.fetchall()]
+
         return {
             'overall': overall,
             'by_backend': by_backend,
             'by_type': by_type,
+            'by_tier': by_tier,
             'recent': recent,
             'hourly': hourly,
         }

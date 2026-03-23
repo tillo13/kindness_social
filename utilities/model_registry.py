@@ -77,6 +77,21 @@ MODELS = {
 }
 
 
+# Backends that cost $0 — free tiers or self-hosted
+FREE_BACKENDS = {
+    'gemini', 'groq', 'cerebras', 'together', 'mistral',
+    'openrouter', 'grok', 'grok_fast', 'grok4', 'deepseek', 'local',
+}
+
+# Backends with actual per-token cost
+PAID_BACKENDS = {'haiku', 'sonnet', 'opus', 'gpt4o_mini', 'gpt4o'}
+
+
+def is_free(backend):
+    """Check if a backend is free tier."""
+    return backend in FREE_BACKENDS
+
+
 def get_model_info(backend):
     """Get full model info for a backend name."""
     return MODELS.get(backend, {

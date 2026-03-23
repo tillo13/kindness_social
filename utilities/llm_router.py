@@ -321,20 +321,37 @@ def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
     return None, backend
 
 
+
+# Eval fallback chain — Groq primary for consistency, then other free backends,
+# paid models dead last.  Sticky primary (no round-robin) so the same judge
+# scores every comment and 1-10 ratings stay comparable.
+EVAL_BACKENDS = [
+    'groq',          # primary — llama-3.3-70b, fast, free, consistent
+    'cerebras',      # free fallback
+    'mistral',       # free fallback
+    'together',      # free fallback
+    'gemini',        # free fallback (1500/day)
+    'gpt4o_mini',    # cheap paid fallback
+    'haiku',         # absolute last resort
+]
+
+
 def chat_eval(backend, prompt, system="Return ONLY a number 1-10."):
     """
     Shortcut for evaluation calls (low tokens, low temperature).
     Evaluation is a SYSTEM function (scoring), not an agent voice —
-    so it gets a small fallback chain to keep scoring working.
+    so it uses a sticky free-tier primary (Groq) for consistency,
+    with free fallbacks before any paid model.
     Returns: (response_text, actual_backend_used)
     """
     messages = [{"role": "user", "content": prompt}]
-    # Try primary, then fallback for eval only
-    eval_backends = [backend, 'haiku', 'gpt4o_mini', 'cerebras']
-    for b in eval_backends:
+
+    for b in EVAL_BACKENDS:
         status = check_backend_ok(b)
         if not status.allowed:
             continue
+
+        start = time.time()
         try:
             module = _get_backend_module(b)
             if b in ('haiku', 'sonnet', 'opus'):
@@ -343,10 +360,23 @@ def chat_eval(backend, prompt, system="Return ONLY a number 1-10."):
                 result = module.chat(messages, 10, 0.1, system=system, model='gpt-4o-mini')
             else:
                 result = module.chat(messages, 10, 0.1, system=system)
+
+            elapsed_ms = int((time.time() - start) * 1000)
+
             if result and result.strip():
                 record_usage(b)
                 clear_backend_backoff(b)
+                _log_telemetry(
+                    backend='eval', actual_backend=b, messages=messages,
+                    max_tokens=10, temperature=0.1,
+                    result_text=result, duration_ms=elapsed_ms,
+                    success=True, fallback_used=(b != 'groq'),
+                )
                 return result, b
-        except Exception:
+        except Exception as e:
+            elapsed_ms = int((time.time() - start) * 1000)
+            logger.debug(f"Eval backend {b} failed: {e}")
+            mark_backend_backoff(b, 120)
             continue
-    return None, backend
+
+    return None, 'eval'
