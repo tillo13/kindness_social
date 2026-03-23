@@ -39,14 +39,23 @@
                     </div>
                 </div>
             </div>
-            {% if reflections %}
-            <a href="#tab-thinking" onclick="showTab('thinking')"
-               class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex-shrink-0 mt-1 sm:mt-0"
-               style="background: var(--kindness); color: #fff;"
-               onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
-                Internal Monologue ({{ reflections|length }})
-            </a>
-            {% endif %}
+            <div class="flex gap-2 flex-shrink-0 mt-1 sm:mt-0 flex-wrap">
+                {% if reflections %}
+                <a href="#tab-thinking" onclick="showTab('thinking')"
+                   class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                   style="background: var(--kindness); color: #fff;"
+                   onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+                    Internal Monologue ({{ reflections|length }})
+                </a>
+                {% endif %}
+                {% if family and (family.parent or family.children) %}
+                <a href="/families" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                   style="background: var(--bridge); color: #fff;"
+                   onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+                    Family Tree
+                </a>
+                {% endif %}
+            </div>
         </div>
 
         <!-- Stats Grid -->
