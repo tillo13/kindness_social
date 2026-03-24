@@ -1,6 +1,6 @@
 """
-Groq LLM Backend - Ultra-fast inference, 14,400 req/day free.
-Supports Llama, Mixtral, Gemma models.
+NVIDIA NIM Backend — 5K lifetime credits, 40 RPM.
+OpenAI-compatible API at integrate.api.nvidia.com.
 """
 
 import logging
@@ -9,33 +9,23 @@ from utilities.google_secret_utils import get_secret
 
 logger = logging.getLogger(__name__)
 
-API_URL = "https://api.groq.com/openai/v1/chat/completions"
+API_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 _api_key = None
 
-# Default to llama-3.3-70b — fast and capable
-DEFAULT_MODEL = "llama-3.3-70b-versatile"
+DEFAULT_MODEL = "meta/llama-3.3-70b-instruct"
 
 
 def _get_key():
     global _api_key
     if _api_key is None:
-        _api_key = get_secret('KINDNESS_GROQ_API_KEY')
+        _api_key = get_secret('KINDNESS_NVIDIA_API_KEY')
         if not _api_key:
-            raise RuntimeError("KINDNESS_GROQ_API_KEY not found")
+            raise RuntimeError("KINDNESS_NVIDIA_API_KEY not found")
     return _api_key
 
 
-# Model variants — same API key, different per-model Groq limits (1K RPD each)
-GROQ_MODELS = {
-    'groq': 'llama-3.3-70b-versatile',
-    'groq-kimi': 'moonshotai/kimi-k2-instruct',
-    'groq-qwen': 'qwen/qwen3-32b',
-    'groq-gptoss': 'openai/gpt-oss-120b',
-}
-
-
-def chat(messages, max_tokens=500, temperature=0.3, system=None, model=None):
-    """Generate text via Groq API (OpenAI-compatible)."""
+def chat(messages, max_tokens=500, temperature=0.3, system=None):
+    """Generate text via NVIDIA NIM API (OpenAI-compatible)."""
     api_messages = []
     if system:
         api_messages.append({"role": "system", "content": system})
@@ -44,7 +34,7 @@ def chat(messages, max_tokens=500, temperature=0.3, system=None, model=None):
         api_messages.append({"role": msg['role'], "content": msg['content']})
 
     payload = {
-        "model": model or DEFAULT_MODEL,
+        "model": DEFAULT_MODEL,
         "messages": api_messages,
         "max_tokens": max_tokens,
         "temperature": temperature,
@@ -61,5 +51,5 @@ def chat(messages, max_tokens=500, temperature=0.3, system=None, model=None):
         data = r.json()
         return data["choices"][0]["message"]["content"].strip()
     except Exception as e:
-        logger.error(f"Groq error: {e}")
+        logger.error(f"NVIDIA NIM error: {e}")
         raise

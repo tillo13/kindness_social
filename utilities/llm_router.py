@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 # grok/deepseek need native deps (Cloud Run / local only, not App Engine)
 # gemini has tight per-minute quota, put it later
 # openrouter free models are flaky, put it last
-FALLBACK_ORDER = ['groq', 'cerebras', 'mistral', 'gpt4o_mini', 'haiku', 'sonnet', 'gemini', 'openrouter', 'gpt4o', 'opus']
+FALLBACK_ORDER = ['groq', 'groq-kimi', 'groq-qwen', 'groq-gptoss', 'cerebras', 'mistral', 'llm7', 'nvidia', 'gpt4o_mini', 'haiku', 'sonnet', 'gemini', 'openrouter', 'gpt4o', 'opus']
 
 # These only work on Cloud Run / locally (need native deps that App Engine can't install)
 CLOUD_RUN_ONLY = {'grok', 'grok_fast', 'grok4', 'deepseek'}
@@ -137,7 +137,7 @@ def _get_backend_module(backend):
         if backend == 'gemini':
             from utilities.llm_backends import gemini
             _BACKEND_MODULES[backend] = gemini
-        elif backend == 'groq':
+        elif backend in ('groq', 'groq-kimi', 'groq-qwen', 'groq-gptoss'):
             from utilities.llm_backends import groq as groq_backend
             _BACKEND_MODULES[backend] = groq_backend
         elif backend == 'cerebras':
@@ -164,6 +164,12 @@ def _get_backend_module(backend):
         elif backend in ('haiku', 'sonnet', 'opus'):
             from utilities.llm_backends import claude
             _BACKEND_MODULES[backend] = claude
+        elif backend == 'nvidia':
+            from utilities.llm_backends import nvidia
+            _BACKEND_MODULES[backend] = nvidia
+        elif backend == 'llm7':
+            from utilities.llm_backends import llm7
+            _BACKEND_MODULES[backend] = llm7
         elif backend == 'local':
             from utilities.llm_backends import rog_gateway
             _BACKEND_MODULES[backend] = rog_gateway
@@ -227,7 +233,11 @@ def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
 
             # Route to correct backend with model-specific params
             # (result validated after the call below)
-            if b == 'grok':
+            if b in ('groq-kimi', 'groq-qwen', 'groq-gptoss'):
+                from utilities.llm_backends.groq import GROQ_MODELS
+                result = module.chat(messages, max_tokens, temperature,
+                                     system=system, model=GROQ_MODELS[b])
+            elif b == 'grok':
                 result = module.chat(messages, max_tokens, temperature,
                                      system=system, model='grok-3-auto')
             elif b == 'grok_fast':
@@ -329,8 +339,12 @@ EVAL_BACKENDS = [
     'cerebras',      # primary — 100% success rate, fast, free, consistent
     'mistral',       # free fallback (99.7% success)
     'groq',          # free fallback (fast but flaky ~59%)
+    'groq-kimi',     # free fallback — kimi-k2 on Groq, 1K RPD
+    'groq-qwen',     # free fallback — qwen3-32b on Groq, 1K RPD
+    'llm7',          # free fallback — no key needed
     'together',      # free fallback
-    'gemini',        # free fallback (1500/day, low success)
+    'nvidia',        # free but lifetime credits — conserve
+    'gemini',        # free fallback (250/day, low success)
     'gpt4o_mini',    # cheap paid fallback
     'haiku',         # absolute last resort
 ]
@@ -358,6 +372,9 @@ def chat_eval(backend, prompt, system="Return ONLY a number 1-10."):
                 result = module.chat(messages, 10, 0.1, system=system, tier=b)
             elif b == 'gpt4o_mini':
                 result = module.chat(messages, 10, 0.1, system=system, model='gpt-4o-mini')
+            elif b in ('groq-kimi', 'groq-qwen', 'groq-gptoss'):
+                from utilities.llm_backends.groq import GROQ_MODELS
+                result = module.chat(messages, 10, 0.1, system=system, model=GROQ_MODELS[b])
             else:
                 result = module.chat(messages, 10, 0.1, system=system)
 

@@ -16,15 +16,33 @@ logger = logging.getLogger(__name__)
 # When a backend hits its cap, skip it till midnight UTC. No retries, no waste.
 BACKEND_INFO = {
     'gemini': {
-        'daily_limit': 1400,       # 1500 req/day free, leave 100 buffer
+        'daily_limit': 230,        # 250 req/day for Flash (cut Dec 2025), 10 RPM
         'cost_per_1k_tokens': 0.0,
-        'notes': 'Gemini 2.5 Flash free tier: 1500 req/day',
+        'notes': 'Gemini 2.5 Flash free tier: 250 req/day (slashed Dec 2025)',
         'tier': 'free',
     },
     'groq': {
-        'daily_limit': 14000,      # 14400 req/day free, 30 RPM
+        'daily_limit': 900,        # 1K RPD per model, 30 RPM, 100K tok/day
         'cost_per_1k_tokens': 0.0,
-        'notes': 'Groq: Llama 3.3 70B, 14400 req/day free',
+        'notes': 'Groq: Llama 3.3 70B, 1K RPD free',
+        'tier': 'free',
+    },
+    'groq-kimi': {
+        'daily_limit': 900,        # 1K RPD, 60 RPM, 300K tok/day
+        'cost_per_1k_tokens': 0.0,
+        'notes': 'Groq: Kimi K2 Instruct, 1K RPD free',
+        'tier': 'free',
+    },
+    'groq-qwen': {
+        'daily_limit': 900,        # 1K RPD, 60 RPM, 500K tok/day
+        'cost_per_1k_tokens': 0.0,
+        'notes': 'Groq: Qwen3 32B, 1K RPD free',
+        'tier': 'free',
+    },
+    'groq-gptoss': {
+        'daily_limit': 900,        # 1K RPD, 30 RPM, 200K tok/day
+        'cost_per_1k_tokens': 0.0,
+        'notes': 'Groq: GPT-OSS 120B, 1K RPD free',
         'tier': 'free',
     },
     'cerebras': {
@@ -40,9 +58,21 @@ BACKEND_INFO = {
         'tier': 'free',
     },
     'mistral': {
-        'daily_limit': 4500,       # ~5000 req/day free tier
+        'daily_limit': 2800,       # 2 RPM = ~2,880/day, 1B tok/month
         'cost_per_1k_tokens': 0.0,
-        'notes': 'Mistral Small: generous free tier',
+        'notes': 'Mistral Small: 2 RPM, 1B tok/month',
+        'tier': 'free',
+    },
+    'nvidia': {
+        'daily_limit': 500,        # 5K LIFETIME credits, 40 RPM — conserve!
+        'cost_per_1k_tokens': 0.0,
+        'notes': 'NVIDIA NIM: Llama 3.3 70B, 5K lifetime credits',
+        'tier': 'free',
+    },
+    'llm7': {
+        'daily_limit': 500,        # No documented daily cap, no key needed, 30 RPM
+        'cost_per_1k_tokens': 0.0,
+        'notes': 'LLM7.io: DeepSeek R1, no API key, 30 RPM',
         'tier': 'free',
     },
     'openrouter': {
