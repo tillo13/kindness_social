@@ -342,7 +342,7 @@ EVAL_BACKENDS = [
     'groq-kimi',     # free fallback — kimi-k2 on Groq, 1K RPD
     'groq-qwen',     # free fallback — qwen3-32b on Groq, 1K RPD
     'llm7',          # free fallback — no key needed
-    'together',      # free fallback
+    # together removed — $100 signup credits exhausted, 401 Unauthorized
     'nvidia',        # free but lifetime credits — conserve
     'gemini',        # free fallback (250/day, low success)
     'gpt4o_mini',    # cheap paid fallback
