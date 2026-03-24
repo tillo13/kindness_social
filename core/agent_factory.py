@@ -56,31 +56,41 @@ PERSONALITY_WEIGHTS = [0.25, 0.50, 0.25]
 # Only backends that are confirmed working get agents assigned
 # Others stay in the router for fallback but don't get new agents
 AVAILABLE_BACKENDS = [
-    'groq',       # Llama 3.3 70B — 14400 req/day free, FAST
-    'cerebras',   # Llama 3.1 8B — 1M tokens/day free, FASTEST
-    'mistral',    # Mistral Small — 500K tokens/min free
-    'gpt4o_mini', # GPT-4o Mini — $5 free credits
-    'haiku',      # Claude Haiku 4.5 — Max plan
-    'sonnet',     # Claude Sonnet 4.5 — Max plan
+    'groq',         # Llama 3.3 70B — 1K RPD, 30 RPM
+    'groq-kimi',    # Kimi K2 on Groq — 1K RPD, 60 RPM
+    'groq-qwen',    # Qwen3 32B on Groq — 1K RPD, 60 RPM
+    'groq-gptoss',  # GPT-OSS 120B on Groq — 1K RPD, 30 RPM
+    'cerebras',     # Llama 3.1 8B — 1M tokens/day free, FASTEST
+    'mistral',      # Mistral Small — 2 RPM, 1B tok/month
+    'nvidia',       # NVIDIA NIM Llama 70B — 5K lifetime credits, 40 RPM
+    'llm7',         # LLM7.io DeepSeek R1 — no key needed, 30 RPM
+    'gpt4o_mini',   # GPT-4o Mini — $5 free credits
+    'haiku',        # Claude Haiku 4.5 — Max plan
+    'sonnet',       # Claude Sonnet 4.5 — Max plan
 ]
 # Cloud Run / local only: grok (native deps), deepseek (native deps)
 # Broken/unreliable: gemini(429 quota), together(401 needs deposit), openrouter(empty responses)
 
 # Structured naming: provider.model_short.NNN
 BACKEND_NAMING = {
-    'gemini':     ('google', 'flash-2.0'),
-    'groq':       ('groq', 'llama70b'),
-    'cerebras':   ('cerebras', 'llama70b'),
-    'together':   ('together', 'llama70b'),
-    'openrouter': ('openrouter', 'llama8b'),
-    'grok':       ('xai', 'grok3'),
-    'deepseek':   ('deepseek', 'chat-v3'),
-    'gpt4o_mini': ('openai', 'gpt4o-mini'),
-    'gpt4o':      ('openai', 'gpt4o'),
-    'haiku':      ('anthropic', 'haiku'),
-    'sonnet':     ('anthropic', 'sonnet'),
-    'opus':       ('anthropic', 'opus'),
-    'local':      ('local', 'lmstudio'),
+    'gemini':       ('google', 'flash-2.0'),
+    'groq':         ('groq', 'llama70b'),
+    'groq-kimi':    ('groq', 'kimi-k2'),
+    'groq-qwen':    ('groq', 'qwen3-32b'),
+    'groq-gptoss':  ('groq', 'gptoss-120b'),
+    'cerebras':     ('cerebras', 'llama70b'),
+    'together':     ('together', 'llama70b'),
+    'openrouter':   ('openrouter', 'llama8b'),
+    'nvidia':       ('nvidia', 'llama70b'),
+    'llm7':         ('llm7', 'deepseek-r1'),
+    'grok':         ('xai', 'grok3'),
+    'deepseek':     ('deepseek', 'chat-v3'),
+    'gpt4o_mini':   ('openai', 'gpt4o-mini'),
+    'gpt4o':        ('openai', 'gpt4o'),
+    'haiku':        ('anthropic', 'haiku'),
+    'sonnet':       ('anthropic', 'sonnet'),
+    'opus':         ('anthropic', 'opus'),
+    'local':        ('local', 'lmstudio'),
 }
 
 
