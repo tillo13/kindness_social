@@ -15,7 +15,8 @@ logger = logging.getLogger(__name__)
 # grok/deepseek need native deps (Cloud Run / local only, not App Engine)
 # gemini has tight per-minute quota, put it later
 # openrouter free models are flaky, put it last
-FALLBACK_ORDER = ['groq', 'groq-kimi', 'groq-qwen', 'groq-gptoss', 'cerebras', 'mistral', 'llm7', 'nvidia', 'gpt4o_mini', 'haiku', 'sonnet', 'gemini', 'openrouter', 'gpt4o', 'opus']
+FALLBACK_ORDER = ['groq', 'groq-kimi', 'groq-qwen', 'groq-gptoss', 'cerebras', 'mistral', 'llm7', 'nvidia', 'gemini', 'openrouter', 'haiku']
+# haiku is the ONLY paid fallback allowed — sonnet/opus/gpt4o never as fallback
 
 # These only work on Cloud Run / locally (need native deps that App Engine can't install)
 CLOUD_RUN_ONLY = {'grok', 'grok_fast', 'grok4', 'deepseek'}
@@ -342,11 +343,11 @@ EVAL_BACKENDS = [
     'groq-kimi',     # free fallback — kimi-k2 on Groq, 1K RPD
     'groq-qwen',     # free fallback — qwen3-32b on Groq, 1K RPD
     'llm7',          # free fallback — no key needed
-    # together removed — $100 signup credits exhausted, 401 Unauthorized
     'nvidia',        # free but lifetime credits — conserve
     'gemini',        # free fallback (250/day, low success)
-    'gpt4o_mini',    # cheap paid fallback
-    'haiku',         # absolute last resort
+    'haiku',         # absolute last resort — only paid backend allowed
+    # gpt4o_mini removed — no reason to pay OpenAI when haiku is cheaper
+    # sonnet/opus NEVER here — way too expensive for eval scoring
 ]
 
 

@@ -64,9 +64,8 @@ AVAILABLE_BACKENDS = [
     'mistral',      # Mistral Small — 2 RPM, 1B tok/month
     'nvidia',       # NVIDIA NIM Llama 70B — 5K lifetime credits, 40 RPM
     'llm7',         # LLM7.io DeepSeek R1 — no key needed, 30 RPM
-    'gpt4o_mini',   # GPT-4o Mini — $5 free credits
-    'haiku',        # Claude Haiku 4.5 — Max plan
-    'sonnet',       # Claude Sonnet 4.5 — Max plan
+    # NEVER assign paid backends to agents — free only!
+    # gpt4o_mini, haiku, sonnet, opus are router fallbacks only
 ]
 # Cloud Run / local only: grok (native deps), deepseek (native deps)
 # Broken/unreliable: gemini(429 quota), together(401 needs deposit), openrouter(empty responses)

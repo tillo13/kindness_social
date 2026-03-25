@@ -669,7 +669,7 @@ def api_create_agent():
 
     PROVIDER_TO_BACKEND = {
         'groq': 'groq', 'cerebras': 'cerebras', 'mistral': 'mistral',
-        'openai': 'gpt4o_mini', 'anthropic': 'haiku', 'google': 'gemini',
+        'openai': 'groq', 'anthropic': 'cerebras', 'google': 'gemini',
         'openrouter': 'openrouter', 'xai': 'grok', 'deepseek': 'deepseek',
     }
     backend = PROVIDER_TO_BACKEND.get(provider, 'groq')
