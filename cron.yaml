@@ -56,3 +56,10 @@ cron:
   url: /api/cron/daily-digest
   schedule: every day 07:00
   timezone: America/Los_Angeles
+
+- description: "Backfill missing agent avatars (self-healing)"
+  url: /api/cron/backfill-avatars
+  schedule: every 6 hours
+  retry_parameters:
+    min_backoff_seconds: 60
+    max_doublings: 2

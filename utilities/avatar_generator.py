@@ -235,3 +235,55 @@ def generate_all_avatars(agents, force=False):
         if result:
             count += 1
     return count
+
+
+def backfill_missing_avatars(max_per_run=10):
+    """
+    Find active agents with no avatar (local or GCS) and generate them.
+    Called by cron to self-heal after generation failures.
+    Returns dict with counts.
+    """
+    from utilities.postgres_utils import get_db_connection
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT agent_id, current_toxicity, current_empathy, humor, patience,
+               curiosity, defensiveness, agreeableness, gender_presentation,
+               age_bracket, authority_level, color_hex
+        FROM kindness_agents WHERE is_active = true
+    """)
+    rows = cur.fetchall()
+    cols = [d[0] for d in cur.description]
+    conn.close()
+
+    missing = []
+    for row in rows:
+        agent = dict(zip(cols, row))
+        aid = agent['agent_id']
+        # Check local
+        if os.path.exists(get_avatar_path(aid)):
+            continue
+        # Check GCS — quick HEAD request
+        try:
+            resp = requests.head(f"{GCS_PUBLIC_URL}/{aid}.jpg", timeout=5)
+            if resp.status_code == 200:
+                continue
+        except Exception:
+            pass
+        missing.append(agent)
+
+    if not missing:
+        return {'missing': 0, 'generated': 0, 'failed': 0}
+
+    generated = 0
+    failed = 0
+    for agent in missing[:max_per_run]:
+        result = generate_avatar(agent)
+        if result:
+            generated += 1
+        else:
+            failed += 1
+
+    logger.info(f"Avatar backfill: {len(missing)} missing, {generated} generated, {failed} failed (cap {max_per_run})")
+    return {'missing': len(missing), 'generated': generated, 'failed': failed}

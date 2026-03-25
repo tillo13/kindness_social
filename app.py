@@ -620,6 +620,31 @@ def cron_daily_digest():
         return jsonify({'error': str(e)[:200]}), 500
 
 
+@app.route('/api/cron/backfill-avatars')
+def cron_backfill_avatars():
+    """Cron: Generate avatars for agents that are missing them."""
+    if not is_cron_request():
+        return "Forbidden", 403
+
+    import time
+    from utilities.avatar_generator import backfill_missing_avatars
+    log_id = db_ops.log_cron_start('backfill-avatars')
+    start = time.time()
+
+    try:
+        result = backfill_missing_avatars(max_per_run=10)
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'ok', ms,
+                            f"{result['generated']} generated, {result['missing']} still missing",
+                            result)
+        return jsonify(result)
+    except Exception as e:
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'error', ms, error_text=str(e)[:500])
+        logger.exception("Cron backfill-avatars failed")
+        return jsonify({'error': str(e)[:200]}), 500
+
+
 # ============================================================================
 # CHARACTER CREATOR — Public page for visitors to create custom agents
 # ============================================================================
