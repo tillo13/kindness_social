@@ -64,7 +64,9 @@ def _get_connection_pool():
             dbname=db_credentials['dbname'],
             user=db_credentials['user'],
             password=db_credentials['password'],
-            host=host
+            host=host,
+            connect_timeout=10,
+            options='-c statement_timeout=30000'
         )
         _connection_pools[GCP_PROJECT_ID] = pool
         logger.info("Created kindness connection pool")
