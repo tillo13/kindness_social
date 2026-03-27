@@ -13,11 +13,11 @@ logger = logging.getLogger(__name__)
 # --- API usage tracking ---
 APP_NAME = 'kindness_social'
 _PRICING = {
-    'haiku-4-5': {'input': 0.000001, 'output': 0.000005},
-    'sonnet-4': {'input': 0.000003, 'output': 0.000015},
-    'sonnet-4-5': {'input': 0.000003, 'output': 0.000015},
-    'opus-4-5': {'input': 0.000005, 'output': 0.000025},
-    'opus-4-6': {'input': 0.000005, 'output': 0.000025},
+    'haiku-4-5': {'input': 0.0000008, 'output': 0.000004},   # $0.80/$4 per million
+    'sonnet-4-5': {'input': 0.000003, 'output': 0.000015},   # $3/$15 per million
+    'sonnet-4': {'input': 0.000003, 'output': 0.000015},     # $3/$15 per million
+    'opus-4-6': {'input': 0.000015, 'output': 0.000075},     # $15/$75 per million
+    'opus-4-5': {'input': 0.000015, 'output': 0.000075},     # $15/$75 per million
 }
 
 def _get_pricing(model):
