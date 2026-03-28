@@ -31,7 +31,7 @@ DAILY_CAPS = {
     'groq-kimi': 900,            # kimi-k2-instruct: 1K RPD, 60 RPM, 300K tok/day
     'groq-qwen': 900,            # qwen3-32b: 1K RPD, 60 RPM, 500K tok/day
     'groq-gptoss': 900,          # gpt-oss-120b: 1K RPD, 30 RPM, 200K tok/day
-    'cerebras': 9500,            # 1M tokens/day free, 30 RPM
+    'cerebras': 2000,            # REDUCED 2026-03-28 — 90% of free tier exhausted, conserving for evals only (was 9500)
     'mistral': 2800,             # 2 RPM = ~2,880/day theoretical max, 1B tok/month
     'together': 900,             # ~$100 signup credits, not daily reset — will run out
     'gemini': 230,               # 250 req/day for Flash (cut Dec 2025), 10 RPM

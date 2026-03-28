@@ -46,9 +46,9 @@ BACKEND_INFO = {
         'tier': 'free',
     },
     'cerebras': {
-        'daily_limit': 9500,       # ~1M tokens/day free, ~950 calls at 1K avg
+        'daily_limit': 2000,       # REDUCED 2026-03-28 — 90% of free tier exhausted, conserving for evals only (was 9500)
         'cost_per_1k_tokens': 0.0,
-        'notes': 'Cerebras: Llama 3.1 8B, 1M tokens/day free',
+        'notes': 'Cerebras: Llama 3.1 8B, 1M tokens/day free — CONSERVATION MODE',
         'tier': 'free',
     },
     'together': {
@@ -284,3 +284,78 @@ def get_usage_summary() -> dict:
         'global_limit': GLOBAL_DAILY_LIMIT,
         'kill_switch': is_kill_switch_active(),
     }
+
+
+def get_cerebras_burn_rate():
+    """Query historical Cerebras usage from kumori_llm_daily_caps to calculate burn rate.
+
+    Returns daily breakdown, total calls, avg/day, and projected days until exhaustion.
+    Call from /api/admin/cerebras-burn or from CLI for monitoring.
+    """
+    try:
+        from utilities.postgres_utils import db_cursor
+
+        with db_cursor(dict_cursor=True) as cur:
+            cur.execute("""
+                SELECT usage_date, app_name, call_count
+                FROM kumori_llm_daily_caps
+                WHERE backend = 'cerebras'
+                ORDER BY usage_date DESC
+                LIMIT 90
+            """)
+            rows = cur.fetchall()
+
+        if not rows:
+            return {'error': 'No cerebras usage data found', 'days': []}
+
+        # Group by date
+        by_date = {}
+        for row in rows:
+            d = str(row['usage_date'])
+            if d not in by_date:
+                by_date[d] = {'total': 0, 'apps': {}}
+            by_date[d]['total'] += row['call_count']
+            by_date[d]['apps'][row['app_name']] = row['call_count']
+
+        dates_sorted = sorted(by_date.keys(), reverse=True)
+        daily_totals = [by_date[d]['total'] for d in dates_sorted]
+
+        total_calls = sum(daily_totals)
+        num_days = len(dates_sorted)
+        avg_per_day = round(total_calls / num_days, 1) if num_days else 0
+
+        # Estimate tokens (avg ~1K tokens per call for llama3.1-8b eval prompts)
+        est_tokens_per_call = 1000
+        est_total_tokens = total_calls * est_tokens_per_call
+
+        # Free tier: assume ~30M tokens/month (1M/day × 30 days)
+        # 90% used means ~27M consumed, ~3M remaining
+        est_remaining_tokens = 3_000_000  # conservative estimate based on 90% alert
+        est_remaining_calls = est_remaining_tokens // est_tokens_per_call
+        est_days_left = round(est_remaining_calls / avg_per_day, 1) if avg_per_day > 0 else float('inf')
+
+        return {
+            'status': 'CONSERVATION MODE — 90% of free tier exhausted',
+            'total_calls_tracked': total_calls,
+            'days_tracked': num_days,
+            'avg_calls_per_day': avg_per_day,
+            'est_tokens_per_call': est_tokens_per_call,
+            'est_total_tokens_used': est_total_tokens,
+            'est_remaining_tokens': est_remaining_tokens,
+            'est_remaining_calls': est_remaining_calls,
+            'est_days_left_at_current_rate': est_days_left,
+            'current_daily_cap': 2000,
+            'conservation_actions': [
+                'crab_travel cerebras cap set to 0',
+                'scatterbrain cerebras cap set to 0',
+                'kindness_social cap reduced from 9500 to 2000',
+            ],
+            'daily_breakdown': [
+                {'date': d, 'calls': by_date[d]['total'], 'apps': by_date[d]['apps']}
+                for d in dates_sorted[:30]  # last 30 days
+            ],
+        }
+
+    except Exception as e:
+        logger.error(f"Cerebras burn rate query failed: {e}")
+        return {'error': str(e)}

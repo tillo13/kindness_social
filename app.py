@@ -1076,6 +1076,15 @@ def admin_system_status():
     })
 
 
+@app.route('/api/admin/cerebras-burn')
+def admin_cerebras_burn():
+    """Cerebras token burn rate — historical usage, daily breakdown, projected exhaustion."""
+    if not is_admin_request():
+        return jsonify({'error': 'Forbidden'}), 403
+    from utilities.usage_limiter import get_cerebras_burn_rate
+    return jsonify(get_cerebras_burn_rate())
+
+
 # ── Legacy admin routes (kept for backwards compat) ──
 
 @app.route('/api/seed-data', methods=['POST'])
