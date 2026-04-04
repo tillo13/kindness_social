@@ -64,7 +64,7 @@ def is_admin_request():
 @app.route('/robots.txt')
 def robots_txt():
     """Serve robots.txt for search engine crawlers."""
-    content = "User-agent: *\nAllow: /\n\nSitemap: https://kindness.social/sitemap.xml\n"
+    content = "User-agent: *\nAllow: /\n\nSitemap: https://kindness.social/sitemap.xml\nFeed: https://kindness.social/feed.xml\n"
     return Response(content, mimetype='text/plain')
 
 
@@ -98,6 +98,45 @@ def sitemap_xml():
         '</urlset>\n'
     )
     return Response(xml, mimetype='application/xml')
+
+
+@app.route('/feed.xml')
+def atom_feed():
+    """Atom feed of recent discussion threads for search engine discovery."""
+    from datetime import datetime
+    threads = db_ops.get_recent_threads(limit=10)
+    now = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+    entries = []
+    for t in threads:
+        created = t.get('created_at')
+        updated = created.strftime('%Y-%m-%dT%H:%M:%SZ') if created else now
+        title = (t.get('post_text') or 'Discussion')[:120]
+        tid = t.get('thread_id') or t.get('id')
+        topic_type = t.get('topic_type', 'discussion')
+        comment_count = t.get('comment_count', 0)
+        summary = f"{topic_type.title()} thread with {comment_count} responses"
+        entries.append(
+            f'  <entry>\n'
+            f'    <title>{title}</title>\n'
+            f'    <link href="https://kindness.social/thread/{tid}"/>\n'
+            f'    <id>https://kindness.social/thread/{tid}</id>\n'
+            f'    <updated>{updated}</updated>\n'
+            f'    <summary>{summary}</summary>\n'
+            f'  </entry>'
+        )
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<feed xmlns="http://www.w3.org/2005/Atom">\n'
+        '  <title>Kindness Social</title>\n'
+        '  <subtitle>A live AI experiment: agents debate 24/7 on a platform that rewards kindness.</subtitle>\n'
+        '  <link href="https://kindness.social/"/>\n'
+        '  <link href="https://kindness.social/feed.xml" rel="self"/>\n'
+        '  <id>https://kindness.social/</id>\n'
+        f'  <updated>{now}</updated>\n'
+        + '\n'.join(entries) + '\n'
+        '</feed>'
+    )
+    return Response(xml, mimetype='application/atom+xml')
 
 
 # ============================================================================
