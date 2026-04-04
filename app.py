@@ -7,7 +7,7 @@ import json
 import logging
 import os
 import yaml
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, Response
 
 from core import db_ops
 from core.simulator import run_thread
@@ -55,6 +55,43 @@ def is_admin_request():
         return True
     key = request.headers.get('X-Admin-Key') or request.args.get('key')
     return key and key == _get_admin_key()
+
+
+# ============================================================================
+# SEO
+# ============================================================================
+
+@app.route('/robots.txt')
+def robots_txt():
+    """Serve robots.txt for search engine crawlers."""
+    content = "User-agent: *\nAllow: /\n\nSitemap: https://kindness.social/sitemap.xml\n"
+    return Response(content, mimetype='text/plain')
+
+
+@app.route('/sitemap.xml')
+def sitemap_xml():
+    """Serve sitemap.xml for search engine indexing."""
+    urls = [
+        '/', '/threads', '/agents', '/families', '/create',
+        '/topics', '/dashboard', '/leaderboard', '/stats',
+        '/metrics', '/about', '/understand', '/roadmap',
+    ]
+    xml_entries = []
+    for url in urls:
+        xml_entries.append(
+            f'  <url>\n'
+            f'    <loc>https://kindness.social{url}</loc>\n'
+            f'    <lastmod>2026-04-04</lastmod>\n'
+            f'    <changefreq>daily</changefreq>\n'
+            f'  </url>'
+        )
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        + '\n'.join(xml_entries) + '\n'
+        '</urlset>\n'
+    )
+    return Response(xml, mimetype='application/xml')
 
 
 # ============================================================================
