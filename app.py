@@ -68,6 +68,12 @@ def robots_txt():
     return Response(content, mimetype='text/plain')
 
 
+@app.route('/b4c9ebbc8faa4d7b8b2b8104b6511fee.txt')
+def indexnow_key():
+    """Serve IndexNow verification key."""
+    return Response('b4c9ebbc8faa4d7b8b2b8104b6511fee', mimetype='text/plain')
+
+
 @app.route('/sitemap.xml')
 def sitemap_xml():
     """Serve sitemap.xml for search engine indexing."""
