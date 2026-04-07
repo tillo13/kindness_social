@@ -1090,6 +1090,28 @@ def admin_kick_metrics():
         return jsonify({'error': str(e)[:200]}), 500
 
 
+@app.route('/api/admin/kick-backfill-avatars', methods=['POST'])
+def admin_kick_backfill_avatars():
+    """Manually trigger avatar backfill (one-shot, large cap)."""
+    if not is_admin_request():
+        return jsonify({'error': 'Forbidden'}), 403
+    import time
+    from utilities.avatar_generator import backfill_missing_avatars
+    log_id = db_ops.log_cron_start('backfill-avatars')
+    start = time.time()
+    try:
+        result = backfill_missing_avatars(max_per_run=200)
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'ok', ms,
+                            f"{result['generated']} generated, {result['missing']} still missing (admin kick)",
+                            result)
+        return jsonify(result)
+    except Exception as e:
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'error', ms, error_text=str(e)[:500])
+        return jsonify({'error': str(e)[:200]}), 500
+
+
 @app.route('/api/admin/birth-agent', methods=['POST'])
 def admin_birth_agent():
     """Manually birth a new agent."""
