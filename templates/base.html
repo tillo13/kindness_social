@@ -31,6 +31,19 @@
           document.documentElement.classList.add('dark');
         }
       })();
+      // Defined in <head> so onerror handlers on <img> in body always have it
+      window.avatarFallback = function(img) {
+        var src = img.src;
+        var gcs = 'https://storage.googleapis.com/kindness-io-avatars/';
+        if (src.indexOf(gcs) === -1) {
+          var filename = src.split('/').pop();
+          img.src = gcs + filename;
+        } else {
+          img.style.display = 'none';
+          var next = img.nextElementSibling;
+          if (next) next.style.display = 'flex';
+        }
+      };
     </script>
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>

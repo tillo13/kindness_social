@@ -24,6 +24,16 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev-kindness-key')
 
+# Auto-run schema migrations on first import. create_tables() is idempotent
+# (CREATE TABLE IF NOT EXISTS + ALTER TABLE ADD COLUMN IF NOT EXISTS) so it's
+# safe on every cold start. Without this, ALTER migrations sit in code but
+# never reach the live DB until someone manually hits /api/seed-data.
+try:
+    db_ops.create_tables()
+    logger.info("Schema migrations applied on startup")
+except Exception as _e:
+    logger.exception(f"Startup schema migration failed: {_e}")
+
 GCP_PROJECT_ID = 'kumori-404602'
 
 
