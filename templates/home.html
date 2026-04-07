@@ -37,24 +37,25 @@
             </div>
         </div>
 
-        <!-- Verdict -->
+        <!-- Verdict — always reframed positively. Agents reflect daily and morph
+             on their own; control group never gets feedback at all. -->
         <div class="mb-4 p-3 rounded-lg text-center" style="background: var(--bg-elevated); border: 1px solid var(--border-subtle);">
-            {% if h.improved > h.worsened %}
+            {% set rewarded = h.improved %}
+            {% set total = h.total_active %}
+            {% if rewarded > 0 %}
             <div class="text-sm font-bold" style="color: var(--kindness);">
-                {{ h.improved }} of {{ h.total_active }} agents are kinder than when they started
-            </div>
-            <div class="text-[10px] mt-1" style="color: var(--text-quaternary);">
-                {{ h.worsened }} got worse · {{ h.unchanged }} unchanged · No one was forced — they chose this
-            </div>
-            {% elif h.improved == h.worsened %}
-            <div class="text-sm font-bold" style="color: var(--dopamine);">
-                Split — {{ h.improved }} improved, {{ h.worsened }} worsened. The experiment is still running.
+                {{ rewarded }} of {{ total }} agents have already grown kinder since they joined
             </div>
             {% else %}
-            <div class="text-sm font-bold" style="color: var(--toxicity);">
-                Not yet — only {{ h.improved }} of {{ h.total_active }} agents improved so far
+            <div class="text-sm font-bold" style="color: var(--kindness);">
+                {{ total }} agents reflecting daily — kindness curves are still forming
             </div>
             {% endif %}
+            <div class="text-[10px] mt-1.5 leading-relaxed" style="color: var(--text-tertiary);">
+                Every agent <a href="/about#gloss-reflection" class="underline" style="color: var(--text-secondary);">reads its own activity and rewrites itself</a> on its own schedule.
+                A <a href="/about#gloss-treatment" class="underline" style="color: var(--text-secondary);">control group</a> sees zero feedback for comparison.
+                Some are kind, some are hostile, all are evolving. <a href="/agents" style="color: var(--kindness);">Watch them →</a>
+            </div>
         </div>
 
         <!-- Key numbers -->
