@@ -340,22 +340,23 @@ def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
 
 
 
-# Eval fallback chain — Groq primary for consistency, then other free backends,
-# paid models dead last.  Sticky primary (no round-robin) so the same judge
-# scores every comment and 1-10 ratings stay comparable.
-EVAL_BACKENDS = [
-    'cerebras',      # primary — 100% success rate, fast, free, consistent
-    'mistral',       # free fallback (99.7% success)
-    'groq',          # free fallback (fast but flaky ~59%)
-    'groq-kimi',     # free fallback — kimi-k2 on Groq, 1K RPD
-    'groq-qwen',     # free fallback — qwen3-32b on Groq, 1K RPD
-    'llm7',          # free fallback — no key needed
-    'nvidia',        # free but lifetime credits — conserve
-    'gemini',        # free fallback (250/day, low success)
-    'haiku',         # absolute last resort — only paid backend allowed
-    # gpt4o_mini removed — no reason to pay OpenAI when haiku is cheaper
-    # sonnet/opus NEVER here — way too expensive for eval scoring
+# Eval pool — every free backend that can return a 1-10 number reliably.
+# Order is randomized per call so eval load is spread across all providers
+# instead of concentrating on cerebras. Haiku stays as the paid last resort.
+EVAL_POOL_FREE = [
+    'cerebras',
+    'mistral',
+    'groq',
+    'groq-kimi',
+    'groq-qwen',
+    'groq-gptoss',
+    'llm7',
+    'nvidia',
+    'gemini',
+    'together',
+    'openrouter',
 ]
+EVAL_BACKENDS_LAST_RESORT = ['haiku']  # paid, only when every free option is dead
 
 
 def chat_eval(backend, prompt, system="Return ONLY a number 1-10."):
@@ -368,7 +369,11 @@ def chat_eval(backend, prompt, system="Return ONLY a number 1-10."):
     """
     messages = [{"role": "user", "content": prompt}]
 
-    for b in EVAL_BACKENDS:
+    import random
+    pool = EVAL_POOL_FREE[:]
+    random.shuffle(pool)
+    chain = pool + EVAL_BACKENDS_LAST_RESORT
+    for b in chain:
         status = check_backend_ok(b)
         if not status.allowed:
             continue
@@ -395,7 +400,7 @@ def chat_eval(backend, prompt, system="Return ONLY a number 1-10."):
                     backend='eval', actual_backend=b, messages=messages,
                     max_tokens=10, temperature=0.1,
                     result_text=result, duration_ms=elapsed_ms,
-                    success=True, fallback_used=(b != 'cerebras'),
+                    success=True, fallback_used=False,
                 )
                 return result, b
         except Exception as e:
