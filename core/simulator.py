@@ -64,14 +64,14 @@ def run_thread(config=None):
     total_agents = db_ops.get_active_agent_count()
     # Weighted random: most threads are small (3-6), some medium (7-10), few big (11-15)
     roll = random.random()
-    if roll < 0.45:
-        num = random.randint(3, 6)      # 45% small threads
-    elif roll < 0.80:
-        num = random.randint(7, 10)     # 35% medium threads
-    elif roll < 0.95:
-        num = random.randint(11, 15)    # 15% large threads
+    if roll < 0.30:
+        num = random.randint(5, 10)     # 30% small threads
+    elif roll < 0.65:
+        num = random.randint(11, 20)    # 35% medium threads
+    elif roll < 0.90:
+        num = random.randint(21, 35)    # 25% large threads
     else:
-        num = random.randint(16, min(25, max(16, total_agents // 5)))  # 5% viral threads
+        num = random.randint(36, min(60, max(36, total_agents // 5)))  # 10% viral threads
     num = min(num, total_agents)  # can't exceed available agents
     participants = db_ops.get_active_agents(limit=num)
     if len(participants) < 2:

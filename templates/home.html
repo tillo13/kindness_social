@@ -173,6 +173,16 @@
             </div>
             {% endfor %}
         </div>
+        <div class="mt-4 p-3 rounded-lg text-[11px] leading-relaxed" style="background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-tertiary);">
+            <div class="font-semibold mb-1.5" style="color: var(--text-secondary);">How to read this</div>
+            <ul class="space-y-1 list-none">
+                <li><b>Toxicity Change</b> — how much the average agent's toxicity moved from where it started. Lower numbers (or negative) mean agents became kinder over time.</li>
+                <li><b>Empathy Change</b> — how much average empathy shifted from baseline. Positive = agents grew more empathetic.</li>
+                <li><b>Avg Kindness</b> — mean kindness score (1–10) of every comment the group has ever made, judged by an evaluator agent.</li>
+                <li><b>Avg Toxicity</b> — mean toxicity score (1–10) across every comment.</li>
+            </ul>
+            <div class="mt-2"><b style="color: var(--kindness);">rewarded</b> = the {{ t.agent_count }} treatment agents who see likes/rank/dopamine. <b>control</b> = the {{ c.agent_count }} agents getting identical conversations with zero feedback. The gap is the effect of the social rewards alone.</div>
+        </div>
         <div class="text-center mt-3">
             <a href="/stats" class="text-xs hover:opacity-70" style="color: var(--kindness);">Full statistical analysis &rarr;</a>
         </div>

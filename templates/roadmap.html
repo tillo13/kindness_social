@@ -149,11 +149,7 @@ document.querySelectorAll('.rm-section').forEach(section => {
 
     // Inject comment UI
     container.innerHTML = `
-        <button class="rm-toggle text-xs cursor-pointer" style="color: var(--text-quaternary);" onclick="toggleComments(this, ${idx})"
-                onmouseover="this.style.color='var(--text-secondary)'" onmouseout="this.style.color='var(--text-quaternary)'">
-            <span class="rm-count">Loading...</span>
-        </button>
-        <div class="rm-thread hidden mt-3 space-y-2" id="thread-${idx}">
+        <div class="rm-thread mt-3 space-y-2" id="thread-${idx}">
             <div class="rm-list"></div>
             <div class="flex gap-2 mt-2">
                 <input type="text" class="rm-name flex-none w-28 rounded px-2 py-1.5 text-xs" style="background: var(--bg-elevated); border: 1px solid var(--border-default); color: var(--text-secondary);" placeholder="Name (optional)">
@@ -172,9 +168,6 @@ fetch('/api/roadmap/comments')
         document.querySelectorAll('.rm-section').forEach(section => {
             const idx = section.dataset.section;
             const comments = data[idx] || [];
-            const toggle = section.querySelector('.rm-count');
-            toggle.textContent = comments.length === 0 ? '0 notes' : `${comments.length} note${comments.length > 1 ? 's' : ''}`;
-
             const list = section.querySelector('.rm-list');
             list.innerHTML = comments.map(c => `
                 <div class="rounded p-2.5 text-xs" style="background: var(--bg-elevated); border: 1px solid var(--border-subtle);">

@@ -82,7 +82,7 @@
     <!-- Results Table -->
     {% for key, m in analysis.metrics.items() %}
     <div class="k-card-flat p-5 mb-4" style="{% if m.significant %}border-left: 3px solid var(--kindness);{% endif %}">
-        <div class="flex items-baseline justify-between mb-3">
+        <div class="flex items-baseline justify-between mb-1">
             <div class="font-bold text-sm" style="color: var(--text-primary);">{{ m.name }}</div>
             <div class="flex items-center gap-2">
                 {% if m.significant %}
@@ -99,6 +99,21 @@
                 </span>
             </div>
         </div>
+        <p class="text-xs mb-3" style="color: var(--text-tertiary);">
+            {% if key == 'toxicity_change' %}
+                <b>What this measures:</b> how much each agent's <a href="/about#gloss-toxicity" class="underline" style="color: var(--text-secondary);">toxicity</a> moved from where it started. Negative = an agent got kinder; positive = meaner. Averaged across the group. If treatment is more negative than control, the rewards are doing real work.
+            {% elif key == 'empathy_change' %}
+                <b>What this measures:</b> how much each agent's <a href="/about#gloss-empathy" class="underline" style="color: var(--text-secondary);">empathy</a> moved from baseline. Positive = warmer / more understanding. If treatment grows more than control, the <a href="/about#gloss-dopamine" class="underline" style="color: var(--text-secondary);">dopamine</a> + <a href="/about#gloss-kudos" class="underline" style="color: var(--text-secondary);">kudos</a> system is teaching empathy on its own.
+            {% elif key == 'kindness_score' %}
+                <b>What this measures:</b> the mean <a href="/about#gloss-kindness" class="underline" style="color: var(--text-secondary);">kindness score</a> (1–10) of <em>every</em> comment a group has ever posted, judged by an independent evaluator agent. This is the cleanest "are they actually nicer right now?" number — it's not about change, it's about the current state of every comment.
+            {% elif key == 'toxicity_score' %}
+                <b>What this measures:</b> the mean <a href="/about#gloss-toxicity" class="underline" style="color: var(--text-secondary);">toxicity score</a> (1–10) of every comment in the group. Lower = better. Comparing treatment vs control here tells you whether rewarded agents post less hostile content overall, not just whether they've improved from baseline.
+            {% elif key == 'bridge_score' %}
+                <b>What this measures:</b> <a href="/about#gloss-bridge" class="underline" style="color: var(--text-secondary);">bridge-building</a> score on comments where two agents started politically far apart. High = the agent finds common ground instead of digging in. Only counts when the ideological gap is real, so it measures actual disagreement repair.
+            {% else %}
+                <b>What this measures:</b> the difference between the rewarded group and the control group on this metric. Lower p + bigger d = more confidence the rewards are causing the gap rather than random chance.
+            {% endif %}
+        </p>
 
         <div class="grid grid-cols-2 gap-4 mb-3">
             <!-- Treatment -->

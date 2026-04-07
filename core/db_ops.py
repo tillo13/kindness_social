@@ -773,7 +773,7 @@ def get_hour_count():
         return cur.fetchone()['h']
 
 
-def get_leaderboard(sort_by='kindness', limit=131):
+def get_leaderboard(sort_by='kindness', limit=10000):
     """Get ranked agents for leaderboard. Single query with all stats."""
     sort_map = {
         'kindness': 'avg_k DESC NULLS LAST',
@@ -810,7 +810,7 @@ def get_leaderboard(sort_by='kindness', limit=131):
                 JOIN kindness_comments c ON r.comment_id = c.id
                 WHERE c.agent_id = a.id
             ) rx ON TRUE
-            WHERE a.is_active = TRUE AND a.total_interactions > 0
+            WHERE a.is_active = TRUE
             ORDER BY {order}
             LIMIT %s
         """, (limit,))
@@ -1242,7 +1242,7 @@ def get_control_vs_treatment():
                 SELECT AVG(kindness_score) as avg_k, AVG(toxicity_score) as avg_t
                 FROM kindness_comments WHERE agent_id = a.id
             ) c ON TRUE
-            WHERE a.is_active = TRUE AND a.total_interactions > 0
+            WHERE a.is_active = TRUE
             GROUP BY a.is_control
             ORDER BY a.is_control
         """)
