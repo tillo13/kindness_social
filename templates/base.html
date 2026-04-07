@@ -269,7 +269,7 @@
 
     /* ── Dropdown toggle + close on click outside ── */
     function updateChevrons() {
-        ['agents', 'data', 'about'].forEach(function(name) {
+        ['agents', 'topics', 'data', 'about'].forEach(function(name) {
             var menu = document.getElementById(name + '-menu');
             var dd = document.getElementById(name + '-dropdown');
             if (!menu || !dd) return;
@@ -281,7 +281,7 @@
         });
     }
     function toggleDropdown(menuId) {
-        var allMenus = ['agents-menu', 'data-menu', 'about-menu'];
+        var allMenus = ['agents-menu', 'topics-menu', 'data-menu', 'about-menu'];
         allMenus.forEach(function(id) {
             if (id !== menuId) document.getElementById(id)?.classList.add('hidden');
         });
@@ -290,7 +290,7 @@
     }
     document.addEventListener('click', function(e) {
         var closed = false;
-        ['agents-dropdown', 'data-dropdown', 'about-dropdown'].forEach(function(id) {
+        ['agents-dropdown', 'topics-dropdown', 'data-dropdown', 'about-dropdown'].forEach(function(id) {
             var dd = document.getElementById(id);
             if (dd && !dd.contains(e.target)) {
                 var menu = dd.querySelector('[id$="-menu"]');

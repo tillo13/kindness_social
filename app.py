@@ -34,6 +34,14 @@ try:
 except Exception as _e:
     logger.exception(f"Startup schema migration failed: {_e}")
 
+# Jinja helper: pick the right avatar URL up front (local for committed
+# seed agents, GCS for everything created at runtime). Avoids 404 noise from
+# pointing every <img> at /static/ first and only finding out it's missing.
+def _avatar_url(agent_id):
+    from utilities.avatar_generator import get_avatar_url
+    return get_avatar_url(agent_id)
+app.jinja_env.globals['avatar_url'] = _avatar_url
+
 GCP_PROJECT_ID = 'kumori-404602'
 
 

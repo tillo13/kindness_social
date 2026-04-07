@@ -204,7 +204,7 @@
             {% for a in top_kind[:5] %}
             <a href="/agent/{{ a.agent_id }}" class="flex items-center gap-2 py-1.5 hover:opacity-80">
                 <span class="w-4 text-[10px] font-mono text-right" style="color: var(--text-quaternary);">{{ loop.index }}</span>
-                <img src="/static/images/avatars/{{ a.agent_id }}.jpg" class="w-5 h-5 rounded-full object-cover" style="border: 1px solid {{ a.color_hex or '#888' }}40;" onerror="avatarFallback(this)">
+                <img src="{{ avatar_url(a.agent_id) }}" class="w-5 h-5 rounded-full object-cover" style="border: 1px solid {{ a.color_hex or '#888' }}40;" onerror="avatarFallback(this)">
                 <span class="font-mono text-xs truncate flex-1" style="color: {{ a.color_hex or 'var(--text-secondary)' }};">{{ a.display_name }}</span>
                 <span class="font-mono text-[10px]" style="color: var(--kindness);">{{ "%.1f"|format(a.avg_kindness) }}</span>
             </a>
@@ -215,7 +215,7 @@
             {% for a in top_dopamine[:5] %}
             <a href="/agent/{{ a.agent_id }}" class="flex items-center gap-2 py-1.5 hover:opacity-80">
                 <span class="w-4 text-[10px] font-mono text-right" style="color: var(--text-quaternary);">{{ loop.index }}</span>
-                <img src="/static/images/avatars/{{ a.agent_id }}.jpg" class="w-5 h-5 rounded-full object-cover" style="border: 1px solid {{ a.color_hex or '#888' }}40;" onerror="avatarFallback(this)">
+                <img src="{{ avatar_url(a.agent_id) }}" class="w-5 h-5 rounded-full object-cover" style="border: 1px solid {{ a.color_hex or '#888' }}40;" onerror="avatarFallback(this)">
                 <span class="font-mono text-xs truncate flex-1" style="color: {{ a.color_hex or 'var(--text-secondary)' }};">{{ a.display_name }}</span>
                 <span class="font-mono text-[10px]" style="color: var(--dopamine);">{{ a.total_dopamine }}</span>
             </a>
@@ -226,7 +226,7 @@
             {% for a in top_improved[:5] %}
             <a href="/agent/{{ a.agent_id }}" class="flex items-center gap-2 py-1.5 hover:opacity-80">
                 <span class="w-4 text-[10px] font-mono text-right" style="color: var(--text-quaternary);">{{ loop.index }}</span>
-                <img src="/static/images/avatars/{{ a.agent_id }}.jpg" class="w-5 h-5 rounded-full object-cover" style="border: 1px solid {{ a.color_hex or '#888' }}40;" onerror="avatarFallback(this)">
+                <img src="{{ avatar_url(a.agent_id) }}" class="w-5 h-5 rounded-full object-cover" style="border: 1px solid {{ a.color_hex or '#888' }}40;" onerror="avatarFallback(this)">
                 <span class="font-mono text-xs truncate flex-1" style="color: {{ a.color_hex or 'var(--text-secondary)' }};">{{ a.display_name }}</span>
                 <span class="font-mono text-[10px]" style="color: var(--kindness);">-{{ "%.1f"|format(a.toxicity_change) }}</span>
             </a>

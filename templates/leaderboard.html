@@ -47,7 +47,7 @@
             </span>
 
             <!-- Avatar -->
-            <img src="/static/images/avatars/{{ a.agent_id }}.jpg"
+            <img src="{{ avatar_url(a.agent_id) }}"
                  class="w-8 h-8 rounded-full object-cover flex-shrink-0"
                  style="border: 1.5px solid {{ color }}40;"
                  onerror="avatarFallback(this)">

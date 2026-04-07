@@ -90,13 +90,27 @@ def avatar_exists(agent_id):
         return False
 
 
+_LOCAL_AVATAR_IDS = None
+def _local_avatar_ids():
+    """Memoize the set of agent_ids that ship with a committed local JPG.
+    On App Engine the static dir is read-only, so this set never changes
+    after process start — safe to compute once."""
+    global _LOCAL_AVATAR_IDS
+    if _LOCAL_AVATAR_IDS is None:
+        try:
+            _LOCAL_AVATAR_IDS = {
+                f[:-4] for f in os.listdir(AVATAR_DIR) if f.endswith('.jpg')
+            }
+        except OSError:
+            _LOCAL_AVATAR_IDS = set()
+    return _LOCAL_AVATAR_IDS
+
+
 def get_avatar_url(agent_id):
-    """Get the web URL for an agent's avatar. Checks local first, then GCS."""
-    # Local file (deployed with code)
-    path = get_avatar_path(agent_id)
-    if os.path.exists(path):
+    """Get the web URL for an agent's avatar. Returns local for committed
+    seed agents, GCS for everything else. No 404 round-trips."""
+    if agent_id in _local_avatar_ids():
         return f"/static/images/avatars/{agent_id}.jpg"
-    # GCS (runtime-generated)
     return f"{GCS_PUBLIC_URL}/{agent_id}.jpg"
 
 

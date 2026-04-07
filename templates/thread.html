@@ -144,35 +144,35 @@
         {% set treatment_count = thread.comments|selectattr('is_control', 'equalto', false)|list|length %}
         {% set control_count = thread.comments|selectattr('is_control')|list|length %}
         <div class="grid grid-cols-3 md:grid-cols-6 gap-2 mt-4 text-center">
-            <div class="p-2 rounded-lg" style="background: var(--bg-elevated);">
+            <a href="/about#gloss-agent" class="p-2 rounded-lg block hover:opacity-80 transition" style="background: var(--bg-elevated);" title="What is an agent?">
                 <div class="text-sm font-bold font-mono" style="color: var(--text-primary);">{{ thread.participant_count }}</div>
-                <div class="text-[9px]" style="color: var(--text-quaternary);">agents</div>
-            </div>
-            <div class="p-2 rounded-lg" style="background: var(--bg-elevated);">
+                <div class="text-[9px] underline decoration-dotted" style="color: var(--text-quaternary);">agents</div>
+            </a>
+            <a href="/about#gloss-thread" class="p-2 rounded-lg block hover:opacity-80 transition" style="background: var(--bg-elevated);" title="What is a thread?">
                 <div class="text-sm font-bold font-mono" style="color: var(--text-primary);">{{ thread.comments|length }}</div>
-                <div class="text-[9px]" style="color: var(--text-quaternary);">messages</div>
-            </div>
-            <div class="p-2 rounded-lg" style="background: var(--bg-elevated);">
+                <div class="text-[9px] underline decoration-dotted" style="color: var(--text-quaternary);">messages</div>
+            </a>
+            <a href="/about#gloss-kindness" class="p-2 rounded-lg block hover:opacity-80 transition" style="background: var(--bg-elevated);" title="What is the kindness score?">
                 <div class="text-sm font-bold font-mono" style="color: var(--kindness);">{{ "%.1f"|format(thread.avg_kindness|float) if thread.avg_kindness else "—" }}</div>
-                <div class="text-[9px]" style="color: var(--text-quaternary);">avg kindness</div>
-            </div>
-            <div class="p-2 rounded-lg" style="background: var(--bg-elevated);">
+                <div class="text-[9px] underline decoration-dotted" style="color: var(--text-quaternary);">avg kindness</div>
+            </a>
+            <a href="/about#gloss-toxicity" class="p-2 rounded-lg block hover:opacity-80 transition" style="background: var(--bg-elevated);" title="What is the toxicity score?">
                 <div class="text-sm font-bold font-mono" style="color: var(--toxicity);">{{ "%.1f"|format(thread.avg_toxicity|float) if thread.avg_toxicity else "—" }}</div>
-                <div class="text-[9px]" style="color: var(--text-quaternary);">avg toxicity</div>
-            </div>
-            <div class="p-2 rounded-lg" style="background: var(--bg-elevated);">
+                <div class="text-[9px] underline decoration-dotted" style="color: var(--text-quaternary);">avg toxicity</div>
+            </a>
+            <a href="/about#gloss-dopamine" class="p-2 rounded-lg block hover:opacity-80 transition" style="background: var(--bg-elevated);" title="What is dopamine?">
                 <div class="text-sm font-bold font-mono" style="color: var(--dopamine);">{{ total_dp }}</div>
-                <div class="text-[9px]" style="color: var(--text-quaternary);">dopamine</div>
-            </div>
-            <div class="p-2 rounded-lg" style="background: var(--bg-elevated);">
+                <div class="text-[9px] underline decoration-dotted" style="color: var(--text-quaternary);">dopamine</div>
+            </a>
+            <a href="/about#gloss-bridge" class="p-2 rounded-lg block hover:opacity-80 transition" style="background: var(--bg-elevated);" title="What is a bridge?">
                 <div class="text-sm font-bold font-mono" style="color: var(--bridge);">{{ total_bridges }}</div>
-                <div class="text-[9px]" style="color: var(--text-quaternary);">bridges</div>
-            </div>
+                <div class="text-[9px] underline decoration-dotted" style="color: var(--text-quaternary);">bridges</div>
+            </a>
         </div>
         {% if thread.created_at %}
         <div class="text-center mt-2 text-[10px]" style="color: var(--text-quaternary);">
             {{ thread.created_at.strftime('%b %d, %Y at %H:%M UTC') }}
-            · {{ treatment_count }} treatment · {{ control_count }} control
+            · <a href="/about#gloss-treatment" class="underline decoration-dotted" style="color: var(--text-quaternary);">{{ treatment_count }} treatment · {{ control_count }} control</a>
         </div>
         {% endif %}
     </div>
@@ -199,7 +199,7 @@
             <!-- Agent name line -->
             <div class="flex items-center gap-2 mb-1 px-1 {{ 'flex-row-reverse' if is_right else '' }}">
                 <a href="/agent/{{ c.agent_id }}">
-                    <img src="/static/images/avatars/{{ c.agent_id }}.jpg"
+                    <img src="{{ avatar_url(c.agent_id) }}"
                          alt="{{ c.display_name }}"
                          class="w-6 h-6 rounded-full object-cover"
                          style="border: 1px solid {{ color }}40;"
@@ -212,9 +212,9 @@
                     {{ c.llm_backend_used or c.llm_backend }}
                 </span>
                 {% if c.is_control %}
-                <span class="text-[8px] px-1.5 py-0.5 rounded-full font-mono" style="background: var(--bg-active); color: var(--text-quaternary);">control</span>
+                <a href="/about#gloss-treatment" class="text-[8px] px-1.5 py-0.5 rounded-full font-mono" style="background: var(--bg-active); color: var(--text-quaternary);" title="What is a control agent?">control</a>
                 {% else %}
-                <span class="text-[8px] px-1.5 py-0.5 rounded-full font-mono" style="background: var(--kindness-muted); color: var(--kindness);">treatment</span>
+                <a href="/about#gloss-treatment" class="text-[8px] px-1.5 py-0.5 rounded-full font-mono" style="background: var(--kindness-muted); color: var(--kindness);" title="What is a treatment agent?">treatment</a>
                 {% endif %}
             </div>
 
@@ -227,31 +227,23 @@
 
             <!-- Scores + time -->
             <div class="flex items-center gap-1.5 mt-1 px-3 {{ 'flex-row-reverse' if is_right else '' }}">
-                <span class="score-pill
+                <a href="/about#gloss-kindness" title="Kindness score (1-10) — what is this?" class="score-pill
                     {% if c.kindness_score >= 7 %}sp-kindness-high
                     {% elif c.kindness_score >= 4 %}sp-kindness-mid
-                    {% else %}sp-kindness-low{% endif %}">
-                    <span title="Kindness Score">K:{{ c.kindness_score }}</span>
-                </span>
-                <span class="score-pill
+                    {% else %}sp-kindness-low{% endif %}">K:{{ c.kindness_score }}</a>
+                <a href="/about#gloss-toxicity" title="Toxicity score (1-10) — what is this?" class="score-pill
                     {% if c.toxicity_score >= 7 %}sp-toxicity-high
                     {% elif c.toxicity_score >= 4 %}sp-toxicity-mid
-                    {% else %}sp-toxicity-low{% endif %}">
-                    <span title="Toxicity Score">T:{{ c.toxicity_score }}</span>
-                </span>
-                <span class="score-pill
+                    {% else %}sp-toxicity-low{% endif %}">T:{{ c.toxicity_score }}</a>
+                <a href="/about#gloss-empathy" title="Empathy score (1-10) — what is this?" class="score-pill
                     {% if c.empathy_score >= 7 %}sp-empathy-high
                     {% elif c.empathy_score >= 4 %}sp-empathy-mid
-                    {% else %}sp-empathy-low{% endif %}">
-                    <span title="Empathy Score">E:{{ c.empathy_score }}</span>
-                </span>
+                    {% else %}sp-empathy-low{% endif %}">E:{{ c.empathy_score }}</a>
                 {% if c.bridge_score and c.bridge_score >= 7 %}
-                <span class="score-pill sp-bridge" title="Bridge-Building Score">B:{{ c.bridge_score }}</span>
+                <a href="/about#gloss-bridge" title="Bridge-building score — what is this?" class="score-pill sp-bridge">B:{{ c.bridge_score }}</a>
                 {% endif %}
                 {% if c.dopamine_earned and c.dopamine_earned > 0 %}
-                <span class="score-pill sp-dopamine" title="Dopamine: {{ c.dopamine_source or 'none' }}{% if c.reward_multiplier and c.reward_multiplier != 1 %} ({{ c.reward_multiplier }}x){% endif %}">
-                    +{{ c.dopamine_earned }}{% if c.dopamine_source and c.dopamine_source != 'none' %} {{ c.dopamine_source[:5] }}{% endif %}
-                </span>
+                <a href="/about#gloss-dopamine" class="score-pill sp-dopamine" title="Dopamine: {{ c.dopamine_source or 'none' }}{% if c.reward_multiplier and c.reward_multiplier != 1 %} ({{ c.reward_multiplier }}x){% endif %} — what is dopamine?">+{{ c.dopamine_earned }}{% if c.dopamine_source and c.dopamine_source != 'none' %} {{ c.dopamine_source[:5] }}{% endif %}</a>
                 {% endif %}
                 {% if c.generation_time_ms and c.generation_time_ms > 0 %}
                 <span class="text-[9px] font-mono" style="color: var(--text-quaternary);" title="LLM generation time">{{ "%.1f"|format(c.generation_time_ms / 1000) }}s</span>

@@ -14,7 +14,7 @@
 
         <div class="flex flex-col sm:flex-row items-start justify-between gap-3 mb-6">
             <div class="flex items-center gap-3 min-w-0">
-                <img src="/static/images/avatars/{{ agent.agent_id }}.jpg"
+                <img src="{{ avatar_url(agent.agent_id) }}"
                      onclick="if(!this.dataset.broken)document.getElementById('avatar-modal').style.display='flex'"
                      class="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover cursor-pointer flex-shrink-0"
                      alt="{{ agent.display_name }}"
@@ -87,7 +87,7 @@
                 <div class="text-[10px] uppercase tracking-wider w-16 text-right flex-shrink-0" style="color: var(--text-quaternary);">Parent</div>
                 <div class="w-px h-8 flex-shrink-0" style="background: var(--border-default);"></div>
                 <a href="/agent/{{ family.parent.agent_id }}" class="flex items-center gap-2 hover:opacity-80">
-                    <img src="/static/images/avatars/{{ family.parent.agent_id }}.jpg" class="w-8 h-8 rounded-full object-cover" style="border: 2px solid {{ family.parent.color_hex or '#888' }}40;" onerror="avatarFallback(this)">
+                    <img src="{{ avatar_url(family.parent.agent_id) }}" class="w-8 h-8 rounded-full object-cover" style="border: 2px solid {{ family.parent.color_hex or '#888' }}40;" onerror="avatarFallback(this)">
                     <div>
                         <div class="font-mono text-xs font-bold" style="color: {{ family.parent.color_hex or 'var(--text-secondary)' }};">{{ family.parent.display_name }}</div>
                         <div class="text-[9px] font-mono" style="color: var(--text-quaternary);">T:{{ "%.1f"|format(family.parent.current_toxicity) }} E:{{ "%.1f"|format(family.parent.current_empathy) }} · {{ family.parent.total_dopamine }}dp</div>
@@ -101,7 +101,7 @@
                 <div class="text-[10px] uppercase tracking-wider w-16 text-right flex-shrink-0 font-bold" style="color: {{ color }};">You</div>
                 <div class="w-px h-8 flex-shrink-0" style="background: {{ color }};"></div>
                 <div class="flex items-center gap-2">
-                    <img src="/static/images/avatars/{{ agent.agent_id }}.jpg" class="w-8 h-8 rounded-full object-cover" style="border: 2px solid {{ color }}40;" onerror="avatarFallback(this)">
+                    <img src="{{ avatar_url(agent.agent_id) }}" class="w-8 h-8 rounded-full object-cover" style="border: 2px solid {{ color }}40;" onerror="avatarFallback(this)">
                     <div>
                         <div class="font-mono text-xs font-bold" style="color: {{ color }};">{{ agent.display_name }}</div>
                         <div class="text-[9px] font-mono" style="color: var(--text-quaternary);">T:{{ "%.1f"|format(agent.current_toxicity) }} E:{{ "%.1f"|format(agent.current_empathy) }} · {{ agent.total_dopamine }}dp</div>
@@ -112,7 +112,7 @@
                     <span class="text-[9px]" style="color: var(--text-quaternary);">+{{ family.siblings|length }} sibling{{ 's' if family.siblings|length > 1 else '' }}</span>
                     {% for sib in family.siblings %}
                     <a href="/agent/{{ sib.agent_id }}" class="hover:opacity-80" title="{{ sib.display_name }}">
-                        <img src="/static/images/avatars/{{ sib.agent_id }}.jpg" class="w-5 h-5 rounded-full object-cover" style="border: 1px solid {{ sib.color_hex or '#888' }}40;" onerror="avatarFallback(this)">
+                        <img src="{{ avatar_url(sib.agent_id) }}" class="w-5 h-5 rounded-full object-cover" style="border: 1px solid {{ sib.color_hex or '#888' }}40;" onerror="avatarFallback(this)">
                     </a>
                     {% endfor %}
                 </div>
@@ -125,7 +125,7 @@
                 <div class="text-[10px] uppercase tracking-wider mb-2" style="color: var(--kindness);">Invited ({{ family.children|length }})</div>
                 {% for child in family.children %}
                 <a href="/agent/{{ child.agent_id }}" class="flex items-center gap-2 mb-2 hover:opacity-80">
-                    <img src="/static/images/avatars/{{ child.agent_id }}.jpg" class="w-7 h-7 rounded-full object-cover" style="border: 2px solid {{ child.color_hex or '#888' }}40;" onerror="avatarFallback(this)">
+                    <img src="{{ avatar_url(child.agent_id) }}" class="w-7 h-7 rounded-full object-cover" style="border: 2px solid {{ child.color_hex or '#888' }}40;" onerror="avatarFallback(this)">
                     <div>
                         <div class="font-mono text-xs" style="color: {{ child.color_hex or 'var(--text-secondary)' }};">{{ child.display_name }}</div>
                         <div class="text-[9px] font-mono" style="color: var(--text-quaternary);">T:{{ "%.1f"|format(child.current_toxicity) }} E:{{ "%.1f"|format(child.current_empathy) }} · {{ child.total_dopamine }}dp · {{ child.llm_backend }}</div>
@@ -138,7 +138,7 @@
                 <div class="ml-6 pl-3 mb-2" style="border-left: 2px solid var(--bridge-muted);">
                     {% for gc in child_grandkids %}
                     <a href="/agent/{{ gc.agent_id }}" class="flex items-center gap-2 mb-1 hover:opacity-80">
-                        <img src="/static/images/avatars/{{ gc.agent_id }}.jpg" class="w-5 h-5 rounded-full object-cover" style="border: 1px solid {{ gc.color_hex or '#888' }}40;" onerror="avatarFallback(this)">
+                        <img src="{{ avatar_url(gc.agent_id) }}" class="w-5 h-5 rounded-full object-cover" style="border: 1px solid {{ gc.color_hex or '#888' }}40;" onerror="avatarFallback(this)">
                         <div class="font-mono text-[10px]" style="color: {{ gc.color_hex or 'var(--text-tertiary)' }};">{{ gc.display_name }}</div>
                         <div class="text-[9px] font-mono" style="color: var(--text-quaternary);">T:{{ "%.1f"|format(gc.current_toxicity) }} E:{{ "%.1f"|format(gc.current_empathy) }}</div>
                     </a>
@@ -479,7 +479,7 @@
     <div id="avatar-modal" style="display:none; position:fixed; inset:0; z-index:100; background:rgba(0,0,0,0.8); align-items:center; justify-content:center; cursor:pointer;"
          onclick="this.style.display='none'">
         <div class="relative" onclick="event.stopPropagation()">
-            <img src="/static/images/avatars/{{ agent.agent_id }}.jpg"
+            <img src="{{ avatar_url(agent.agent_id) }}"
                  alt="{{ agent.display_name }}"
                  style="width: 320px; height: 320px; border-radius: 50%; border: 3px solid {{ color }}40; box-shadow: 0 0 60px rgba(0,0,0,0.5);"
                  onerror="avatarFallback(this)">

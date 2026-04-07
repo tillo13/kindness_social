@@ -52,7 +52,7 @@
         <!-- Header: name + backend -->
         <div class="flex items-start justify-between mb-3 gap-2">
             <div class="flex items-center gap-2.5 min-w-0">
-                <img src="/static/images/avatars/{{ a.agent_id }}.jpg"
+                <img src="{{ avatar_url(a.agent_id) }}"
                      alt="{{ a.display_name }}"
                      class="w-9 h-9 rounded-full object-cover flex-shrink-0"
                      style="border: 1.5px solid {{ color }}40;"
@@ -82,22 +82,31 @@
             {% endif %}
         </div>
 
-        <!-- Bars: Toxicity + Empathy -->
-        <div class="space-y-1.5 mb-3">
-            <div class="flex items-center gap-2">
-                <span class="w-10 text-[10px] text-right" style="color: var(--text-quaternary);">Tox</span>
-                <div class="flex-1 k-bar-track">
-                    <div class="k-bar-fill k-bar-fill--toxicity" style="width: {{ (a.current_toxicity / 10 * 100)|int }}%;"></div>
+        <!-- Personality fingerprint: 12 traits in compact 2-col grid -->
+        {% set traits = [
+            ('Tox',  a.current_toxicity, 'var(--toxicity)'),
+            ('Emp',  a.current_empathy,  'var(--empathy)'),
+            ('Hum',  a.humor or 5,       '#e6b450'),
+            ('Pat',  a.patience or 5,    '#7fb685'),
+            ('Cur',  a.curiosity or 5,   '#9b7fc4'),
+            ('Def',  a.defensiveness or 5,'#d97757'),
+            ('Agr',  a.agreeableness or 5,'#5fb3a1'),
+            ('Rec',  a.need_for_recognition or 5,'#d4a5d4'),
+            ('Stb',  a.stubbornness or 5,'#a37c5e'),
+            ('Cyn',  a.cynicism or 5,    '#7c7c8a'),
+            ('Cnf',  a.conformity or 5,  '#6a90b3'),
+            ('Opn',  (a.openness_to_change or 0.5) * 10, '#b3d46a')
+        ] %}
+        <div class="grid grid-cols-2 gap-x-3 gap-y-1 mb-3">
+            {% for label, val, color in traits %}
+            <div class="flex items-center gap-1.5" title="{{ label }}: {{ '%.1f'|format(val) }}/10">
+                <span class="w-7 text-[9px] text-right font-mono" style="color: var(--text-quaternary);">{{ label }}</span>
+                <div class="flex-1 h-1 rounded-full" style="background: var(--bg-elevated);">
+                    <div class="h-1 rounded-full" style="width: {{ (val / 10 * 100)|int }}%; background: {{ color }};"></div>
                 </div>
-                <span class="w-6 font-mono text-[10px] text-right" style="color: var(--text-tertiary);">{{ "%.1f"|format(a.current_toxicity) }}</span>
+                <span class="w-4 font-mono text-[9px] text-right" style="color: var(--text-tertiary);">{{ "%.0f"|format(val) }}</span>
             </div>
-            <div class="flex items-center gap-2">
-                <span class="w-10 text-[10px] text-right" style="color: var(--text-quaternary);">Emp</span>
-                <div class="flex-1 k-bar-track">
-                    <div class="k-bar-fill k-bar-fill--empathy" style="width: {{ (a.current_empathy / 10 * 100)|int }}%;"></div>
-                </div>
-                <span class="w-6 font-mono text-[10px] text-right" style="color: var(--text-tertiary);">{{ "%.1f"|format(a.current_empathy) }}</span>
-            </div>
+            {% endfor %}
         </div>
 
         <!-- Footer stats -->
