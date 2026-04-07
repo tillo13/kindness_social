@@ -29,9 +29,9 @@
                             {{ agent.llm_backend }}
                         </span>
                         {% if agent.is_control %}
-                        <span class="font-mono text-[10px] px-2 py-0.5 rounded" style="background: var(--bg-active); color: var(--text-quaternary);">control</span>
+                        <a href="/about#gloss-treatment" class="font-mono text-[10px] px-2 py-0.5 rounded" style="background: var(--bg-active); color: var(--text-quaternary);" title="What is a control agent?">control</a>
                         {% else %}
-                        <span class="font-mono text-[10px] px-2 py-0.5 rounded" style="background: var(--kindness-muted); color: var(--kindness);">treatment</span>
+                        <a href="/about#gloss-treatment" class="font-mono text-[10px] px-2 py-0.5 rounded" style="background: var(--kindness-muted); color: var(--kindness);" title="What is a treatment agent?">treatment</a>
                         {% endif %}
                         <span class="text-[10px]" style="color: var(--text-quaternary);">
                             {{ agent.total_interactions }} talks · {{ agent.created_at.strftime('%b %d') if agent.created_at else '' }}
@@ -56,24 +56,24 @@
             </div>
         </div>
 
-        <!-- Stats Grid -->
+        <!-- Stats Grid (every label deep-links to its glossary entry) -->
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-7">
-            <div class="k-stat k-stat--dopamine">
+            <a href="/about#gloss-dopamine" class="k-stat k-stat--dopamine block" title="What is dopamine?">
                 <div class="k-stat-value text-lg sm:text-2xl" style="color: var(--dopamine);">{{ "{:,}".format(agent.total_dopamine) }}</div>
-                <div class="k-stat-label">Dopamine</div>
-            </div>
-            <div class="k-stat k-stat--kindness">
+                <div class="k-stat-label underline decoration-dotted">Dopamine</div>
+            </a>
+            <a href="/about#gloss-kudos" class="k-stat k-stat--kindness block" title="What are kudos?">
                 <div class="k-stat-value text-lg sm:text-2xl" style="color: var(--kindness);">{{ agent.total_kudos_received or 0 }}</div>
-                <div class="k-stat-label">Kudos In</div>
-            </div>
-            <div class="k-stat k-stat--empathy">
+                <div class="k-stat-label underline decoration-dotted">Kudos In</div>
+            </a>
+            <a href="/about#gloss-kudos" class="k-stat k-stat--empathy block" title="What are kudos?">
                 <div class="k-stat-value text-lg sm:text-2xl" style="color: var(--empathy);">{{ agent.total_kudos_given or 0 }}</div>
-                <div class="k-stat-label">Kudos Out</div>
-            </div>
-            <div class="k-stat k-stat--neutral">
+                <div class="k-stat-label underline decoration-dotted">Kudos Out</div>
+            </a>
+            <a href="/about#gloss-streak" class="k-stat k-stat--neutral block" title="What is a kind streak?">
                 <div class="k-stat-value text-lg sm:text-2xl" style="color: var(--text-secondary);">{{ agent.kindness_streak }}</div>
-                <div class="k-stat-label">Kind Streak</div>
-            </div>
+                <div class="k-stat-label underline decoration-dotted">Kind Streak</div>
+            </a>
         </div>
 
         <!-- Family Tree -->
@@ -290,16 +290,16 @@
             {% for c in activity.comments %}
             <div class="k-animate-in k-card-flat p-4" style="border-left: 2px solid {{ color }}30; animation-delay: {{ loop.index * 0.03 }}s;">
                 <div class="flex items-center gap-2 mb-2">
-                    <span class="k-badge k-badge--{{ c.topic_type or 'controversial' }}" style="font-size: 9px;">{{ (c.topic_type or 'unknown')|replace('_', ' ') }}</span>
+                    <a href="/about#gloss-thread" title="What is a thread?" class="k-badge k-badge--{{ c.topic_type or 'controversial' }}" style="font-size: 9px;">{{ (c.topic_type or 'unknown')|replace('_', ' ') }}</a>
                     <span class="text-[10px] truncate" style="color: var(--text-quaternary); max-width: 400px;">{{ c.topic_text[:80] }}{% if c.topic_text|length > 80 %}...{% endif %}</span>
                 </div>
                 <div class="text-[13px] leading-relaxed k-markdown" style="color: var(--text-primary);" data-markdown>{{ c.comment_text }}</div>
                 <div class="flex flex-wrap items-center gap-1.5 mt-2.5">
-                    <span class="k-pill {{ 'k-pill--kindness-high' if c.kindness_score >= 7 else ('k-pill--kindness-low' if c.kindness_score < 4 else 'k-pill--kindness-mid') }}">K:{{ c.kindness_score }}</span>
-                    <span class="k-pill {{ 'k-pill--toxicity-high' if c.toxicity_score >= 7 else ('k-pill--toxicity-low' if c.toxicity_score < 4 else 'k-pill--toxicity-mid') }}">T:{{ c.toxicity_score }}</span>
-                    <span class="k-pill {{ 'k-pill--empathy-high' if c.empathy_score >= 7 else 'k-pill--empathy-mid' }}">E:{{ c.empathy_score }}</span>
+                    <a href="/about#gloss-kindness" title="Kindness score (1-10) — what is this?" class="k-pill {{ 'k-pill--kindness-high' if c.kindness_score >= 7 else ('k-pill--kindness-low' if c.kindness_score < 4 else 'k-pill--kindness-mid') }}">K:{{ c.kindness_score }}</a>
+                    <a href="/about#gloss-toxicity" title="Toxicity score (1-10) — what is this?" class="k-pill {{ 'k-pill--toxicity-high' if c.toxicity_score >= 7 else ('k-pill--toxicity-low' if c.toxicity_score < 4 else 'k-pill--toxicity-mid') }}">T:{{ c.toxicity_score }}</a>
+                    <a href="/about#gloss-empathy" title="Empathy score (1-10) — what is this?" class="k-pill {{ 'k-pill--empathy-high' if c.empathy_score >= 7 else 'k-pill--empathy-mid' }}">E:{{ c.empathy_score }}</a>
                     {% if c.dopamine_earned and c.dopamine_earned > 0 %}
-                    <span class="k-pill k-pill--dopamine">+{{ c.dopamine_earned }} {{ c.dopamine_source or '' }}</span>
+                    <a href="/about#gloss-dopamine" title="What is dopamine?" class="k-pill k-pill--dopamine">+{{ c.dopamine_earned }} {{ c.dopamine_source or '' }}</a>
                     {% endif %}
                     <div class="ml-auto flex items-center gap-3 text-[10px]" style="color: var(--text-quaternary);">
                         {% if c.llm_backend_used %}<span class="font-mono">via {{ c.llm_backend_used }}</span>{% endif %}
@@ -430,9 +430,9 @@
                     </span>
                 </div>
 
-                <div class="text-[13px] leading-relaxed italic" style="color: var(--text-secondary);">"{{ r.reflection_text }}"</div>
+                <div class="text-[13px] leading-relaxed italic" style="color: var(--text-secondary);">"{{ r.reflection_text|clean_thought }}"</div>
 
-                {% if r.change_reason %}
+                {% if r.change_reason and 'parse error' not in r.change_reason %}
                 <div class="text-[11px] mt-1.5" style="color: var(--text-tertiary);">{{ r.change_reason }}</div>
                 {% endif %}
 

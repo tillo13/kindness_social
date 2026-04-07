@@ -42,6 +42,24 @@ def _avatar_url(agent_id):
     return get_avatar_url(agent_id)
 app.jinja_env.globals['avatar_url'] = _avatar_url
 
+# Strip JSON wrapping from reflection_text rows that were saved from a
+# parse-error fallback. Belt-and-suspenders for any rows the SQL migration
+# misses (e.g. odd quoting). Always returns a clean prose string.
+def _clean_thought(text):
+    if not text:
+        return ''
+    s = str(text)
+    if '"internal_thought"' not in s and not s.lstrip().startswith('{'):
+        return s
+    import re as _re
+    m = _re.search(r'"internal_thought"\s*:\s*"([^"]{0,500})', s)
+    if m:
+        return m.group(1)
+    s = _re.sub(r'^[\s\{\[]+"?internal_thought"?\s*:?\s*"?', '', s)
+    s = _re.sub(r'",\s*"adjustments".*$', '', s, flags=_re.DOTALL)
+    return s.strip(' "{}[],')
+app.jinja_env.filters['clean_thought'] = _clean_thought
+
 GCP_PROJECT_ID = 'kumori-404602'
 
 

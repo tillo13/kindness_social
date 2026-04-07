@@ -227,6 +227,37 @@ def create_tables():
             ALTER TABLE kindness_agent_snapshots ADD COLUMN IF NOT EXISTS cynicism FLOAT;
             ALTER TABLE kindness_agent_snapshots ADD COLUMN IF NOT EXISTS conformity FLOAT;
             ALTER TABLE kindness_agent_snapshots ADD COLUMN IF NOT EXISTS openness_to_change FLOAT;
+
+            -- Clean up existing parse-error reflection rows: extract internal_thought
+            -- string from raw JSON-ish text and strip the curly braces / json keys.
+            UPDATE kindness_reflections
+            SET reflection_text = TRIM(BOTH ' "{}[],' FROM
+                REGEXP_REPLACE(
+                    REGEXP_REPLACE(reflection_text, '^.*"internal_thought"\\s*:\\s*"', ''),
+                    '",\\s*"adjustments".*$', ''
+                )
+            )
+            WHERE change_reason = 'parse error — raw thought saved'
+              AND reflection_text LIKE '%"internal_thought"%';
+
+            -- One-time backfill: historical snapshots have NULL for the 10 new
+            -- personality columns (they were just added). Populate them from
+            -- the agent's CURRENT trait values so charts show flat lines until
+            -- live hourly snapshots accumulate real movement.
+            UPDATE kindness_agent_snapshots s
+            SET humor                = COALESCE(s.humor,                a.humor),
+                patience             = COALESCE(s.patience,             a.patience),
+                curiosity            = COALESCE(s.curiosity,            a.curiosity),
+                defensiveness        = COALESCE(s.defensiveness,        a.defensiveness),
+                agreeableness        = COALESCE(s.agreeableness,        a.agreeableness),
+                need_for_recognition = COALESCE(s.need_for_recognition, a.need_for_recognition),
+                stubbornness         = COALESCE(s.stubbornness,         a.stubbornness),
+                cynicism             = COALESCE(s.cynicism,             a.cynicism),
+                conformity           = COALESCE(s.conformity,           a.conformity),
+                openness_to_change   = COALESCE(s.openness_to_change,   a.openness_to_change)
+            FROM kindness_agents a
+            WHERE s.agent_id = a.id
+              AND (s.humor IS NULL OR s.patience IS NULL OR s.curiosity IS NULL);
         """)
     logger.info("Kindness tables created/verified")
 

@@ -82,32 +82,47 @@
             {% endif %}
         </div>
 
-        <!-- Personality fingerprint: 12 traits in compact 2-col grid -->
+        <!-- Personality fingerprint: top trait visible, expand for full 12 (sorted by score desc) -->
         {% set traits = [
-            ('Tox',  a.current_toxicity, 'var(--toxicity)'),
-            ('Emp',  a.current_empathy,  'var(--empathy)'),
-            ('Hum',  a.humor or 5,       '#e6b450'),
-            ('Pat',  a.patience or 5,    '#7fb685'),
-            ('Cur',  a.curiosity or 5,   '#9b7fc4'),
-            ('Def',  a.defensiveness or 5,'#d97757'),
-            ('Agr',  a.agreeableness or 5,'#5fb3a1'),
-            ('Rec',  a.need_for_recognition or 5,'#d4a5d4'),
-            ('Stb',  a.stubbornness or 5,'#a37c5e'),
-            ('Cyn',  a.cynicism or 5,    '#7c7c8a'),
-            ('Cnf',  a.conformity or 5,  '#6a90b3'),
-            ('Opn',  (a.openness_to_change or 0.5) * 10, '#b3d46a')
+            ('Toxicity',         a.current_toxicity,                       'var(--toxicity)'),
+            ('Empathy',          a.current_empathy,                        'var(--empathy)'),
+            ('Humor',            a.humor or 5,                             '#e6b450'),
+            ('Patience',         a.patience or 5,                          '#7fb685'),
+            ('Curiosity',        a.curiosity or 5,                         '#9b7fc4'),
+            ('Defensiveness',    a.defensiveness or 5,                     '#d97757'),
+            ('Agreeableness',    a.agreeableness or 5,                     '#5fb3a1'),
+            ('Need for Rec.',    a.need_for_recognition or 5,              '#d4a5d4'),
+            ('Stubbornness',     a.stubbornness or 5,                      '#a37c5e'),
+            ('Cynicism',         a.cynicism or 5,                          '#7c7c8a'),
+            ('Conformity',       a.conformity or 5,                        '#6a90b3'),
+            ('Openness',         (a.openness_to_change or 0.5) * 10,       '#b3d46a')
         ] %}
-        <div class="grid grid-cols-2 gap-x-3 gap-y-1 mb-3">
-            {% for label, val, color in traits %}
-            <div class="flex items-center gap-1.5" title="{{ label }}: {{ '%.1f'|format(val) }}/10">
-                <span class="w-7 text-[9px] text-right font-mono" style="color: var(--text-quaternary);">{{ label }}</span>
-                <div class="flex-1 h-1 rounded-full" style="background: var(--bg-elevated);">
-                    <div class="h-1 rounded-full" style="width: {{ (val / 10 * 100)|int }}%; background: {{ color }};"></div>
+        {% set sorted_traits = traits|sort(attribute=1, reverse=true) %}
+        {% set top = sorted_traits[0] %}
+        <details class="mb-3 trait-details" onclick="event.stopPropagation()">
+            <summary class="list-none cursor-pointer select-none" style="outline:none;">
+                <div class="flex items-center gap-2">
+                    <span class="text-[9px] uppercase tracking-wider" style="color: var(--text-quaternary);">top</span>
+                    <span class="text-[10px] font-mono font-semibold flex-shrink-0" style="color: {{ top[2] }};">{{ top[0] }}</span>
+                    <div class="flex-1 h-1 rounded-full" style="background: var(--bg-elevated);">
+                        <div class="h-1 rounded-full" style="width: {{ (top[1] / 10 * 100)|int }}%; background: {{ top[2] }};"></div>
+                    </div>
+                    <span class="font-mono text-[10px]" style="color: var(--text-tertiary);">{{ "%.1f"|format(top[1]) }}</span>
+                    <span class="trait-chevron text-[9px]" style="color: var(--text-quaternary);">▾</span>
                 </div>
-                <span class="w-4 font-mono text-[9px] text-right" style="color: var(--text-tertiary);">{{ "%.0f"|format(val) }}</span>
+            </summary>
+            <div class="space-y-1 mt-2 pt-2" style="border-top: 1px solid var(--border-subtle);">
+                {% for label, val, color in sorted_traits %}
+                <div class="flex items-center gap-2" title="{{ label }}: {{ '%.1f'|format(val) }}/10">
+                    <span class="w-20 text-[9px] font-mono text-right" style="color: var(--text-quaternary);">{{ label }}</span>
+                    <div class="flex-1 h-1 rounded-full" style="background: var(--bg-elevated);">
+                        <div class="h-1 rounded-full" style="width: {{ (val / 10 * 100)|int }}%; background: {{ color }};"></div>
+                    </div>
+                    <span class="w-6 font-mono text-[9px] text-right" style="color: var(--text-tertiary);">{{ "%.1f"|format(val) }}</span>
+                </div>
+                {% endfor %}
             </div>
-            {% endfor %}
-        </div>
+        </details>
 
         <!-- Footer stats -->
         <div class="flex items-center justify-between text-[10px]" style="color: var(--text-quaternary);">

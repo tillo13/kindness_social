@@ -73,7 +73,12 @@ def run_thread(config=None):
     else:
         num = random.randint(36, min(60, max(36, total_agents // 5)))  # 10% viral threads
     num = min(num, total_agents)  # can't exceed available agents
-    participants = db_ops.get_active_agents(limit=num)
+    # Oversample 2x to compensate for agents that stay silent because their
+    # backend is RPM-blocked or down. We loop through in order until we hit
+    # `num` successful comments OR run out of candidates.
+    target_count = num
+    sample_size = min(num * 2, total_agents)
+    participants = db_ops.get_active_agents(limit=sample_size)
     if len(participants) < 2:
         logger.error(f"Not enough agents ({len(participants)})")
         return {'error': 'Not enough agents'}
@@ -87,8 +92,11 @@ def run_thread(config=None):
     total_kindness = 0
     total_toxicity = 0
     bridge_events = 0
+    successful = 0
 
     for position, persona in enumerate(participants):
+        if successful >= target_count:
+            break  # hit our target, stop walking the oversample
         logger.info(f"[{thread_slug}] Pos {position+1}/{len(participants)}: {persona['display_name']} ({persona['llm_backend']})")
         set_telemetry_context(agent_id=persona.get('agent_id'), thread_id=thread_slug)
 
@@ -99,6 +107,7 @@ def run_thread(config=None):
         if comment is None:
             logger.info(f"  {persona['display_name']} stays silent — {persona['llm_backend']} backend unavailable")
             continue
+        successful += 1
 
         # Evaluate comment
         scores, eval_time_ms = evaluate_comment(

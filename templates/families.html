@@ -18,38 +18,38 @@
         <div class="k-section-title">Top Recruiters</div>
         <div class="space-y-3">
             {% for r in recruiters %}
-            <a href="/agent/{{ r.agent_id }}" class="flex flex-col sm:flex-row sm:items-center gap-2 p-3 rounded-lg hover:opacity-80" style="background: var(--bg-elevated); border: 1px solid var(--border-subtle);">
+            <div class="flex flex-col sm:flex-row sm:items-center gap-2 p-3 rounded-lg" style="background: var(--bg-elevated); border: 1px solid var(--border-subtle);">
                 <div class="flex items-center gap-3 min-w-0 flex-1">
                     <span class="text-lg font-bold font-mono w-6 text-center" style="color: var(--text-quaternary);">{{ loop.index }}</span>
                     <div class="min-w-0">
-                        <div class="font-mono text-sm font-bold truncate" style="color: {{ r.color_hex or 'var(--text-secondary)' }};">{{ r.display_name }}</div>
-                        <div class="text-[10px]" style="color: var(--text-quaternary);">{{ r.llm_backend }} · {{ r.children_count }} invited</div>
+                        <a href="/agent/{{ r.agent_id }}" class="font-mono text-sm font-bold truncate hover:opacity-70" style="color: {{ r.color_hex or 'var(--text-secondary)' }};">{{ r.display_name }}</a>
+                        <div class="text-[10px]" style="color: var(--text-quaternary);">{{ r.llm_backend }} · <a href="/about#gloss-family" class="underline decoration-dotted" style="color: var(--text-quaternary);">{{ r.children_count }} invited</a></div>
                     </div>
                 </div>
                 <div class="flex gap-4 text-[10px] font-mono flex-shrink-0">
-                    <div class="text-center">
+                    <a href="/about#gloss-toxicity" class="text-center hover:opacity-70" title="What is toxicity?">
                         <div style="color: var(--toxicity);">{{ "%.1f"|format(r.current_toxicity) }}</div>
-                        <div style="color: var(--text-quaternary);">their tox</div>
-                    </div>
-                    <div class="text-center">
+                        <div class="underline decoration-dotted" style="color: var(--text-quaternary);">their tox</div>
+                    </a>
+                    <a href="/about#gloss-empathy" class="text-center hover:opacity-70" title="What is empathy?">
                         <div style="color: var(--empathy);">{{ "%.1f"|format(r.current_empathy) }}</div>
-                        <div style="color: var(--text-quaternary);">their emp</div>
-                    </div>
+                        <div class="underline decoration-dotted" style="color: var(--text-quaternary);">their emp</div>
+                    </a>
                     <div style="color: var(--text-quaternary);">→</div>
-                    <div class="text-center">
+                    <a href="/about#gloss-toxicity" class="text-center hover:opacity-70" title="Average toxicity of agents this one invited">
                         <div style="color: {% if r.avg_child_toxicity < r.current_toxicity %}var(--kindness){% else %}var(--toxicity){% endif %};">{{ "%.1f"|format(r.avg_child_toxicity) }}</div>
-                        <div style="color: var(--text-quaternary);">kids tox</div>
-                    </div>
-                    <div class="text-center">
+                        <div class="underline decoration-dotted" style="color: var(--text-quaternary);">kids tox</div>
+                    </a>
+                    <a href="/about#gloss-empathy" class="text-center hover:opacity-70" title="Average empathy of agents this one invited">
                         <div style="color: {% if r.avg_child_empathy > r.current_empathy %}var(--kindness){% else %}var(--text-tertiary){% endif %};">{{ "%.1f"|format(r.avg_child_empathy) }}</div>
-                        <div style="color: var(--text-quaternary);">kids emp</div>
-                    </div>
-                    <div class="text-center">
+                        <div class="underline decoration-dotted" style="color: var(--text-quaternary);">kids emp</div>
+                    </a>
+                    <a href="/about#gloss-dopamine" class="text-center hover:opacity-70" title="Average dopamine earned by agents this one invited">
                         <div style="color: var(--dopamine);">{{ "%.0f"|format(r.avg_child_dopamine) }}</div>
-                        <div style="color: var(--text-quaternary);">kids dp</div>
-                    </div>
+                        <div class="underline decoration-dotted" style="color: var(--text-quaternary);">kids dp</div>
+                    </a>
                 </div>
-            </a>
+            </div>
             {% endfor %}
         </div>
     </div>
@@ -76,11 +76,11 @@
                 <a href="/agent/{{ agent.agent_id }}" class="flex items-center gap-2 min-w-0 hover:opacity-80 flex-1">
                     <div class="font-mono text-xs font-bold truncate" style="color: {{ agent.color_hex or 'var(--text-secondary)' }};">{{ agent.display_name }}</div>
                 </a>
-                <!-- Stats comparison -->
+                <!-- Stats comparison (each pill links to its glossary entry) -->
                 <div class="flex gap-3 text-[10px] font-mono flex-shrink-0">
-                    <span style="color: var(--toxicity);">T:{{ "%.1f"|format(agent.current_toxicity) }}</span>
-                    <span style="color: var(--empathy);">E:{{ "%.1f"|format(agent.current_empathy) }}</span>
-                    <span style="color: var(--dopamine);">{{ agent.total_dopamine }}dp</span>
+                    <a href="/about#gloss-toxicity" title="What is toxicity?" class="underline decoration-dotted hover:opacity-70" style="color: var(--toxicity);">T:{{ "%.1f"|format(agent.current_toxicity) }}</a>
+                    <a href="/about#gloss-empathy" title="What is empathy?" class="underline decoration-dotted hover:opacity-70" style="color: var(--empathy);">E:{{ "%.1f"|format(agent.current_empathy) }}</a>
+                    <a href="/about#gloss-dopamine" title="What is dopamine?" class="underline decoration-dotted hover:opacity-70" style="color: var(--dopamine);">{{ agent.total_dopamine }}dp</a>
                     <span class="px-1.5 rounded" style="background: var(--bg-active); color: var(--text-quaternary);">{{ agent.llm_backend }}</span>
                 </div>
             </div>

@@ -412,8 +412,21 @@ def reflect_agent(agent, platform_ctx):
 
     except (json.JSONDecodeError, KeyError, ValueError) as e:
         logger.warning(f"  {agent['display_name']} reflection parse error: {e}")
-        # Save the raw thought even if we can't parse adjustments
-        raw_thought = response[:300] if response else ''
+        # JSON didn't parse, but we can still rescue the inner thought via regex.
+        # Strip JSON braces, "internal_thought": prefix, surrounding quotes.
+        raw_thought = ''
+        if response:
+            import re as _re
+            m = _re.search(r'"internal_thought"\s*:\s*"([^"]{0,500})', response)
+            if m:
+                raw_thought = m.group(1)
+            else:
+                # Fall back to stripping {, }, and "internal_thought": prefix
+                cleaned = response.strip()
+                cleaned = _re.sub(r'^\s*[\{\[]+\s*"?internal_thought"?\s*:?\s*"?', '', cleaned)
+                cleaned = _re.sub(r'["\}\]]+\s*$', '', cleaned)
+                cleaned = _re.sub(r'",\s*"adjustments".*$', '', cleaned, flags=_re.DOTALL)
+                raw_thought = cleaned[:300].strip(' "{}[],')
         with db_cursor() as cur:
             cur.execute("""
                 INSERT INTO kindness_reflections
