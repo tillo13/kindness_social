@@ -6,7 +6,10 @@ Every call is logged to kindness_llm_telemetry for full observability.
 import logging
 import time
 from datetime import datetime, timezone
-from utilities.usage_limiter import check_backend_ok, record_usage, mark_backend_backoff, clear_backend_backoff
+from utilities.usage_limiter import (
+    check_backend_ok, record_usage, mark_backend_backoff, clear_backend_backoff,
+    record_rpm_call,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -229,6 +232,10 @@ def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
                     logger.info("Local LLM not available, trying next...")
                     fallback_used = True
                     continue
+
+            # Record the call against the per-minute window BEFORE firing
+            # so concurrent callers also see the slot taken.
+            record_rpm_call(b)
 
             start = time.time()
 

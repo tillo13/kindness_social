@@ -187,6 +187,59 @@ _backoff_until = {}  # backend -> timestamp when it's safe to retry
 _backoff_count = {}  # backend -> consecutive failures (for exponential backoff)
 BACKOFF_SECONDS = 120  # 2 minutes default cooldown after a rate limit
 
+# ---------------------------------------------------------------------------
+# Per-minute rate limiting (PROACTIVE — stop calls before they 429)
+# ---------------------------------------------------------------------------
+# RPM caps per backend free tier. Set conservatively below the documented limit
+# so concurrent calls from the same instance don't blow through.
+BACKEND_RPM = {
+    'gemini':       8,    # documented 10 RPM
+    'groq':         25,   # documented 30 RPM
+    'groq-kimi':    50,   # documented 60 RPM
+    'groq-qwen':    50,   # documented 60 RPM
+    'groq-gptoss':  25,   # documented 30 RPM
+    'cerebras':     50,   # very generous, but conserve
+    'together':     20,
+    'mistral':      2,    # documented 2 RPM — strict
+    'nvidia':       30,   # documented 40 RPM
+    'llm7':         20,   # documented 30 RPM
+    'openrouter':   15,   # documented 20 RPM
+    'grok':         30,
+    'deepseek':     30,
+    'haiku':        50,
+    'sonnet':       30,
+    'opus':         10,
+    'gpt4o_mini':   60,
+    'gpt4o':        20,
+    'local':        999,
+}
+
+import collections
+import threading
+_rpm_lock = threading.Lock()
+_rpm_timestamps = collections.defaultdict(collections.deque)  # backend -> deque[float]
+
+
+def is_backend_rpm_blocked(backend: str) -> bool:
+    """Returns True if calling this backend right now would exceed its RPM cap.
+    Self-prunes timestamps older than 60s on every call."""
+    import time
+    cap = BACKEND_RPM.get(backend, 30)
+    now = time.time()
+    cutoff = now - 60
+    with _rpm_lock:
+        dq = _rpm_timestamps[backend]
+        while dq and dq[0] < cutoff:
+            dq.popleft()
+        return len(dq) >= cap
+
+
+def record_rpm_call(backend: str):
+    """Record a successful (or attempted) call against the per-minute window."""
+    import time
+    with _rpm_lock:
+        _rpm_timestamps[backend].append(time.time())
+
 
 class UsageStatus(NamedTuple):
     allowed: bool
@@ -252,6 +305,10 @@ def check_backend_ok(backend: str) -> UsageStatus:
     # Check shared cross-app daily cap
     if not _shared_check_cap(backend):
         return UsageStatus(False, -1, f"{backend} daily cap reached.", 'blocked')
+
+    # Proactive RPM check — stop the call before it can 429
+    if is_backend_rpm_blocked(backend):
+        return UsageStatus(False, -1, f"{backend} at per-minute cap.", 'blocked')
 
     return UsageStatus(True, 0, "", 'ok')
 
