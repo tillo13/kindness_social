@@ -142,12 +142,20 @@ def create_invited_agent(inviter):
             ))
             agent = dict(cur.fetchone())
 
-        # Generate avatar
+        # Generate avatar — REQUIRED. If it fails, roll back the agent.
+        avatar_ok = False
         try:
-            from utilities.avatar_generator import generate_avatar
+            from utilities.avatar_generator import generate_avatar, avatar_exists
             generate_avatar(agent)
+            avatar_ok = avatar_exists(agent_id)
         except Exception as e:
             logger.warning(f"Avatar generation failed for {agent_id}: {e}")
+
+        if not avatar_ok:
+            logger.error(f"Rolling back invited agent {agent_id}: avatar unavailable")
+            with db_cursor() as cur:
+                cur.execute("DELETE FROM kindness_agents WHERE agent_id = %s", (agent_id,))
+            return None
 
         # Reward the inviter for being social (+15 dopamine)
         with db_cursor() as cur:

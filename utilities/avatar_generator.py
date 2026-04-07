@@ -78,6 +78,18 @@ def get_avatar_path(agent_id):
     return os.path.join(AVATAR_DIR, f"{agent_id}.jpg")
 
 
+def avatar_exists(agent_id):
+    """True if a usable avatar exists either locally or in GCS."""
+    if os.path.exists(get_avatar_path(agent_id)):
+        return True
+    try:
+        bucket = _get_gcs_bucket()
+        return bucket.blob(f'{agent_id}.jpg').exists()
+    except Exception as e:
+        logger.warning(f"avatar_exists GCS check failed for {agent_id}: {e}")
+        return False
+
+
 def get_avatar_url(agent_id):
     """Get the web URL for an agent's avatar. Checks local first, then GCS."""
     # Local file (deployed with code)

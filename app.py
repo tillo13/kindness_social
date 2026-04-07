@@ -341,8 +341,10 @@ def view_agents():
     """View all agents with stats."""
     sort = request.args.get('sort', 'total_dopamine DESC')
     agents = db_ops.get_all_agents(order_by=sort)
-    # Stable join order: rank by created_at ascending across the full set
-    join_order = sorted(agents, key=lambda a: a.get('created_at') or 0)
+    # Stable join order: oldest = #1, newest = highest #. Tie-break by id so it's deterministic.
+    from datetime import datetime, timezone
+    _epoch = datetime.min.replace(tzinfo=timezone.utc)
+    join_order = sorted(agents, key=lambda a: (a.get('created_at') or _epoch, a.get('id') or 0))
     join_number = {a['agent_id']: i + 1 for i, a in enumerate(join_order)}
     for a in agents:
         a['join_number'] = join_number.get(a['agent_id'])
@@ -719,7 +721,7 @@ def cron_backfill_avatars():
     start = time.time()
 
     try:
-        result = backfill_missing_avatars(max_per_run=10)
+        result = backfill_missing_avatars(max_per_run=50)
         ms = int((time.time() - start) * 1000)
         db_ops.log_cron_end(log_id, 'ok', ms,
                             f"{result['generated']} generated, {result['missing']} still missing",
