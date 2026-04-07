@@ -50,8 +50,8 @@
        onmouseout="this.style.borderLeftColor='{{ color }}30'; this.style.background='var(--bg-surface)';">
 
         <!-- Header: name + backend -->
-        <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-2.5">
+        <div class="flex items-start justify-between mb-3 gap-2">
+            <div class="flex items-center gap-2.5 min-w-0">
                 <img src="/static/images/avatars/{{ a.agent_id }}.jpg"
                      alt="{{ a.display_name }}"
                      class="w-9 h-9 rounded-full object-cover flex-shrink-0"
@@ -73,6 +73,13 @@
                     </div>
                 </div>
             </div>
+            {% if a.join_number %}
+            <span class="font-mono text-[10px] flex-shrink-0 px-1.5 py-0.5 rounded"
+                  title="Joined #{{ a.join_number }} of {{ total_agents }}"
+                  style="color: var(--text-quaternary); background: var(--bg-elevated); border: 1px solid var(--border-subtle);">
+                #{{ a.join_number }}
+            </span>
+            {% endif %}
         </div>
 
         <!-- Bars: Toxicity + Empathy -->

@@ -59,7 +59,12 @@ def _upload_to_gcs(agent_id, image_bytes):
         bucket = _get_gcs_bucket()
         blob = bucket.blob(f'{agent_id}.jpg')
         blob.upload_from_string(image_bytes, content_type='image/jpeg')
-        blob.make_public()
+        # make_public() fails on uniform-bucket-level-access buckets — ignore;
+        # the bucket should have allUsers:objectViewer set at the IAM level instead.
+        try:
+            blob.make_public()
+        except Exception as e:
+            logger.debug(f"make_public skipped for {agent_id} (likely UBLA bucket): {e}")
         url = f'{GCS_PUBLIC_URL}/{agent_id}.jpg'
         logger.info(f"Avatar uploaded to GCS: {url}")
         return url

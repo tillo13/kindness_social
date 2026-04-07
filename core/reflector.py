@@ -50,11 +50,12 @@ def get_agents_due_for_reflection(batch_size=10):
             SELECT * FROM kindness_agents
             WHERE is_active = TRUE
               AND is_control = FALSE
-              AND total_interactions >= 5
-              AND (total_interactions - COALESCE(interactions_at_last_reflection, 0)) >= 3
+              AND total_interactions >= 2
+              AND (total_interactions - COALESCE(interactions_at_last_reflection, 0)) >= 1
             ORDER BY
-                (total_interactions - COALESCE(interactions_at_last_reflection, 0)) DESC,
-                last_reflected_at ASC NULLS FIRST
+                (last_reflected_at IS NOT NULL),  -- never-reflected agents first
+                last_reflected_at ASC NULLS FIRST,
+                (total_interactions - COALESCE(interactions_at_last_reflection, 0)) DESC
             LIMIT %s
         """, (batch_size,))
         return [dict(row) for row in cur.fetchall()]
@@ -258,7 +259,7 @@ def reflect_agent(agent, platform_ctx):
         response, actual_backend = chat(
             backend,
             [{"role": "user", "content": prompt}],
-            max_tokens=700,
+            max_tokens=1200,
             temperature=0.4,
         )
 

@@ -40,14 +40,12 @@
                 </div>
             </div>
             <div class="flex gap-2 flex-shrink-0 mt-1 sm:mt-0 flex-wrap">
-                {% if reflections %}
                 <a href="#tab-thinking" onclick="showTab('thinking')"
                    class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
                    style="background: var(--kindness); color: #fff;"
                    onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
                     Internal Monologue ({{ reflections|length }})
                 </a>
-                {% endif %}
                 {% if family and (family.parent or family.children) %}
                 <a href="#family-section" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
                    style="background: var(--bridge); color: #fff;"
@@ -264,11 +262,9 @@
     </div>
 
     <!-- Activity Log — Tabs -->
-    {% set default_tab = 'thinking' if reflections else 'comments' %}
+    {% set default_tab = 'thinking' %}
     {% set tabs = [] %}
-    {% if reflections %}
     {% set _ = tabs.append(('thinking', 'Internal Monologue', reflections|length)) %}
-    {% endif %}
     {% set _ = tabs.append(('comments', 'Comments', activity.comments|length)) %}
     {% set _ = tabs.append(('reactions-given', 'Reactions Given', activity.reactions_given|length)) %}
     {% set _ = tabs.append(('reactions-received', 'Reactions Received', activity.reactions_received|length)) %}
@@ -288,7 +284,7 @@
     </div>
 
     <!-- Comments Tab -->
-    <div id="tab-comments" class="activity-panel" {% if reflections %}style="display:none;"{% endif %}
+    <div id="tab-comments" class="activity-panel" style="display:none;"
         {% if activity.comments %}
         <div class="space-y-2.5">
             {% for c in activity.comments %}
@@ -417,7 +413,7 @@
     </div>
 
     <!-- Thinking Tab — Agent's internal monologue and self-adjustments -->
-    <div id="tab-thinking" class="activity-panel" {% if not reflections %}style="display:none;"{% endif %}>
+    <div id="tab-thinking" class="activity-panel">
         {% if reflections %}
         <div class="space-y-2.5">
             {% for r in reflections %}
@@ -523,26 +519,42 @@ var style = getComputedStyle(document.documentElement);
 var gridColor = style.getPropertyValue('--border-subtle').trim() || 'rgba(255,255,255,0.05)';
 var labelColor = style.getPropertyValue('--text-tertiary').trim() || '#9ca3af';
 
+var traitSpecs = [
+    {key: 'current_toxicity',     label: 'Toxicity',       color: style.getPropertyValue('--toxicity').trim() || '#c47a7a', fill: 'rgba(196,122,122,0.08)'},
+    {key: 'current_empathy',      label: 'Empathy',        color: style.getPropertyValue('--empathy').trim()  || '#7a9bc4', fill: 'rgba(122,155,196,0.08)'},
+    {key: 'humor',                label: 'Humor',          color: '#e6b450'},
+    {key: 'patience',             label: 'Patience',       color: '#7fb685'},
+    {key: 'curiosity',            label: 'Curiosity',      color: '#9b7fc4'},
+    {key: 'defensiveness',        label: 'Defensiveness',  color: '#d97757'},
+    {key: 'agreeableness',        label: 'Agreeableness',  color: '#5fb3a1'},
+    {key: 'need_for_recognition', label: 'Need for Rec.',  color: '#d4a5d4'},
+    {key: 'stubbornness',         label: 'Stubbornness',   color: '#a37c5e'},
+    {key: 'cynicism',             label: 'Cynicism',       color: '#7c7c8a'},
+    {key: 'conformity',           label: 'Conformity',     color: '#6a90b3'},
+    {key: 'openness_to_change',   label: 'Openness',       color: '#b3d46a', scale: 10}
+];
 new Chart(document.getElementById('evolutionChart').getContext('2d'), {
     type: 'line',
     data: {
         labels: evo.map(function(s) { return 'Hr ' + s.hour_number; }),
-        datasets: [
-            {
-                label: 'Toxicity',
-                data: evo.map(function(s) { return s.current_toxicity; }),
-                borderColor: style.getPropertyValue('--toxicity').trim(),
-                backgroundColor: 'rgba(196, 122, 122, 0.1)',
-                fill: true, tension: 0.3, pointRadius: 2
-            },
-            {
-                label: 'Empathy',
-                data: evo.map(function(s) { return s.current_empathy; }),
-                borderColor: style.getPropertyValue('--empathy').trim(),
-                backgroundColor: 'rgba(122, 155, 196, 0.1)',
-                fill: true, tension: 0.3, pointRadius: 2
-            }
-        ]
+        datasets: traitSpecs.map(function(t) {
+            return {
+                label: t.label,
+                data: evo.map(function(s) {
+                    var v = s[t.key];
+                    if (v == null) return null;
+                    return t.scale ? v * t.scale : v;
+                }),
+                borderColor: t.color,
+                backgroundColor: t.fill || (t.color + '14'),
+                fill: !!t.fill,
+                tension: 0.3,
+                pointRadius: 0,
+                borderWidth: 1.5,
+                spanGaps: true,
+                hidden: !(t.label === 'Toxicity' || t.label === 'Empathy')
+            };
+        })
     },
     options: {
         responsive: true,

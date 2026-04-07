@@ -215,6 +215,18 @@ def create_tables():
             ALTER TABLE kindness_agents ADD COLUMN IF NOT EXISTS stubbornness FLOAT DEFAULT 5.0;
             ALTER TABLE kindness_agents ADD COLUMN IF NOT EXISTS cynicism FLOAT DEFAULT 5.0;
             ALTER TABLE kindness_agents ADD COLUMN IF NOT EXISTS conformity FLOAT DEFAULT 5.0;
+
+            -- Snapshot all 10 personality traits over time (was just toxicity/empathy)
+            ALTER TABLE kindness_agent_snapshots ADD COLUMN IF NOT EXISTS humor FLOAT;
+            ALTER TABLE kindness_agent_snapshots ADD COLUMN IF NOT EXISTS patience FLOAT;
+            ALTER TABLE kindness_agent_snapshots ADD COLUMN IF NOT EXISTS curiosity FLOAT;
+            ALTER TABLE kindness_agent_snapshots ADD COLUMN IF NOT EXISTS defensiveness FLOAT;
+            ALTER TABLE kindness_agent_snapshots ADD COLUMN IF NOT EXISTS agreeableness FLOAT;
+            ALTER TABLE kindness_agent_snapshots ADD COLUMN IF NOT EXISTS need_for_recognition FLOAT;
+            ALTER TABLE kindness_agent_snapshots ADD COLUMN IF NOT EXISTS stubbornness FLOAT;
+            ALTER TABLE kindness_agent_snapshots ADD COLUMN IF NOT EXISTS cynicism FLOAT;
+            ALTER TABLE kindness_agent_snapshots ADD COLUMN IF NOT EXISTS conformity FLOAT;
+            ALTER TABLE kindness_agent_snapshots ADD COLUMN IF NOT EXISTS openness_to_change FLOAT;
         """)
     logger.info("Kindness tables created/verified")
 
@@ -1478,9 +1490,13 @@ def snapshot_all_agents(hour_number):
         cur.execute("""
             INSERT INTO kindness_agent_snapshots
                 (agent_id, hour_number, current_toxicity, current_empathy,
-                 total_dopamine, total_interactions, kindness_streak)
+                 total_dopamine, total_interactions, kindness_streak,
+                 humor, patience, curiosity, defensiveness, agreeableness,
+                 need_for_recognition, stubbornness, cynicism, conformity, openness_to_change)
             SELECT id, %s, current_toxicity, current_empathy,
-                   total_dopamine, total_interactions, kindness_streak
+                   total_dopamine, total_interactions, kindness_streak,
+                   humor, patience, curiosity, defensiveness, agreeableness,
+                   need_for_recognition, stubbornness, cynicism, conformity, openness_to_change
             FROM kindness_agents
             WHERE is_active = TRUE AND total_interactions > 0
         """, (hour_number,))
@@ -1492,7 +1508,10 @@ def get_agent_evolution(agent_db_id, limit=168):
     with db_cursor(dict_cursor=True) as cur:
         cur.execute("""
             SELECT hour_number, current_toxicity, current_empathy,
-                   total_dopamine, total_interactions, kindness_streak, created_at
+                   total_dopamine, total_interactions, kindness_streak,
+                   humor, patience, curiosity, defensiveness, agreeableness,
+                   need_for_recognition, stubbornness, cynicism, conformity, openness_to_change,
+                   created_at
             FROM kindness_agent_snapshots
             WHERE agent_id = %s
             ORDER BY hour_number ASC

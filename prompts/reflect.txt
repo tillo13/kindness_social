@@ -35,7 +35,7 @@ Given who you are — your stubbornness, your need for recognition, your cynicis
 
 Respond with ONLY a JSON object (no markdown, no backticks):
 {{
-    "internal_thought": "<2-4 sentences. What went through your head when you saw your results? How do you feel about how things are going? Be raw and honest.>",
+    "internal_thought": "<1-2 short sentences max, ~250 chars. Raw, honest reaction to your results.>",
     "adjustments": {{
         "frustration": <-0.3 to +0.3, or 0>,
         "compassion": <-0.3 to +0.3, or 0>,

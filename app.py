@@ -341,7 +341,12 @@ def view_agents():
     """View all agents with stats."""
     sort = request.args.get('sort', 'total_dopamine DESC')
     agents = db_ops.get_all_agents(order_by=sort)
-    return render_template('agents.html', agents=agents)
+    # Stable join order: rank by created_at ascending across the full set
+    join_order = sorted(agents, key=lambda a: a.get('created_at') or 0)
+    join_number = {a['agent_id']: i + 1 for i, a in enumerate(join_order)}
+    for a in agents:
+        a['join_number'] = join_number.get(a['agent_id'])
+    return render_template('agents.html', agents=agents, total_agents=len(agents))
 
 
 @app.route('/agent/<agent_id>')
