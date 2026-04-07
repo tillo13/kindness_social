@@ -61,10 +61,40 @@ def pick_inviter():
     return random.choices(candidates, weights=weights, k=1)[0]
 
 
+def pick_least_used_backend():
+    """Return the backend with the fewest input tokens consumed in the last 7 days.
+    Goal: spread invites across providers so no one backend dominates token usage.
+    Backends with no telemetry at all (brand new / never called) win immediately."""
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("""
+            SELECT actual_backend as backend, COALESCE(SUM(input_tokens), 0) as tokens
+            FROM kindness_llm_telemetry
+            WHERE created_at > NOW() - INTERVAL '7 days'
+            GROUP BY actual_backend
+        """)
+        usage = {r['backend']: int(r['tokens'] or 0) for r in cur.fetchall()}
+
+    # Any AVAILABLE_BACKENDS missing from usage are at 0 — those win immediately.
+    ranked = sorted(AVAILABLE_BACKENDS, key=lambda b: usage.get(b, 0))
+    if not ranked:
+        return random.choice(AVAILABLE_BACKENDS)
+
+    # Tie-break: pick randomly among the bottom quartile so we don't always
+    # hammer one underused backend in a single cron tick.
+    floor = usage.get(ranked[0], 0)
+    threshold = max(floor * 1.25, floor + 50_000)
+    eligible = [b for b in ranked if usage.get(b, 0) <= threshold]
+    chosen = random.choice(eligible or ranked[:1])
+    logger.info(f"Invite backend pick: {chosen} (tokens={usage.get(chosen, 0):,}, "
+                f"floor={floor:,}, eligible={len(eligible)})")
+    return chosen
+
+
 def create_invited_agent(inviter):
     """Create a new agent that's similar to the inviter.
-    Personality clusters around the inviter's values with some variation."""
-    backend = random.choice(AVAILABLE_BACKENDS)
+    Personality clusters around the inviter's values with some variation.
+    Backend is chosen to balance load — least-used backend wins."""
+    backend = pick_least_used_backend()
 
     # Generate name
     provider, model_short = BACKEND_NAMING.get(backend, ('unknown', backend))
