@@ -7,7 +7,7 @@
 {% block head %}
 <style>
     .chat-window { max-width: 800px; margin: 0 auto; }
-    .chat-bubble { max-width: 82%; }
+    .chat-bubble { width: 100%; max-width: 100%; }
     .bubble-body {
         border-radius: 18px;
         transition: filter 0.15s ease;
@@ -42,7 +42,7 @@
         flex-shrink: 0;
     }
     /* Nested reply indent */
-    .chat-bubble.is-reply {
+    .chat-bubble.is-reply-disabled {
         margin-left: 32px;
         max-width: calc(82% - 32px);
     }
