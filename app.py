@@ -64,10 +64,12 @@ app.jinja_env.globals['GLOSSARY_JSON'] = json.dumps(GLOSSARY)
 
 
 def _gloss(term_id, label=None):
-    """Jinja helper: render a glossary-linked span. Usage: {{ g('toxicity') }} or {{ g('toxicity', 'Tox') }}."""
+    """Jinja helper: render a glossary-linked span. Usage: {{ gloss('toxicity') }}."""
+    from markupsafe import Markup
     text = label if label is not None else term_id
-    return f'<span class="gloss" data-gloss="{term_id}">{text}</span>'
-app.jinja_env.globals['g'] = _gloss
+    return Markup(f'<span class="gloss" data-gloss="{term_id}">{text}</span>')
+# 'g' collides with flask.g (app context globals), so we expose as 'gloss'.
+app.jinja_env.globals['gloss'] = _gloss
 
 # Strip JSON wrapping from reflection_text rows that were saved from a
 # parse-error fallback. Belt-and-suspenders for any rows the SQL migration
