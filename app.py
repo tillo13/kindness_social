@@ -328,7 +328,13 @@ def roadmap():
 @app.route('/about')
 def about():
     """About page: the thesis, methodology, and why it matters."""
-    return render_template('about.html')
+    # Live treatment/control counts so the page reflects current invites/state
+    experiment = db_ops.get_control_vs_treatment()
+    treatment_count = (experiment.get('treatment') or {}).get('agent_count', 0)
+    control_count = (experiment.get('control') or {}).get('agent_count', 0)
+    return render_template('about.html',
+                           treatment_count=treatment_count,
+                           control_count=control_count)
 
 
 _CONTACT_HITS = {}  # ip -> [timestamps] for in-memory rate limiting
