@@ -341,8 +341,8 @@ def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
 
 
 # Eval pool — every free backend that can return a 1-10 number reliably.
-# Order is randomized per call so eval load is spread across all providers
-# instead of concentrating on cerebras. Haiku stays as the paid last resort.
+# Order is randomized per call so eval load is spread across all providers.
+# Claude/paid backends are NEVER used for eval — skip the score if all are down.
 EVAL_POOL_FREE = [
     'cerebras',
     'mistral',
@@ -356,15 +356,12 @@ EVAL_POOL_FREE = [
     'together',
     'openrouter',
 ]
-EVAL_BACKENDS_LAST_RESORT = ['haiku']  # paid, only when every free option is dead
-
-
 def chat_eval(backend, prompt, system="Return ONLY a number 1-10."):
     """
     Shortcut for evaluation calls (low tokens, low temperature).
     Evaluation is a SYSTEM function (scoring), not an agent voice —
-    so it uses a sticky free-tier primary (Groq) for consistency,
-    with free fallbacks before any paid model.
+    so it uses a randomized free-tier pool for consistency.
+    Claude/paid backends are NEVER used here — if all free options are dead, skip the eval.
     Returns: (response_text, actual_backend_used)
     """
     messages = [{"role": "user", "content": prompt}]
@@ -372,7 +369,7 @@ def chat_eval(backend, prompt, system="Return ONLY a number 1-10."):
     import random
     pool = EVAL_POOL_FREE[:]
     random.shuffle(pool)
-    chain = pool + EVAL_BACKENDS_LAST_RESORT
+    chain = pool  # no paid fallback — skip eval if all free backends are down
     for b in chain:
         status = check_backend_ok(b)
         if not status.allowed:

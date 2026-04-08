@@ -1137,6 +1137,10 @@ def api_create_agent():
     curiosity = clamp(data.get('curiosity', 5), 1, 10)
     defensiveness = clamp(data.get('defensiveness', 5), 1, 10)
     agreeableness = clamp(data.get('agreeableness', 5), 1, 10)
+    nfr = clamp(data.get('need_for_recognition', 5), 1, 10)
+    stub = clamp(data.get('stubbornness', 5), 1, 10)
+    cyn = clamp(data.get('cynicism', 5), 1, 10)
+    conf = clamp(data.get('conformity', 5), 1, 10)
 
     model_combo = (data.get('model_combo', '') or '').strip()
     if not model_combo or '.' not in model_combo:
@@ -1187,14 +1191,16 @@ def api_create_agent():
                      empathy_baseline, current_empathy,
                      openness_to_change, vote_willingness,
                      humor, patience, curiosity, defensiveness, agreeableness,
+                     need_for_recognition, stubbornness, cynicism, conformity,
                      gender_presentation, age_bracket, authority_level,
                      trigger_topics, common_phrases, created_by)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING agent_id
             """, (
                 agent_id, agent_id, backend, pol,
                 tox, tox, emp, emp, opn, vw,
                 humor, patience, curiosity, defensiveness, agreeableness,
+                nfr, stub, cyn, conf,
                 gender, age, authority,
                 json.dumps([]), json.dumps([]),
                 'visitor',

@@ -134,6 +134,50 @@
                         <span>lurker</span><span>reacts to everything</span>
                     </div>
                 </div>
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span style="color: var(--text-quaternary);">{{ gloss('need_for_recognition', 'Need for Recognition') }}</span>
+                        <span id="val-need_for_recognition" style="color: var(--text-secondary);">5.0</span>
+                    </div>
+                    <input type="range" id="slider-need_for_recognition" min="1" max="10" step="0.5" value="5"
+                        class="w-full" oninput="updateVal('need_for_recognition', this.value)">
+                    <div class="flex justify-between text-[9px]" style="color: var(--text-quaternary);">
+                        <span>self-assured</span><span>craves validation</span>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span style="color: var(--text-quaternary);">{{ gloss('stubbornness', 'Stubbornness') }}</span>
+                        <span id="val-stubbornness" style="color: var(--text-secondary);">5.0</span>
+                    </div>
+                    <input type="range" id="slider-stubbornness" min="1" max="10" step="0.5" value="5"
+                        class="w-full" oninput="updateVal('stubbornness', this.value)">
+                    <div class="flex justify-between text-[9px]" style="color: var(--text-quaternary);">
+                        <span>flexible</span><span>immovable</span>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span style="color: var(--text-quaternary);">{{ gloss('cynicism', 'Cynicism') }}</span>
+                        <span id="val-cynicism" style="color: var(--text-secondary);">5.0</span>
+                    </div>
+                    <input type="range" id="slider-cynicism" min="1" max="10" step="0.5" value="5"
+                        class="w-full" oninput="updateVal('cynicism', this.value)">
+                    <div class="flex justify-between text-[9px]" style="color: var(--text-quaternary);">
+                        <span>trusting</span><span>suspects everyone</span>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span style="color: var(--text-quaternary);">{{ gloss('conformity', 'Conformity') }}</span>
+                        <span id="val-conformity" style="color: var(--text-secondary);">5.0</span>
+                    </div>
+                    <input type="range" id="slider-conformity" min="1" max="10" step="0.5" value="5"
+                        class="w-full" oninput="updateVal('conformity', this.value)">
+                    <div class="flex justify-between text-[9px]" style="color: var(--text-quaternary);">
+                        <span>own path</span><span>matches the room</span>
+                    </div>
+                </div>
             </div>
 
             <!-- Identity -->
@@ -207,21 +251,27 @@ function updateVal(name, val) {
     document.getElementById('val-' + name).textContent = parseFloat(val).toFixed(1);
 }
 
+var ALL_TRAITS = ['toxicity','empathy','humor','patience','curiosity','defensiveness','agreeableness','openness','vote_willingness','need_for_recognition','stubbornness','cynicism','conformity'];
+
 var presets = {
-    troll: {toxicity: 9, empathy: 2, humor: 7, patience: 2, curiosity: 3, defensiveness: 9, agreeableness: 1},
-    peacemaker: {toxicity: 1, empathy: 9, humor: 6, patience: 9, curiosity: 8, defensiveness: 2, agreeableness: 9},
-    debater: {toxicity: 5, empathy: 5, humor: 4, patience: 5, curiosity: 9, defensiveness: 6, agreeableness: 3},
-    wildcard: {toxicity: Math.random()*9+1, empathy: Math.random()*9+1, humor: Math.random()*9+1,
-               patience: Math.random()*9+1, curiosity: Math.random()*9+1, defensiveness: Math.random()*9+1,
-               agreeableness: Math.random()*9+1},
+    troll: {toxicity: 9, empathy: 2, humor: 7, patience: 2, curiosity: 3, defensiveness: 9, agreeableness: 1, openness: 2, vote_willingness: 9, need_for_recognition: 9, stubbornness: 9, cynicism: 9, conformity: 2},
+    peacemaker: {toxicity: 1, empathy: 9, humor: 6, patience: 9, curiosity: 8, defensiveness: 2, agreeableness: 9, openness: 8, vote_willingness: 7, need_for_recognition: 3, stubbornness: 2, cynicism: 1, conformity: 6},
+    debater: {toxicity: 5, empathy: 5, humor: 4, patience: 5, curiosity: 9, defensiveness: 6, agreeableness: 3, openness: 6, vote_willingness: 8, need_for_recognition: 6, stubbornness: 6, cynicism: 5, conformity: 3},
 };
 
+function randTraits() {
+    var o = {};
+    ALL_TRAITS.forEach(function(k) { o[k] = Math.random()*9+1; });
+    return o;
+}
+
 function applyPreset(name) {
-    var p = name === 'wildcard' ? presets.wildcard : presets[name];
-    ['toxicity','empathy','humor','patience','curiosity','defensiveness','agreeableness'].forEach(function(k) {
+    var p = name === 'wildcard' ? randTraits() : presets[name];
+    ALL_TRAITS.forEach(function(k) {
+        if (p[k] === undefined) return;
         var v = Math.round(p[k] * 2) / 2;
-        document.getElementById('slider-' + k).value = v;
-        updateVal(k, v);
+        var el = document.getElementById('slider-' + k);
+        if (el) { el.value = v; updateVal(k, v); }
     });
 }
 
@@ -268,6 +318,10 @@ function createAgent() {
         agreeableness: parseFloat(document.getElementById('slider-agreeableness').value),
         openness: parseFloat(document.getElementById('slider-openness').value),
         vote_willingness: parseFloat(document.getElementById('slider-vote_willingness').value),
+        need_for_recognition: parseFloat(document.getElementById('slider-need_for_recognition').value),
+        stubbornness: parseFloat(document.getElementById('slider-stubbornness').value),
+        cynicism: parseFloat(document.getElementById('slider-cynicism').value),
+        conformity: parseFloat(document.getElementById('slider-conformity').value),
         gender: document.getElementById('agent-gender').value,
         age: document.getElementById('agent-age').value,
         authority: document.getElementById('agent-authority').value,
