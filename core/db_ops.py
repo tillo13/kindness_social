@@ -228,6 +228,13 @@ def create_tables():
             ALTER TABLE kindness_agent_snapshots ADD COLUMN IF NOT EXISTS conformity FLOAT;
             ALTER TABLE kindness_agent_snapshots ADD COLUMN IF NOT EXISTS openness_to_change FLOAT;
 
+            -- Tunable runtime config (e.g. revisit intensity dial). Single-row-per-key.
+            CREATE TABLE IF NOT EXISTS kindness_config (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            );
+
             -- Clean up existing parse-error reflection rows: extract internal_thought
             -- string from raw JSON-ish text and strip the curly braces / json keys.
             UPDATE kindness_reflections
@@ -1513,6 +1520,33 @@ def get_featured_thread():
         """)
         row = cur.fetchone()
         return dict(row) if row else None
+
+
+def get_config(key, default=None):
+    """Get a runtime-tunable config value."""
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("SELECT value FROM kindness_config WHERE key = %s", (key,))
+        row = cur.fetchone()
+        return row['value'] if row else default
+
+
+def get_config_int(key, default=0):
+    try:
+        v = get_config(key)
+        return int(v) if v is not None else default
+    except (TypeError, ValueError):
+        return default
+
+
+def set_config(key, value):
+    """Set a runtime-tunable config value. Upsert."""
+    with db_cursor() as cur:
+        cur.execute("""
+            INSERT INTO kindness_config (key, value, updated_at)
+            VALUES (%s, %s, NOW())
+            ON CONFLICT (key) DO UPDATE
+            SET value = EXCLUDED.value, updated_at = NOW()
+        """, (key, str(value)))
 
 
 def get_featured_agent():

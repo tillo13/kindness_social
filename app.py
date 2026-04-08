@@ -1418,6 +1418,87 @@ def admin_kick_metrics():
         return jsonify({'error': str(e)[:200]}), 500
 
 
+@app.route('/api/cron/revisit-old-threads')
+def cron_revisit_old_threads():
+    """Cron: agents scroll back through historical threads and write fresh replies.
+    Volume controlled by kindness_config.revisit_intensity (0-10), tunable live."""
+    if not is_cron_request():
+        return "Forbidden", 403
+    import time
+    from core.revisit_old_threads import run_revisit_cycle
+    log_id = db_ops.log_cron_start('revisit-old-threads')
+    start = time.time()
+    try:
+        result = run_revisit_cycle()
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'ok', ms,
+                            f"intensity={result.get('intensity')}, posted={result.get('posted', 0)} across {result.get('threads', 0)} threads",
+                            result)
+        return jsonify(result)
+    except Exception as e:
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'error', ms, error_text=str(e)[:500])
+        logger.exception("revisit-old-threads cron failed")
+        return jsonify({'error': str(e)[:200]}), 500
+
+
+@app.route('/api/admin/kick-revisit-wave', methods=['POST'])
+def admin_kick_revisit_wave():
+    """Run an immediate revisit cycle outside the cron schedule."""
+    if not is_admin_request():
+        return jsonify({'error': 'Forbidden'}), 403
+    from core.revisit_old_threads import run_revisit_cycle
+    try:
+        return jsonify(run_revisit_cycle())
+    except Exception as e:
+        logger.exception("kick-revisit-wave failed")
+        return jsonify({'error': str(e)[:200]}), 500
+
+
+@app.route('/api/admin/revisit-intensity', methods=['GET', 'POST'])
+def admin_revisit_intensity():
+    """GET: read current intensity. POST ?value=N (0-10): set new intensity.
+    Stored in kindness_config and effective immediately on the next cron run."""
+    if not is_admin_request():
+        return jsonify({'error': 'Forbidden'}), 403
+    if request.method == 'POST':
+        try:
+            value = int(request.args.get('value', request.form.get('value', '5')))
+            value = max(0, min(10, value))
+            db_ops.set_config('revisit_intensity', value)
+            logger.info(f"revisit_intensity set to {value}")
+            return jsonify({'revisit_intensity': value, 'updated': True})
+        except (ValueError, TypeError):
+            return jsonify({'error': 'value must be 0-10'}), 400
+    return jsonify({'revisit_intensity': db_ops.get_config_int('revisit_intensity', 5)})
+
+
+@app.route('/api/admin/catch-up-threads', methods=['POST'])
+def admin_catch_up_threads():
+    """One-shot: retroactively assign parent_comment_id to historical flat threads
+    using the same recency/controversy heuristic the live responder uses, so old
+    conversations render with the new tree UI instead of looking like serial monologues."""
+    if not is_admin_request():
+        return jsonify({'error': 'Forbidden'}), 403
+    import time
+    from core.catch_up_threads import catch_up_all_threads
+    log_id = db_ops.log_cron_start('catch-up-threads')
+    start = time.time()
+    try:
+        max_threads = int(request.args.get('max', 500))
+        result = catch_up_all_threads(max_threads=max_threads, only_flat=True)
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'ok', ms,
+                            f"{result['comments_threaded']} comments threaded across {result['threads_processed']} threads",
+                            result)
+        return jsonify(result)
+    except Exception as e:
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'error', ms, error_text=str(e)[:500])
+        logger.exception("catch-up-threads failed")
+        return jsonify({'error': str(e)[:200]}), 500
+
+
 @app.route('/api/admin/kick-backfill-avatars', methods=['POST'])
 def admin_kick_backfill_avatars():
     """Manually trigger avatar backfill (one-shot, large cap)."""

@@ -63,3 +63,10 @@ cron:
   retry_parameters:
     min_backoff_seconds: 60
     max_doublings: 2
+
+- description: "Retroactive thread revisits — agents scroll back through old threads (volume controlled by kindness_config.revisit_intensity, 0-10)"
+  url: /api/cron/revisit-old-threads
+  schedule: every 1 hours
+  retry_parameters:
+    min_backoff_seconds: 60
+    max_doublings: 2
