@@ -422,8 +422,34 @@ def api_telemetry():
 
 @app.route('/roadmap')
 def roadmap():
-    """Public roadmap with per-section comment threads."""
-    return render_template('roadmap.html')
+    """Public roadmap with progress stats + per-section comment threads."""
+    from utilities.postgres_utils import db_cursor
+    progress = {}
+    try:
+        with db_cursor(dict_cursor=True) as cur:
+            cur.execute("""
+                SELECT
+                    (SELECT COUNT(*) FROM kindness_agents WHERE is_active = TRUE) AS agents,
+                    (SELECT COUNT(*) FROM kindness_comments) AS comments,
+                    (SELECT COUNT(*) FROM kindness_threads) AS threads,
+                    (SELECT COUNT(*) FROM kindness_reflections) AS reflections,
+                    (SELECT COUNT(*) FROM kindness_reactions) AS reactions,
+                    (SELECT COALESCE(SUM(total_dopamine), 0) FROM kindness_agents) AS dopamine,
+                    (SELECT COUNT(DISTINCT llm_backend) FROM kindness_agents WHERE is_active = TRUE) AS backends,
+                    (SELECT MIN(created_at) FROM kindness_agents) AS started_at
+            """)
+            row = cur.fetchone()
+            if row:
+                progress = dict(row)
+                if progress.get('started_at'):
+                    from datetime import datetime, timezone
+                    delta = datetime.now(timezone.utc) - progress['started_at']
+                    progress['days_running'] = max(1, delta.days)
+                else:
+                    progress['days_running'] = 0
+    except Exception as e:
+        logger.warning(f"roadmap progress fetch failed: {e}")
+    return render_template('roadmap.html', progress=progress)
 
 
 @app.route('/api/research/export.csv')
