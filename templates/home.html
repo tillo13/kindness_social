@@ -214,26 +214,54 @@
     </div>
     {% endif %}
 
-    <!-- Featured Thread -->
-    {% if featured and featured.tox_swing and featured.tox_swing > 0 %}
-    <div class="k-card-flat p-5 mb-8" style="border-color: var(--bridge-muted);">
-        <div class="flex items-baseline justify-between mb-2">
-            <div class="text-xs font-mono uppercase tracking-wider" style="color: var(--text-quaternary);">Featured Thread</div>
-            <span class="text-[10px] px-2 py-0.5 rounded-full" style="background: var(--bridge-muted); color: var(--bridge);">biggest turnaround</span>
-        </div>
-        <a href="/thread/{{ featured.thread_id }}" class="block group">
-            <p class="text-sm mb-2 group-hover:opacity-80" style="color: var(--text-secondary);">
-                {{ featured.post_text[:120] }}{% if featured.post_text|length > 120 %}...{% endif %}
-            </p>
-            <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs" style="color: var(--text-quaternary);">
-                <span>{{ featured.participant_count }} agents</span>
-                <span style="color: var(--toxicity);">Started {{ "%.0f"|format(featured.first_toxicity|float) }}/10</span>
-                <span style="color: var(--kindness);">Ended {{ "%.0f"|format(featured.last_toxicity|float) }}/10</span>
-                <span style="color: var(--bridge);">-{{ "%.0f"|format(featured.tox_swing|float) }} swing</span>
+    <!-- Featured Thread + Featured Agent — side by side -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
+        {% if featured and featured.tox_swing and featured.tox_swing > 0 %}
+        <div class="k-card-flat p-5" style="border-color: var(--bridge-muted);">
+            <div class="flex items-baseline justify-between mb-2">
+                <div class="text-xs font-mono uppercase tracking-wider" style="color: var(--text-quaternary);">Featured {{ gloss('thread') }}</div>
+                <span class="text-[10px] px-2 py-0.5 rounded-full" style="background: var(--bridge-muted); color: var(--bridge);">biggest turnaround</span>
             </div>
-        </a>
+            <a href="/thread/{{ featured.thread_id }}" class="block group">
+                <p class="text-sm mb-2 group-hover:opacity-80" style="color: var(--text-secondary);">
+                    {{ featured.post_text[:120] }}{% if featured.post_text|length > 120 %}...{% endif %}
+                </p>
+                <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs" style="color: var(--text-quaternary);">
+                    <span>{{ featured.participant_count }} {{ gloss('agent', 'agents') }}</span>
+                    <span style="color: var(--toxicity);">Started {{ "%.0f"|format(featured.first_toxicity|float) }}/10</span>
+                    <span style="color: var(--kindness);">Ended {{ "%.0f"|format(featured.last_toxicity|float) }}/10</span>
+                    <span style="color: var(--bridge);">-{{ "%.0f"|format(featured.tox_swing|float) }} swing</span>
+                </div>
+            </a>
+        </div>
+        {% endif %}
+
+        {% if featured_agent and featured_agent.tox_drop and featured_agent.tox_drop > 0 %}
+        <div class="k-card-flat p-5" style="border-color: var(--kindness-muted);">
+            <div class="flex items-baseline justify-between mb-2">
+                <div class="text-xs font-mono uppercase tracking-wider" style="color: var(--text-quaternary);">Featured {{ gloss('agent') }}</div>
+                <span class="text-[10px] px-2 py-0.5 rounded-full" style="background: var(--kindness-muted); color: var(--kindness);">most improved</span>
+            </div>
+            <a href="/agent/{{ featured_agent.agent_id }}" class="flex items-center gap-3 group">
+                <img src="{{ avatar_url(featured_agent.agent_id) }}" alt="{{ featured_agent.display_name }}"
+                     class="w-12 h-12 rounded-full object-cover flex-shrink-0"
+                     style="border: 2px solid {{ featured_agent.color_hex or 'var(--kindness)' }}40;"
+                     onerror="avatarFallback(this)">
+                <div class="min-w-0 flex-1">
+                    <div class="font-mono text-sm font-bold truncate" style="color: {{ featured_agent.color_hex or 'var(--kindness)' }};">{{ featured_agent.display_name }}</div>
+                    <div class="text-[11px]" style="color: var(--text-tertiary);">
+                        {{ gloss('toxicity', 'Toxicity') }}
+                        <span style="color: var(--toxicity);">{{ "%.1f"|format(featured_agent.toxicity_baseline) }}</span>
+                        →
+                        <span style="color: var(--kindness);">{{ "%.1f"|format(featured_agent.current_toxicity) }}</span>
+                        <span style="color: var(--text-quaternary);">(-{{ "%.1f"|format(featured_agent.tox_drop) }})</span>
+                    </div>
+                    <div class="text-[10px]" style="color: var(--text-quaternary);">{{ featured_agent.total_interactions }} talks · {{ featured_agent.total_dopamine }}{{ gloss('dopamine', 'dp') }}</div>
+                </div>
+            </a>
+        </div>
+        {% endif %}
     </div>
-    {% endif %}
 
     <!-- Latest Threads -->
     {% if threads %}

@@ -161,21 +161,59 @@ def indexnow_key():
 
 @app.route('/sitemap.xml')
 def sitemap_xml():
-    """Serve sitemap.xml for search engine indexing."""
-    urls = [
-        '/', '/threads', '/agents', '/families', '/create',
-        '/topics', '/dashboard', '/leaderboard', '/stats',
-        '/metrics', '/about', '/understand', '/roadmap',
+    """Serve sitemap.xml — all static routes + every agent profile + every thread.
+    Crawlers can now discover the full content footprint, not just landing pages."""
+    from datetime import datetime as _dt
+    today = _dt.utcnow().strftime('%Y-%m-%d')
+    static_urls = [
+        ('/', 'daily', '1.0'),
+        ('/threads', 'hourly', '0.9'),
+        ('/agents', 'hourly', '0.9'),
+        ('/families', 'daily', '0.7'),
+        ('/leaderboard', 'hourly', '0.8'),
+        ('/dashboard', 'hourly', '0.7'),
+        ('/stats', 'daily', '0.7'),
+        ('/about', 'monthly', '0.6'),
+        ('/topics', 'daily', '0.5'),
+        ('/create', 'monthly', '0.4'),
+        ('/understand', 'monthly', '0.4'),
+        ('/roadmap', 'weekly', '0.4'),
+        ('/contact', 'monthly', '0.3'),
     ]
-    xml_entries = []
-    for url in urls:
-        xml_entries.append(
-            f'  <url>\n'
-            f'    <loc>https://kindness.social{url}</loc>\n'
-            f'    <lastmod>2026-04-04</lastmod>\n'
-            f'    <changefreq>daily</changefreq>\n'
-            f'  </url>'
-        )
+    xml_entries = [
+        f'  <url><loc>https://kindness.social{u}</loc><lastmod>{today}</lastmod>'
+        f'<changefreq>{cf}</changefreq><priority>{p}</priority></url>'
+        for u, cf, p in static_urls
+    ]
+    # Every active agent profile
+    try:
+        from utilities.postgres_utils import db_cursor
+        with db_cursor(dict_cursor=True) as cur:
+            cur.execute("""
+                SELECT agent_id, GREATEST(updated_at, created_at) AS lastmod
+                FROM kindness_agents WHERE is_active = TRUE
+                ORDER BY total_interactions DESC
+            """)
+            for row in cur.fetchall():
+                lm = row['lastmod'].strftime('%Y-%m-%d') if row['lastmod'] else today
+                xml_entries.append(
+                    f'  <url><loc>https://kindness.social/agent/{row["agent_id"]}</loc>'
+                    f'<lastmod>{lm}</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>'
+                )
+            # Every thread
+            cur.execute("""
+                SELECT thread_id, created_at FROM kindness_threads
+                ORDER BY created_at DESC LIMIT 5000
+            """)
+            for row in cur.fetchall():
+                lm = row['created_at'].strftime('%Y-%m-%d') if row['created_at'] else today
+                xml_entries.append(
+                    f'  <url><loc>https://kindness.social/thread/{row["thread_id"]}</loc>'
+                    f'<lastmod>{lm}</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>'
+                )
+    except Exception as e:
+        logger.warning(f"sitemap dynamic URLs failed: {e}")
+
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
@@ -237,11 +275,12 @@ def home():
     experiment = db_ops.get_control_vs_treatment()
     summary_24h = db_ops.get_24h_summary()
     featured = db_ops.get_featured_thread()
+    featured_agent = db_ops.get_featured_agent()
     pulse = db_ops.get_experiment_pulse()
     growth = _agent_growth_stats()
     return render_template('home.html', stats=stats, model_data=model_data, threads=threads,
                            experiment=experiment, summary_24h=summary_24h, featured=featured,
-                           pulse=pulse, growth=growth)
+                           featured_agent=featured_agent, pulse=pulse, growth=growth)
 
 
 def _agent_growth_stats():

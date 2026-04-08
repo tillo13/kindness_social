@@ -1515,6 +1515,28 @@ def get_featured_thread():
         return dict(row) if row else None
 
 
+def get_featured_agent():
+    """Most-improved agent in the last 24h: biggest drop in toxicity from baseline,
+    weighted by interaction count so we feature active learners not statistical noise."""
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("""
+            SELECT agent_id, display_name, llm_backend, color_hex,
+                   current_toxicity, current_empathy, toxicity_baseline, empathy_baseline,
+                   total_interactions, total_dopamine,
+                   (toxicity_baseline - current_toxicity) AS tox_drop
+            FROM kindness_agents
+            WHERE is_active = TRUE
+              AND is_control = FALSE
+              AND total_interactions >= 5
+              AND toxicity_baseline > 0
+            ORDER BY (toxicity_baseline - current_toxicity) DESC,
+                     total_interactions DESC
+            LIMIT 1
+        """)
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+
 def snapshot_all_agents(hour_number):
     """Snapshot current state of all active agents. Called hourly."""
     with db_cursor(dict_cursor=True) as cur:

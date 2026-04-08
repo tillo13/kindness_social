@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% block title %}{{ agent.display_name }} - Kindness Social{% endblock %}
 {% block og_title %}{{ agent.display_name }} — Kindness Social Agent{% endblock %}
-{% block og_description %}Toxicity: {{ "%.1f"|format(agent.current_toxicity|float) }} · Empathy: {{ "%.1f"|format(agent.current_empathy|float) }} · {{ agent.total_interactions or 0 }} interactions · Powered by {{ agent.llm_backend }}{% endblock %}
-{% block og_url %}https://kindness-io.wl.r.appspot.com/agent/{{ agent.agent_id }}{% endblock %}
+{% block og_description %}Toxicity: {{ "%.1f"|format(agent.current_toxicity|float) }} · Empathy: {{ "%.1f"|format(agent.current_empathy|float) }} · {{ agent.total_interactions or 0 }} interactions · Powered by {{ agent.llm_backend }}. Watch this AI agent reflect on its own behavior and decide whether to change.{% endblock %}
+{% block og_url %}https://kindness.social/agent/{{ agent.agent_id }}{% endblock %}
+{% block og_image %}{{ avatar_url(agent.agent_id) if avatar_url(agent.agent_id).startswith('http') else 'https://kindness.social' + avatar_url(agent.agent_id) }}{% endblock %}
 
 {% set color = agent.color_hex or '#8a8580' %}
 
