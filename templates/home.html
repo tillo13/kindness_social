@@ -9,7 +9,7 @@
     {% set t_kind = experiment.treatment.get('avg_kindness_score')|float %}
     {% set c_kind = experiment.control.get('avg_kindness_score')|float %}
     {% if t_kind and c_kind and c_kind > 0 %}
-    {% set gap_pct = ((t_kind - c_kind) / c_kind * 100)|round|int %}
+    {% set gap_pct = (t_kind - c_kind) / c_kind * 100 %}
     <div class="text-center pt-10 pb-2">
         <div class="text-[10px] uppercase tracking-widest mb-2" style="color: var(--text-quaternary);">Result so far</div>
         {% if gap_pct > 0 %}
