@@ -219,9 +219,8 @@
             </div>
 
             <!-- Bubble with agent's color as subtle border -->
-            <div class="bubble-body px-4 py-3 cursor-pointer"
-                 style="background: {{ color }}22; border: 1px solid {{ color }}55;"
-                 onclick="document.getElementById('personality-{{ c.id }}').classList.toggle('hidden')">
+            <div class="bubble-body px-4 py-3"
+                 style="background: {{ color }}22; border: 1px solid {{ color }}55;">
                 <div class="text-sm leading-relaxed k-markdown" style="color: var(--text-primary);" data-markdown>{{ c.comment_text }}</div>
             </div>
 
@@ -270,8 +269,8 @@
                 {% endif %}
             </div>
 
-            <!-- Agent personality snapshot (collapsed by default, toggle on click) -->
-            <div class="personality-bar hidden mt-1 px-3" id="personality-{{ c.id }}">
+            <!-- Agent personality snapshot (always visible) -->
+            <div class="personality-bar mt-1 px-3" id="personality-{{ c.id }}">
                 <div class="flex gap-2 text-[9px] font-mono" style="color: var(--text-quaternary);">
                     <span title="Current toxicity">tox:{{ "%.1f"|format(c.current_toxicity|float) }}</span>
                     <span title="Current empathy">emp:{{ "%.1f"|format(c.current_empathy|float) }}</span>
