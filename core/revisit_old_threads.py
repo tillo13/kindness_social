@@ -27,7 +27,7 @@ from utilities.postgres_utils import db_cursor
 from core import db_ops
 from core.responder import (
     get_thread_comments, should_respond, build_reply_context,
-    _pick_reply_target,
+    _pick_reply_target, react_to_comments,
 )
 from core.evaluator import generate_comment, evaluate_comment
 from core.simulator import calculate_dopamine, update_persona, DEFAULT_CONFIG
@@ -225,14 +225,24 @@ def run_revisit_cycle():
         except Exception as e:
             logger.warning(f"  [revisit] thread {t['thread_id']} failed: {e}")
 
+    # Also generate reactions on the same revisited threads — when a human
+    # scrolls back through an old thread they don't only reply, they also
+    # heart/thumbsup things they liked. Same motion.
+    total_reactions = 0
+    try:
+        total_reactions = react_to_comments(threads)
+    except Exception as e:
+        logger.warning(f"  [revisit] reactions failed: {e}")
+
     logger.info(
         f"Revisit cycle (intensity={intensity}): "
-        f"{total_posted} new replies across {len(threads)} threads (attempted {total_attempted})"
+        f"{total_posted} new replies + {total_reactions} reactions across {len(threads)} threads"
     )
     return {
         'intensity': intensity,
         'threads': len(threads),
         'attempted': total_attempted,
         'posted': total_posted,
+        'reactions': total_reactions,
         'settings': settings,
     }

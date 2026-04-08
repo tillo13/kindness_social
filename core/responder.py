@@ -434,20 +434,29 @@ def run_agent_responses(config=None):
     }
 
 
-def react_to_comments(threads):
-    """A couple agents browse a thread and maybe react. Lightweight."""
+def react_to_comments(threads, browsers_per_thread=None):
+    """Agents browse threads and react with likes/hearts. Scales with the
+    revisit intensity dial when called from the revisit cycle."""
     total = 0
+
+    if browsers_per_thread is None:
+        # Read intensity dial — same knob that controls reply volume
+        try:
+            from core import db_ops
+            intensity = db_ops.get_config_int('revisit_intensity', 5)
+            browsers_per_thread = max(3, intensity)  # 3-10 browsers per thread
+        except Exception:
+            browsers_per_thread = 5
 
     for thread in threads:
         comments = get_thread_comments(thread['id'])
         if len(comments) < 2:
             continue
 
-        # 2-3 random agents glance at the thread (not 8)
         from utilities.postgres_utils import db_cursor as _dc
         with _dc(dict_cursor=True) as cur:
             cur.execute("SELECT * FROM kindness_agents WHERE is_active = TRUE ORDER BY RANDOM() LIMIT %s",
-                        (random.randint(2, 3),))
+                        (browsers_per_thread,))
             browsers = [dict(row) for row in cur.fetchall()]
 
         for agent in browsers:
