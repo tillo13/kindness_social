@@ -85,6 +85,26 @@
         font-size: 10px;
         color: var(--text-quaternary, #888);
       }
+      /* Generic data-pop popover (used for the +growth pill on the home page,
+         and any future click/hover popovers). Mobile-friendly: tap to open,
+         tap outside to close. */
+      .growth-pop-content { display: none; }
+      .pop-bubble {
+        position: fixed;
+        max-width: min(320px, calc(100vw - 24px));
+        padding: 12px 14px;
+        border-radius: 10px;
+        background: var(--bg-surface, #1a1a1a);
+        color: var(--text-primary, #fff);
+        border: 1px solid var(--border-default, #333);
+        box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+        font-size: 12px;
+        line-height: 1.45;
+        z-index: 99998;
+        opacity: 0;
+        transition: opacity 140ms;
+      }
+      .pop-bubble.show { opacity: 1; }
     </style>
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
@@ -299,6 +319,46 @@
     }
 
     updateThemeIcons();
+
+    /* ── Generic popover for [data-pop="elementId"] — click on desktop+mobile ── */
+    (function() {
+      var bubble = null;
+      function close() {
+        if (bubble) { bubble.remove(); bubble = null; }
+      }
+      function open(btn) {
+        close();
+        var id = btn.dataset.pop;
+        var src = document.getElementById(id);
+        if (!src) return;
+        bubble = document.createElement('div');
+        bubble.className = 'pop-bubble';
+        bubble.innerHTML = src.innerHTML;
+        document.body.appendChild(bubble);
+        var rect = btn.getBoundingClientRect();
+        var bw = bubble.offsetWidth;
+        var bh = bubble.offsetHeight;
+        // Try to position above; flip below if not enough room
+        var top = rect.top - bh - 8;
+        if (top < 8) top = rect.bottom + 8;
+        var left = rect.left + rect.width / 2 - bw / 2;
+        left = Math.max(8, Math.min(window.innerWidth - bw - 8, left));
+        bubble.style.left = left + 'px';
+        bubble.style.top = top + 'px';
+        requestAnimationFrame(function() { bubble.classList.add('show'); });
+      }
+      document.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-pop]');
+        if (btn) {
+          e.stopPropagation();
+          open(btn);
+          return;
+        }
+        if (bubble && !e.target.closest('.pop-bubble')) close();
+      });
+      window.addEventListener('scroll', close, true);
+      window.addEventListener('resize', close);
+    })();
 
     /* ── Glossary hover tooltip — works on any element with data-gloss="X" ── */
     (function() {

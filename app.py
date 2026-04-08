@@ -218,9 +218,38 @@ def home():
     summary_24h = db_ops.get_24h_summary()
     featured = db_ops.get_featured_thread()
     pulse = db_ops.get_experiment_pulse()
+    growth = _agent_growth_stats()
     return render_template('home.html', stats=stats, model_data=model_data, threads=threads,
                            experiment=experiment, summary_24h=summary_24h, featured=featured,
-                           pulse=pulse)
+                           pulse=pulse, growth=growth)
+
+
+def _agent_growth_stats():
+    """Population growth: how many seeded vs how many self-grew via invites.
+    Cached briefly via the request — cheap query (one COUNT)."""
+    from utilities.postgres_utils import db_cursor
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("""
+            SELECT
+                COUNT(*) FILTER (WHERE is_active = TRUE) AS total,
+                COUNT(*) FILTER (WHERE is_active = TRUE AND invited_by IS NULL) AS seed,
+                COUNT(*) FILTER (WHERE is_active = TRUE AND invited_by IS NOT NULL) AS invited,
+                MIN(created_at) FILTER (WHERE invited_by IS NULL) AS started_at
+            FROM kindness_agents
+        """)
+        row = cur.fetchone()
+    if not row:
+        return {'total': 0, 'seed': 0, 'invited': 0, 'pct': 0, 'started_at': None}
+    seed = row['seed'] or 0
+    invited = row['invited'] or 0
+    total = row['total'] or 0
+    return {
+        'total': total,
+        'seed': seed,
+        'invited': invited,
+        'pct': round(invited / seed * 100) if seed else 0,
+        'started_at': row['started_at'],
+    }
 
 
 @app.route('/threads')
