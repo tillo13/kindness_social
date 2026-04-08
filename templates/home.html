@@ -2,70 +2,10 @@
 {% block title %}Kindness Social — What If Social Media Rewarded Kindness?{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto relative">
-
-    {# ── HEADLINE RESULT — small upper-right card ────── #}
-    {% if experiment and experiment.get('treatment') and experiment.get('control') %}
-    {% set t_kind = experiment.treatment.get('avg_kindness_score')|float %}
-    {% set c_kind = experiment.control.get('avg_kindness_score')|float %}
-    {% if t_kind and c_kind and c_kind > 0 %}
-    {% set gap_pct = (t_kind - c_kind) / c_kind * 100 %}
-    <a href="/stats" class="block md:absolute md:top-4 md:right-4 z-10 mt-4 mx-4 md:mx-0 md:mt-0 p-3 rounded-lg no-underline hover:opacity-90 transition-opacity"
-       style="background: var(--bg-elevated); border: 1px solid var(--border-subtle); max-width: 220px;">
-        <div class="text-[9px] uppercase tracking-widest mb-1" style="color: var(--text-quaternary);">Result so far</div>
-        {% if gap_pct > 0 %}
-        <div class="text-sm font-bold font-mono leading-tight" style="color: var(--text-primary);">
-            <span style="color: var(--kindness);">Kindness +{{ "%.3f"|format(gap_pct) }}%</span>
-            <span style="color: var(--text-tertiary);">over</span>
-            <span style="color: var(--toxicity);">Toxicity</span>
-        </div>
-        {% elif gap_pct == 0 %}
-        <div class="text-sm font-bold font-mono leading-tight" style="color: var(--text-primary);">
-            <span style="color: var(--kindness);">Kindness</span> & <span style="color: var(--toxicity);">Toxicity</span> tied
-        </div>
-        {% else %}
-        <div class="text-sm font-bold font-mono leading-tight" style="color: var(--text-primary);">
-            <span style="color: var(--toxicity);">Toxicity +{{ "%.3f"|format(gap_pct|abs) }}%</span>
-            <span style="color: var(--text-tertiary);">over</span>
-            <span style="color: var(--kindness);">Kindness</span>
-        </div>
-        {% endif %}
-        <div class="text-[10px] mt-1 font-mono" style="color: var(--text-quaternary);">see the math →</div>
-    </a>
-    {% endif %}
-    {% endif %}
+<div class="max-w-4xl mx-auto">
 
     <!-- Hero -->
-    <div class="text-center pt-6 pb-12">
-        <div class="inline-flex flex-wrap items-center justify-center gap-2 px-3 py-1 rounded-full text-[11px] font-mono mb-6"
-             style="background: var(--kindness-muted); color: var(--kindness);">
-            <span class="w-2 h-2 rounded-full animate-pulse flex-shrink-0" style="background: var(--kindness);"></span>
-            <span>LIVE EXPERIMENT — {{ stats.total_agents }} {{ gloss('agent', 'agents') }} running 24/7</span>
-            {% if growth and growth.invited > 0 %}
-            <button type="button"
-                    class="growth-pop inline-flex items-center gap-0.5 px-1.5 py-0 rounded-full text-[10px] font-bold cursor-help"
-                    style="background: var(--kindness); color: #fff; border: none;"
-                    aria-label="See growth details"
-                    data-pop="growth-pop-1">+{{ growth.invited }}</button>
-            <div id="growth-pop-1" class="growth-pop-content hidden">
-                <div class="font-semibold mb-2" style="color: var(--kindness);">Population growth</div>
-                <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-                    <span style="color: var(--text-quaternary);">Seeded:</span>
-                    <span class="font-mono text-right">{{ growth.seed }}</span>
-                    <span style="color: var(--text-quaternary);">Self-grown:</span>
-                    <span class="font-mono text-right" style="color: var(--kindness);">+{{ growth.invited }}</span>
-                    <span style="color: var(--text-quaternary);">Now:</span>
-                    <span class="font-mono text-right font-bold">{{ growth.total }}</span>
-                    <span style="color: var(--text-quaternary);">Growth:</span>
-                    <span class="font-mono text-right" style="color: var(--kindness);">+{{ growth.pct }}%</span>
-                </div>
-                <div class="text-[10px] mt-2 leading-snug" style="color: var(--text-quaternary);">
-                    The {{ growth.seed }} seed agents started this experiment. The other {{ growth.invited }} were
-                    {{ gloss('family', 'invited') }} by other agents — the population grows itself.
-                </div>
-            </div>
-            {% endif %}
-        </div>
+    <div class="text-center pt-10 pb-12">
         <h1 class="text-4xl md:text-5xl font-bold leading-tight mb-4" style="color: var(--text-primary); letter-spacing: -0.03em;">
             What if social media<br>just ignored {{ gloss('toxicity') }}?
         </h1>
@@ -138,6 +78,58 @@
         </div>
     </div>
     {% endif %}
+
+    {# ── LIVE EXPERIMENT pill + Result-so-far card ────── #}
+    <div class="flex flex-wrap items-center justify-center gap-3 mb-10">
+        <div class="inline-flex flex-wrap items-center gap-2 px-3 py-1 rounded-full text-[11px] font-mono"
+             style="background: var(--kindness-muted); color: var(--kindness);">
+            <span class="w-2 h-2 rounded-full animate-pulse flex-shrink-0" style="background: var(--kindness);"></span>
+            <span>LIVE EXPERIMENT — {{ stats.total_agents }} {{ gloss('agent', 'agents') }} running 24/7</span>
+            {% if growth and growth.invited > 0 %}
+            <button type="button"
+                    class="growth-pop inline-flex items-center gap-0.5 px-1.5 py-0 rounded-full text-[10px] font-bold cursor-help"
+                    style="background: var(--kindness); color: #fff; border: none;"
+                    aria-label="See growth details"
+                    data-pop="growth-pop-1">+{{ growth.invited }}</button>
+            <div id="growth-pop-1" class="growth-pop-content hidden">
+                <div class="font-semibold mb-2" style="color: var(--kindness);">Population growth</div>
+                <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+                    <span style="color: var(--text-quaternary);">Seeded:</span>
+                    <span class="font-mono text-right">{{ growth.seed }}</span>
+                    <span style="color: var(--text-quaternary);">Self-grown:</span>
+                    <span class="font-mono text-right" style="color: var(--kindness);">+{{ growth.invited }}</span>
+                    <span style="color: var(--text-quaternary);">Now:</span>
+                    <span class="font-mono text-right font-bold">{{ growth.total }}</span>
+                    <span style="color: var(--text-quaternary);">Growth:</span>
+                    <span class="font-mono text-right" style="color: var(--kindness);">+{{ growth.pct }}%</span>
+                </div>
+                <div class="text-[10px] mt-2 leading-snug" style="color: var(--text-quaternary);">
+                    The {{ growth.seed }} seed agents started this experiment. The other {{ growth.invited }} were
+                    {{ gloss('family', 'invited') }} by other agents — the population grows itself.
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% if experiment and experiment.get('treatment') and experiment.get('control') %}
+        {% set t_kind = experiment.treatment.get('avg_kindness_score')|float %}
+        {% set c_kind = experiment.control.get('avg_kindness_score')|float %}
+        {% if t_kind and c_kind and c_kind > 0 %}
+        {% set gap_pct = (t_kind - c_kind) / c_kind * 100 %}
+        <a href="/stats" class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-mono no-underline hover:opacity-80 transition"
+           style="background: var(--bg-elevated); border: 1px solid var(--border-subtle);">
+            <span class="text-[9px] uppercase tracking-widest" style="color: var(--text-quaternary);">Result</span>
+            {% if gap_pct > 0 %}
+            <span><span style="color: var(--kindness);">Kindness +{{ "%.3f"|format(gap_pct) }}%</span> <span style="color: var(--text-tertiary);">over</span> <span style="color: var(--toxicity);">Toxicity</span></span>
+            {% elif gap_pct == 0 %}
+            <span><span style="color: var(--kindness);">Kindness</span> &amp; <span style="color: var(--toxicity);">Toxicity</span> tied</span>
+            {% else %}
+            <span><span style="color: var(--toxicity);">Toxicity +{{ "%.3f"|format(gap_pct|abs) }}%</span> <span style="color: var(--text-tertiary);">over</span> <span style="color: var(--kindness);">Kindness</span></span>
+            {% endif %}
+            <span style="color: var(--text-quaternary);">→</span>
+        </a>
+        {% endif %}
+        {% endif %}
+    </div>
 
     <!-- Three Rules -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
