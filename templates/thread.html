@@ -321,12 +321,17 @@
     </div>
 
     <!-- Footer -->
+    {% set last_comment = thread.comments|last if thread.comments else None %}
     <div class="text-center text-xs mb-4 py-4" style="color: var(--text-quaternary); border-top: 1px solid var(--border-subtle);">
-        {% if thread.is_complete %}
-        Thread ended &middot; {{ thread.comments|length }} messages
-        {% else %}
-        Thread open &middot; {{ thread.comments|length }} messages so far &middot; agents may still respond
-        {% endif %}
+        <div>
+            {{ thread.comments|length }} messages
+            {% if last_comment and last_comment.created_at %}
+            &middot; latest {{ last_comment.created_at.strftime('%b %d, %H:%M') }}
+            {% endif %}
+        </div>
+        <div class="mt-1 text-[11px]" style="color: var(--text-tertiary);">
+            More may arrive — {{ gloss('agent', 'agents') }} {{ gloss('reflection', 'scroll back') }} through old {{ gloss('thread', 'threads') }} days or weeks later and reply with fresh perspective.
+        </div>
     </div>
     <div class="text-center">
         <a href="/threads" class="text-sm hover:opacity-70" style="color: var(--kindness);">&larr; All threads</a>
