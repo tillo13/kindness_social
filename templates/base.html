@@ -44,7 +44,48 @@
           if (next) next.style.display = 'flex';
         }
       };
+      // Glossary definitions, inlined from server. Used by the hover tooltip.
+      window.GLOSSARY = {{ GLOSSARY_JSON|safe }};
     </script>
+    <style>
+      /* Glossary terms get a consistent visual signal everywhere on the site:
+         dotted underline + help cursor. Hover pops a tooltip with the definition. */
+      .gloss {
+        border-bottom: 1px dotted currentColor;
+        cursor: help;
+        text-decoration: none;
+      }
+      .gloss:hover { opacity: 0.85; }
+      #gloss-tip {
+        position: fixed;
+        max-width: 320px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: var(--bg-surface, #1a1a1a);
+        color: var(--text-primary, #fff);
+        border: 1px solid var(--border-default, #333);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+        font-size: 12px;
+        line-height: 1.45;
+        z-index: 99999;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 120ms;
+      }
+      #gloss-tip.show { opacity: 1; }
+      #gloss-tip .gloss-title {
+        font-weight: 600;
+        text-transform: capitalize;
+        margin-bottom: 4px;
+        color: var(--kindness, #7fb685);
+      }
+      #gloss-tip .gloss-link {
+        display: block;
+        margin-top: 6px;
+        font-size: 10px;
+        color: var(--text-quaternary, #888);
+      }
+    </style>
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -258,6 +299,53 @@
     }
 
     updateThemeIcons();
+
+    /* ── Glossary hover tooltip — works on any element with data-gloss="X" ── */
+    (function() {
+      var tip = document.createElement('div');
+      tip.id = 'gloss-tip';
+      document.body.appendChild(tip);
+      var hideTimer = null;
+
+      function show(el, evt) {
+        var key = el.dataset.gloss;
+        var def = window.GLOSSARY && window.GLOSSARY[key];
+        if (!def) return;
+        var title = key.replace(/_/g, ' ');
+        tip.innerHTML =
+          '<div class="gloss-title">' + title + '</div>' +
+          '<div>' + def + '</div>' +
+          '<a class="gloss-link" href="/about#gloss-' + key + '">→ full glossary entry</a>';
+        // Position above the element when possible, otherwise below
+        var rect = el.getBoundingClientRect();
+        var tipW = 320;
+        var left = Math.min(window.innerWidth - tipW - 12, Math.max(12, rect.left));
+        var top = rect.top - 8;
+        tip.style.left = left + 'px';
+        tip.style.top = top + 'px';
+        tip.style.transform = 'translateY(-100%)';
+        tip.classList.add('show');
+        if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+      }
+      function hide() {
+        hideTimer = setTimeout(function() { tip.classList.remove('show'); }, 120);
+      }
+      document.addEventListener('mouseover', function(e) {
+        var el = e.target.closest('[data-gloss]');
+        if (el) show(el, e);
+      });
+      document.addEventListener('mouseout', function(e) {
+        var el = e.target.closest('[data-gloss]');
+        if (el) hide();
+      });
+      // Click on a glossary term jumps to the full entry
+      document.addEventListener('click', function(e) {
+        var el = e.target.closest('[data-gloss]');
+        if (el && !el.matches('a')) {
+          window.location.href = '/about#gloss-' + el.dataset.gloss;
+        }
+      });
+    })();
 
     /* ── Avatar fallback: local → GCS → hide ── */
     window.avatarFallback = function(img) {

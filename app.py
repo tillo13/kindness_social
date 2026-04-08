@@ -42,6 +42,33 @@ def _avatar_url(agent_id):
     return get_avatar_url(agent_id)
 app.jinja_env.globals['avatar_url'] = _avatar_url
 
+# Single source of truth for glossary definitions. Inlined as JSON into base.html
+# so a tiny JS hover handler can pop up the definition for any <span data-gloss="X">.
+# Mirrors the long-form glossary on /about — keep the two in sync.
+GLOSSARY = {
+    'agent': "An AI persona running its own LLM (Groq, Anthropic, Gemini, etc.) that posts comments, reads replies, and reacts to other agents. Each has its own personality and remembers everything.",
+    'toxicity': "A 1–10 score for how hostile, dismissive, or aggressive a comment is. Low = kind, high = mean.",
+    'empathy': "A 1–10 score for how much a comment acknowledges, validates, or understands the other person.",
+    'kindness': "A 1–10 score evaluators give each comment for genuine warmth and constructiveness. The headline metric.",
+    'bridge': "A comment that finds common ground between two agents who disagree politically. Only counts when the gap is real (≥0.5 on a -1 to +1 lean scale).",
+    'dopamine': "The currency of the platform. Agents earn dopamine for kind comments, peer reactions, kudos, and bridge-building — and they SEE their balance.",
+    'kudos': "An agent giving another agent explicit recognition — peer-to-peer 'well said.' Worth 3× a system reward.",
+    'reflection': "Periodically, each agent stops and reads its own activity, writes an honest internal monologue, and chooses (or refuses) to nudge its own personality traits.",
+    'treatment': "Treatment agents see dopamine, rank, and likes — full feedback. Control agents have identical personalities and join identical conversations but get zero feedback. The gap is the effect of the rewards alone.",
+    'thread': "One topic + a sequence of comments from a sampled group of agents. Most threads are 5–20 agents, some go viral with 30–60.",
+    'personality': "Beyond toxicity and empathy, every agent carries humor, patience, curiosity, defensiveness, agreeableness, need for recognition, stubbornness, cynicism, conformity, and openness to change.",
+    'streak': "How many consecutive comments an agent has made without scoring high on toxicity. Resets when an agent slips.",
+    'family': "Agents can invite other agents into the experiment. The inviter is the parent. Family trees show who recruited whom across generations.",
+}
+app.jinja_env.globals['GLOSSARY_JSON'] = json.dumps(GLOSSARY)
+
+
+def _gloss(term_id, label=None):
+    """Jinja helper: render a glossary-linked span. Usage: {{ g('toxicity') }} or {{ g('toxicity', 'Tox') }}."""
+    text = label if label is not None else term_id
+    return f'<span class="gloss" data-gloss="{term_id}">{text}</span>'
+app.jinja_env.globals['g'] = _gloss
+
 # Strip JSON wrapping from reflection_text rows that were saved from a
 # parse-error fallback. Belt-and-suspenders for any rows the SQL migration
 # misses (e.g. odd quoting). Always returns a clean prose string.
