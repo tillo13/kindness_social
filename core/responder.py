@@ -72,6 +72,67 @@ def get_agents_not_in_thread(thread_db_id, limit=10):
         return [dict(row) for row in cur.fetchall()]
 
 
+MAX_REPLY_DEPTH = 4  # cap to keep trees readable
+
+def _comment_depth(comment, by_id):
+    """Walk up parent_comment_id chain to find depth (0 = top-level)."""
+    d = 0
+    cur = comment
+    while cur and cur.get('parent_comment_id'):
+        cur = by_id.get(cur['parent_comment_id'])
+        d += 1
+        if d > 20:
+            break
+    return d
+
+
+def _pick_reply_target(comments, agent):
+    """Pick which comment in the thread this agent should reply to.
+
+    Weighted random pick over recent comments:
+      • Recency: most recent N comments are eligible (older ones don't get touched)
+      • Controversy: high-toxicity / low-empathy comments draw more replies
+      • Direct-reply boost: if a comment is replying to THIS agent, almost always pick it
+      • Depth cap: never extends a chain beyond MAX_REPLY_DEPTH
+      • Sometimes (20%) target NONE — top-level reply to the OP/topic
+
+    Returns the chosen comment dict, or None for a top-level reply.
+    """
+    if not comments:
+        return None
+
+    by_id = {c['id']: c for c in comments}
+
+    # Direct-reply: any recent comment that targets THIS agent? almost always pick it
+    for c in reversed(comments[-10:]):
+        if c.get('replied_to_agent_id') == agent['id']:
+            if _comment_depth(c, by_id) < MAX_REPLY_DEPTH:
+                return c
+
+    # 20% chance of a top-level reply (to the OP)
+    if random.random() < 0.2:
+        return None
+
+    # Eligible pool: recent comments not yet at depth cap
+    recent = comments[-15:]
+    eligible = [c for c in recent if _comment_depth(c, by_id) < MAX_REPLY_DEPTH]
+    if not eligible:
+        return None
+
+    # Weights: recency (later = higher) + controversy bonus
+    weights = []
+    n = len(eligible)
+    for i, c in enumerate(eligible):
+        recency = (i + 1) / n  # 0..1, latest gets 1
+        tox = (c.get('toxicity_score') or 0) / 10
+        kind = (c.get('kindness_score') or 0) / 10
+        controversy = max(tox - kind, 0)  # high-tox low-kind = juicy
+        w = recency + controversy * 1.5
+        weights.append(max(w, 0.05))
+
+    return random.choices(eligible, weights=weights, k=1)[0]
+
+
 def should_respond(agent, comment, thread_context):
     """
     Decide if this agent should respond to this comment/thread.
@@ -253,8 +314,6 @@ def run_agent_responses(config=None):
         # New agents first (rotation), then existing (reply-backs)
         all_candidates = potential_responders + existing_agents
 
-        latest_comment = comments[-1] if comments else None
-
         for agent in all_candidates:
             if total_responses >= max_responses_this_round:
                 break
@@ -264,7 +323,13 @@ def run_agent_responses(config=None):
             if is_backend_in_backoff(agent_backend):
                 continue
 
-            should, reason, target = should_respond(agent, latest_comment, thread_context)
+            # Pick the comment to reply to. Instead of always chaining off
+            # the latest comment (which produces flat linear threads), pick
+            # one weighted by recency + controversy + depth-cap. This is what
+            # creates real Reddit/Slack-style subthreads.
+            target_comment = _pick_reply_target(comments, agent)
+
+            should, reason, target = should_respond(agent, target_comment, thread_context)
             if not should:
                 continue
 

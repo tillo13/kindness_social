@@ -28,6 +28,11 @@
     "/understand",
     "/roadmap",
     "/families",
+    "/contact",
+    "/privacy",
+    "/terms",
+    "/sitemap.xml",
+    "/api/health",
     {
       "path": "/agent/google.flash-2.0.819",
       "expectText": "Internal Monologue"

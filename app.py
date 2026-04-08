@@ -631,14 +631,36 @@ def topics_page():
 
 @app.route('/thread/<thread_id>')
 def view_thread(thread_id):
-    """View a single discussion thread."""
+    """View a single discussion thread, rendered as a Slack/Reddit-style tree."""
     thread = db_ops.get_thread_with_comments(thread_id)
     if not thread:
         return "Thread not found", 404
-    # Get reactions for all comments in this thread
     reactions = db_ops.get_reactions_for_thread(thread['id']) if thread else {}
-    # Get recent threads for sidebar navigation
     recent_threads = db_ops.get_recent_threads(limit=20)
+    # Build the tree: top-level comments + recursive children. Comments with a
+    # parent_comment_id pointing outside this thread (shouldn't happen) are
+    # promoted to top-level so nothing gets orphaned.
+    comments = thread.get('comments') or []
+    by_id = {c['id']: c for c in comments}
+    for c in comments:
+        c['children'] = []
+        c['depth'] = 0
+    roots = []
+    for c in comments:
+        pid = c.get('parent_comment_id')
+        if pid and pid in by_id:
+            by_id[pid]['children'].append(c)
+        else:
+            roots.append(c)
+    # Compute depth for indent rendering (cap rendering at depth 4 — anything
+    # beyond that gets visually flattened so the tree doesn't disappear off screen).
+    def _set_depth(node, d):
+        node['depth'] = d
+        for ch in node['children']:
+            _set_depth(ch, d + 1)
+    for r in roots:
+        _set_depth(r, 0)
+    thread['tree'] = roots
     return render_template('thread.html', thread=thread, reactions=reactions, recent_threads=recent_threads)
 
 
