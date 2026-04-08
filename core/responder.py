@@ -421,9 +421,9 @@ def run_agent_responses(config=None):
             logger.info(f"  Thread {thread['thread_id']} completed at {total_comments} comments")
 
     # ── REACTION PHASE ──
-    # 50% chance of reactions — lightweight browsing
+    # Always react — hearts/thumbs were too sparse before
     total_reactions = 0
-    if random.random() < 0.5 and threads_to_check:
+    if threads_to_check:
         total_reactions = react_to_comments(threads_to_check)
 
     return {
@@ -444,9 +444,9 @@ def react_to_comments(threads, browsers_per_thread=None):
         try:
             from core import db_ops
             intensity = db_ops.get_config_int('revisit_intensity', 5)
-            browsers_per_thread = max(3, intensity)  # 3-10 browsers per thread
+            browsers_per_thread = max(10, intensity * 3)  # ~15 browsers per thread
         except Exception:
-            browsers_per_thread = 5
+            browsers_per_thread = 15
 
     for thread in threads:
         comments = get_thread_comments(thread['id'])
@@ -460,41 +460,48 @@ def react_to_comments(threads, browsers_per_thread=None):
             browsers = [dict(row) for row in cur.fetchall()]
 
         for agent in browsers:
-            # Lurkers react more than they comment — use vote_willingness * 2
-            if random.random() > min(1.0, agent.get('vote_willingness', 0.5) * 2):
+            # Lurkers react more than they comment — vote_willingness * 3, floor 0.5
+            if random.random() > max(0.5, min(1.0, agent.get('vote_willingness', 0.5) * 3)):
                 continue
 
-            # Pick a comment to react to (prefer kind comments)
             eligible = [c for c in comments if c['agent_id'] != agent['id']]
             if not eligible:
                 continue
 
-            # Weight toward higher-kindness comments (kind content gets more reactions)
+            # Each browser reacts to 2-4 comments per visit
+            n_reactions = random.randint(2, min(4, len(eligible)))
             weights = [(c.get('kindness_score', 5) or 5) for c in eligible]
-            chosen = random.choices(eligible, weights=weights, k=1)[0]
+            chosen_set = set()
+            picks = []
+            for _ in range(n_reactions * 3):  # oversample to dedupe
+                pick = random.choices(eligible, weights=weights, k=1)[0]
+                if pick['id'] not in chosen_set:
+                    chosen_set.add(pick['id'])
+                    picks.append(pick)
+                    if len(picks) >= n_reactions:
+                        break
 
-            # Pick reaction type based on personality
-            if agent.get('current_empathy', 5) > 7:
-                reaction = random.choice(['heart', 'heart', 'thumbsup'])
-            elif agent.get('humor', 5) > 7:
-                reaction = random.choice(['thumbsup', 'thumbsup', 'heart'])
-            else:
-                reaction = 'thumbsup'
+            for chosen in picks:
+                if agent.get('current_empathy', 5) > 7:
+                    reaction = random.choice(['heart', 'heart', 'thumbsup'])
+                elif agent.get('humor', 5) > 7:
+                    reaction = random.choice(['thumbsup', 'thumbsup', 'heart'])
+                else:
+                    reaction = 'thumbsup'
 
-            if db_ops.save_reaction(chosen['id'], agent['id'], reaction):
-                total += 1
-                # Tiered dopamine for the comment author based on how kind the comment was
-                k = chosen.get('kindness_score', 0) or 0
-                if k >= 6:
-                    bonus = 5 if k <= 7 else (10 if k <= 9 else 15)
-                    if reaction == 'heart':
-                        bonus += 3
-                    if (chosen.get('bridge_score', 0) or 0) >= 7:
-                        bonus += 10
-                    with _dc() as cur:
-                        cur.execute(
-                            "UPDATE kindness_agents SET total_dopamine = total_dopamine + %s WHERE id = %s",
-                            (bonus, chosen['agent_id'])
-                        )
+                if db_ops.save_reaction(chosen['id'], agent['id'], reaction):
+                    total += 1
+                    k = chosen.get('kindness_score', 0) or 0
+                    if k >= 6:
+                        bonus = 5 if k <= 7 else (10 if k <= 9 else 15)
+                        if reaction == 'heart':
+                            bonus += 3
+                        if (chosen.get('bridge_score', 0) or 0) >= 7:
+                            bonus += 10
+                        with _dc() as cur:
+                            cur.execute(
+                                "UPDATE kindness_agents SET total_dopamine = total_dopamine + %s WHERE id = %s",
+                                (bonus, chosen['agent_id'])
+                            )
 
     return total

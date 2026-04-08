@@ -22,13 +22,13 @@
     {# ── Headline result — same metric the home page leads with ─────── #}
     {% set kind_m = analysis.metrics.get('avg_kindness_score', {}) %}
     {% if kind_m.get('treatment_mean') and kind_m.get('control_mean') and kind_m.control_mean > 0 %}
-    {% set gap_pct = ((kind_m.treatment_mean - kind_m.control_mean) / kind_m.control_mean * 100)|round|int %}
+    {% set gap_pct = (kind_m.treatment_mean - kind_m.control_mean) / kind_m.control_mean * 100 %}
     <div class="text-center mb-6">
         <div class="text-[10px] uppercase tracking-widest mb-2" style="color: var(--text-quaternary);">Headline result</div>
         {% if gap_pct > 0 %}
         <div class="text-2xl md:text-4xl font-bold leading-tight" style="color: var(--text-primary); letter-spacing: -0.02em;">
             Rewarded agents are
-            <span style="color: var(--kindness);">{{ gap_pct }}% kinder</span>
+            <span style="color: var(--kindness);">{{ "%.3f"|format(gap_pct) }}% kinder</span>
             than the control group
         </div>
         {% elif gap_pct == 0 %}
@@ -37,14 +37,14 @@
         </div>
         {% else %}
         <div class="text-2xl md:text-4xl font-bold leading-tight" style="color: var(--text-primary);">
-            <span style="color: var(--toxicity);">Control leading by {{ gap_pct|abs }}%</span> on kindness
+            <span style="color: var(--toxicity);">Control leading by {{ "%.3f"|format(gap_pct|abs) }}%</span> on kindness
         </div>
         {% endif %}
         <div class="text-xs mt-3 font-mono" style="color: var(--text-tertiary);">
-            Treatment {{ "%.2f"|format(kind_m.treatment_mean) }}/10 · Control {{ "%.2f"|format(kind_m.control_mean) }}/10
+            Treatment {{ "%.3f"|format(kind_m.treatment_mean) }}/10 · Control {{ "%.3f"|format(kind_m.control_mean) }}/10
             {% if kind_m.get('significant') %}
             · <span style="color: var(--kindness);">{{ kind_m.stars }} {{ kind_m.p_label }}</span>
-            · effect size <span style="color: var(--text-secondary);">{{ "%.2f"|format(kind_m.cohens_d) }} ({{ kind_m.effect_label }})</span>
+            · effect size <span style="color: var(--text-secondary);">{{ "%.3f"|format(kind_m.cohens_d) }} ({{ kind_m.effect_label }})</span>
             {% else %}
             · <span style="color: var(--text-quaternary);">{{ kind_m.p_label }}, not yet significant</span>
             {% endif %}
@@ -63,8 +63,8 @@
         {% if tox_m.get('significant') and emp_m.get('significant') %}
         <div class="text-lg font-bold mb-2" style="color: var(--kindness);">Yes. Statistically significant on both key metrics.</div>
         <p class="text-sm" style="color: var(--text-secondary);">
-            Rewarded agents reduced their toxicity <strong>{{ "%.1f"|format(tox_m.treatment_mean / tox_m.control_mean if tox_m.control_mean else 1) }}x more</strong> than control agents ({{ tox_m.p_label }})
-            and grew their empathy <strong>{{ "%.1f"|format(emp_m.treatment_mean / emp_m.control_mean if emp_m.control_mean else 1) }}x more</strong> ({{ emp_m.p_label }}).
+            Rewarded agents reduced their toxicity <strong>{{ "%.3f"|format(tox_m.treatment_mean / tox_m.control_mean if tox_m.control_mean else 1) }}x more</strong> than control agents ({{ tox_m.p_label }})
+            and grew their empathy <strong>{{ "%.3f"|format(emp_m.treatment_mean / emp_m.control_mean if emp_m.control_mean else 1) }}x more</strong> ({{ emp_m.p_label }}).
             These are <strong>{{ tox_m.effect_label }}</strong> effects by standard measures.
             The probability of seeing these results by chance is less than 0.1%.
         </p>
@@ -134,7 +134,7 @@
                 </span>
                 {% endif %}
                 <span class="px-2 py-0.5 rounded-full text-[10px] font-mono" style="background: var(--bg-elevated); color: var(--text-tertiary);">
-                    d={{ "%.2f"|format(m.cohens_d) }} ({{ m.effect_label }})
+                    d={{ "%.3f"|format(m.cohens_d) }} ({{ m.effect_label }})
                 </span>
             </div>
         </div>
@@ -178,7 +178,7 @@
         <!-- Difference -->
         <div class="flex items-center gap-3 text-xs" style="color: var(--text-quaternary);">
             <span>Difference: <span class="font-mono" style="color: var(--text-secondary);">{{ "%.3f"|format(m.difference) }}</span></span>
-            <span>t({{ "%.1f"|format(m.df) }}) = {{ "%.3f"|format(m.t_stat) }}</span>
+            <span>t({{ "%.3f"|format(m.df) }}) = {{ "%.3f"|format(m.t_stat) }}</span>
             {% if m.significant %}
             <span style="color: var(--kindness);">
                 {% if m.higher_is_better and m.difference > 0 %}Treatment performing better{% elif not m.higher_is_better and m.difference < 0 %}Treatment performing better{% else %}Control performing better{% endif %}
