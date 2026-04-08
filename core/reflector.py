@@ -263,7 +263,11 @@ def reflect_agent(agent, platform_ctx):
             temperature=0.4,
         )
 
-        # Parse JSON response — some backends wrap in markdown or add junk
+        # Parse JSON response — some backends wrap in markdown or add junk.
+        # If the backend returned None (rate limit / no response), bail to the
+        # parse-error path so we still mark the agent as having tried.
+        if not response:
+            raise ValueError("backend returned no response")
         text = response.strip()
         if text.startswith('```'):
             text = text.split('\n', 1)[1] if '\n' in text else text[3:]
@@ -458,10 +462,11 @@ def reflect_agent(agent, platform_ctx):
         return None
 
 
-def run_reflection_cycle(batch_size=10):
+def run_reflection_cycle(batch_size=25):
     """Main entry point — called by cron. Reflects a random-sized batch.
     Like humans, reflection doesn't happen on a schedule — sometimes
-    lots of people are thinking, sometimes nobody is."""
+    lots of people are thinking, sometimes nobody is. Bumped from 10 to 25
+    so the queue actually drains faster than new agents arrive."""
     import random
 
     # 15% chance nobody reflects this cycle (quiet period)
@@ -469,8 +474,8 @@ def run_reflection_cycle(batch_size=10):
         logger.info("Quiet reflection cycle — nobody's thinking right now")
         return {'reflected': 0, 'changed': 0, 'results': [], 'skipped': 'quiet_period'}
 
-    # Random batch size: sometimes 2 agents reflect, sometimes 12
-    actual_batch = random.randint(2, min(batch_size + 4, 15))
+    # Random batch size: sometimes 8 agents reflect, sometimes 30
+    actual_batch = random.randint(8, min(batch_size + 5, 30))
     agents = get_agents_due_for_reflection(actual_batch)
     if not agents:
         logger.info("No agents due for reflection")

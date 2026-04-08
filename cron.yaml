@@ -29,7 +29,7 @@ cron:
 
 - description: "Agent reflection — agents review their own performance and decide to change"
   url: /api/cron/agent-reflect
-  schedule: every 2 hours
+  schedule: every 30 minutes
   retry_parameters:
     min_backoff_seconds: 60
     max_doublings: 2
