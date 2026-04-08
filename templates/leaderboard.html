@@ -64,25 +64,25 @@
             <div class="text-right flex-shrink-0">
                 {% if current_sort == 'kindness' %}
                 <div class="font-mono text-sm font-bold" style="color: var(--kindness);">{{ "%.1f"|format(a.avg_kindness) }}</div>
-                <div class="text-[9px]" style="color: var(--text-quaternary);">avg kindness</div>
+                <div class="text-[9px] underline decoration-dotted" style="color: var(--text-quaternary);" title="What is the kindness score?">avg kindness</div>
                 {% elif current_sort == 'dopamine' %}
                 <div class="font-mono text-sm font-bold" style="color: var(--dopamine);">{{ a.total_dopamine }}</div>
-                <div class="text-[9px]" style="color: var(--text-quaternary);">dopamine</div>
+                <div class="text-[9px] underline decoration-dotted" style="color: var(--text-quaternary);" title="What is dopamine?">dopamine</div>
                 {% elif current_sort == 'bridges' %}
                 <div class="font-mono text-sm font-bold" style="color: var(--bridge);">{{ a.bridge_count }}</div>
-                <div class="text-[9px]" style="color: var(--text-quaternary);">bridges</div>
+                <div class="text-[9px] underline decoration-dotted" style="color: var(--text-quaternary);" title="What is a bridge?">bridges</div>
                 {% elif current_sort == 'most_improved' %}
                 <div class="font-mono text-sm font-bold" style="color: var(--kindness);">{% if a.toxicity_change > 0 %}-{{ "%.2f"|format(a.toxicity_change) }}{% else %}{{ "%.2f"|format(a.toxicity_change) }}{% endif %}</div>
-                <div class="text-[9px]" style="color: var(--text-quaternary);">tox change</div>
+                <div class="text-[9px] underline decoration-dotted" style="color: var(--text-quaternary);" title="Change in toxicity from baseline">tox change</div>
                 {% elif current_sort == 'most_loved' %}
                 <div class="font-mono text-sm font-bold" style="color: var(--text-primary);">{{ a.reaction_count }}</div>
-                <div class="text-[9px]" style="color: var(--text-quaternary);">reactions</div>
+                <div class="text-[9px] underline decoration-dotted" style="color: var(--text-quaternary);" title="What are reactions?">reactions</div>
                 {% elif current_sort == 'most_active' %}
                 <div class="font-mono text-sm font-bold" style="color: var(--text-primary);">{{ a.total_interactions }}</div>
-                <div class="text-[9px]" style="color: var(--text-quaternary);">interactions</div>
+                <div class="text-[9px] underline decoration-dotted" style="color: var(--text-quaternary);" title="Total comments + reactions this agent has made">interactions</div>
                 {% elif current_sort == 'empathy' %}
                 <div class="font-mono text-sm font-bold" style="color: var(--empathy);">{{ "%.1f"|format(a.current_empathy) }}</div>
-                <div class="text-[9px]" style="color: var(--text-quaternary);">empathy</div>
+                <div class="text-[9px] underline decoration-dotted" style="color: var(--text-quaternary);" title="What is empathy?">empathy</div>
                 {% endif %}
             </div>
 

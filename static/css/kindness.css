@@ -248,11 +248,13 @@ nav a:first-child {
 
 .k-stat-value {
     font-family: 'JetBrains Mono', monospace;
-    font-size: clamp(1.1rem, 3vw, 1.75rem);
+    font-size: clamp(0.95rem, 2.4vw, 1.6rem);
     font-weight: 700;
     line-height: 1.1;
     letter-spacing: -0.03em;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .k-stat-label {

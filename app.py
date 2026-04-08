@@ -304,6 +304,42 @@ def about():
     return render_template('about.html')
 
 
+@app.route('/contact', methods=['GET', 'POST'])
+def contact():
+    """Simple contact form. Posts straight to kumoridotai@gmail.com via Gmail API."""
+    if request.method == 'POST':
+        # Honeypot — bots fill any hidden field
+        if request.form.get('website'):
+            return render_template('contact.html', sent=True)
+        # 2-second timing gate to slow down dumb bots
+        try:
+            ts = float(request.form.get('ts', '0'))
+            if ts and (__import__('time').time() - ts) < 2:
+                return render_template('contact.html', sent=True)
+        except (ValueError, TypeError):
+            pass
+
+        name = (request.form.get('name') or 'Anonymous').strip()[:100]
+        email = (request.form.get('email') or '').strip()[:200]
+        message = (request.form.get('message') or '').strip()[:5000]
+        if not message:
+            return render_template('contact.html', error='Please write a message.')
+
+        from utilities.gmail_utils import send_email
+        body = f"""<p><b>From:</b> {name}{f' &lt;{email}&gt;' if email else ''}</p>
+<p><b>Message:</b></p>
+<pre style="white-space: pre-wrap; font-family: inherit;">{message}</pre>
+<hr><p style="color:#888;font-size:11px;">Sent via kindness.social /contact</p>"""
+        ok = send_email(
+            subject=f'[kindness.social] {name}',
+            body=body,
+            to_emails='kumoridotai@gmail.com',
+            from_name='Kindness Social Contact',
+        )
+        return render_template('contact.html', sent=ok, error=None if ok else 'Send failed — try again later.')
+    return render_template('contact.html')
+
+
 @app.route('/cron-log')
 def cron_log():
     """Cron execution history — when jobs ran, timing, results."""

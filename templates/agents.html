@@ -99,30 +99,34 @@
         ] %}
         {% set sorted_traits = traits|sort(attribute=1, reverse=true) %}
         {% set top = sorted_traits[0] %}
-        <details class="mb-3 trait-details" onclick="event.stopPropagation()">
-            <summary class="list-none cursor-pointer select-none" style="outline:none;">
-                <div class="flex items-center gap-2">
-                    <span class="text-[9px] uppercase tracking-wider" style="color: var(--text-quaternary);">top</span>
-                    <span class="text-[10px] font-mono font-semibold flex-shrink-0" style="color: {{ top[2] }};">{{ top[0] }}</span>
-                    <div class="flex-1 h-1 rounded-full" style="background: var(--bg-elevated);">
-                        <div class="h-1 rounded-full" style="width: {{ (top[1] / 10 * 100)|int }}%; background: {{ top[2] }};"></div>
-                    </div>
-                    <span class="font-mono text-[10px]" style="color: var(--text-tertiary);">{{ "%.1f"|format(top[1]) }}</span>
-                    <span class="trait-chevron text-[9px]" style="color: var(--text-quaternary);">▾</span>
+        <div class="mb-3">
+            <!-- Top trait shown by default -->
+            <div class="flex items-center gap-2 mb-2">
+                <span class="text-[9px] uppercase tracking-wider" style="color: var(--text-quaternary);">top</span>
+                <span class="text-[10px] font-mono font-semibold flex-shrink-0" style="color: {{ top[2] }};">{{ top[0] }}</span>
+                <div class="flex-1 h-1.5 rounded-full" style="background: var(--bg-elevated);">
+                    <div class="h-1.5 rounded-full" style="width: {{ (top[1] / 10 * 100)|int }}%; background: {{ top[2] }};"></div>
                 </div>
-            </summary>
-            <div class="space-y-1 mt-2 pt-2" style="border-top: 1px solid var(--border-subtle);">
+                <span class="font-mono text-[10px]" style="color: var(--text-tertiary);">{{ "%.1f"|format(top[1]) }}</span>
+            </div>
+            <!-- Expand button — full width, clearly clickable -->
+            <button type="button" onclick="event.preventDefault();event.stopPropagation();this.nextElementSibling.classList.toggle('hidden');this.querySelector('.expand-arrow').textContent=this.nextElementSibling.classList.contains('hidden')?'▾':'▴';"
+                    class="w-full text-center text-[10px] py-1.5 rounded-md hover:opacity-80 transition"
+                    style="color: var(--text-tertiary); background: var(--bg-elevated); border: 1px solid var(--border-subtle);">
+                See all 12 attributes <span class="expand-arrow">▾</span>
+            </button>
+            <div class="hidden space-y-1 mt-2 p-2 rounded-md" style="background: var(--bg-elevated); border: 1px solid var(--border-subtle);">
                 {% for label, val, color in sorted_traits %}
                 <div class="flex items-center gap-2" title="{{ label }}: {{ '%.1f'|format(val) }}/10">
                     <span class="w-20 text-[9px] font-mono text-right" style="color: var(--text-quaternary);">{{ label }}</span>
-                    <div class="flex-1 h-1 rounded-full" style="background: var(--bg-elevated);">
+                    <div class="flex-1 h-1 rounded-full" style="background: var(--bg-surface);">
                         <div class="h-1 rounded-full" style="width: {{ (val / 10 * 100)|int }}%; background: {{ color }};"></div>
                     </div>
                     <span class="w-6 font-mono text-[9px] text-right" style="color: var(--text-tertiary);">{{ "%.1f"|format(val) }}</span>
                 </div>
                 {% endfor %}
             </div>
-        </details>
+        </div>
 
         <!-- Footer stats -->
         <div class="flex items-center justify-between text-[10px]" style="color: var(--text-quaternary);">

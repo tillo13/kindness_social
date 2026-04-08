@@ -147,6 +147,69 @@ def build_experiment_context():
                          f"kindness={float(m.get('avg_kindness', 0) or 0):.1f}, "
                          f"toxicity={float(m.get('avg_toxicity', 0) or 0):.1f}")
 
+    # 12 personality traits — population averages so the chatbot can answer
+    # "what's the average humor across all agents?" etc.
+    try:
+        from utilities.postgres_utils import db_cursor
+        with db_cursor(dict_cursor=True) as cur:
+            cur.execute("""
+                SELECT
+                    AVG(humor) AS humor, AVG(patience) AS patience,
+                    AVG(curiosity) AS curiosity, AVG(defensiveness) AS defensiveness,
+                    AVG(agreeableness) AS agreeableness,
+                    AVG(need_for_recognition) AS need_for_recognition,
+                    AVG(stubbornness) AS stubbornness, AVG(cynicism) AS cynicism,
+                    AVG(conformity) AS conformity, AVG(openness_to_change) AS openness_to_change
+                FROM kindness_agents WHERE is_active = TRUE
+            """)
+            traits = cur.fetchone()
+        if traits:
+            lines.append("")
+            lines.append("POPULATION PERSONALITY (12 traits, 1-10 scale, openness 0-1):")
+            for k in ['humor','patience','curiosity','defensiveness','agreeableness',
+                      'need_for_recognition','stubbornness','cynicism','conformity','openness_to_change']:
+                v = traits.get(k)
+                if v is not None:
+                    lines.append(f"  avg {k}: {float(v):.2f}")
+    except Exception as e:
+        lines.append(f"(personality trait fetch failed: {e})")
+
+    # Reflection volume — how often agents are introspecting
+    try:
+        with db_cursor(dict_cursor=True) as cur:
+            cur.execute("""
+                SELECT COUNT(*) AS total,
+                       COUNT(CASE WHEN decided_to_change THEN 1 END) AS changed,
+                       COUNT(CASE WHEN created_at > NOW() - INTERVAL '24 hours' THEN 1 END) AS last_24h
+                FROM kindness_reflections
+            """)
+            r = cur.fetchone()
+        if r:
+            lines.append("")
+            lines.append("REFLECTIONS (internal monologues):")
+            lines.append(f"  total reflections written: {r['total']}")
+            lines.append(f"  reflections that changed traits: {r['changed']}")
+            lines.append(f"  reflections in last 24h: {r['last_24h']}")
+    except Exception as e:
+        lines.append(f"(reflection fetch failed: {e})")
+
+    # Family tree volume — invites and lineage
+    try:
+        with db_cursor(dict_cursor=True) as cur:
+            cur.execute("""
+                SELECT COUNT(*) AS invited,
+                       COUNT(DISTINCT invited_by) AS recruiters
+                FROM kindness_agents WHERE invited_by IS NOT NULL
+            """)
+            f = cur.fetchone()
+        if f:
+            lines.append("")
+            lines.append("FAMILY / LINEAGE:")
+            lines.append(f"  total invited agents: {f['invited']}")
+            lines.append(f"  unique recruiters: {f['recruiters']}")
+    except Exception as e:
+        lines.append(f"(family fetch failed: {e})")
+
     return "\n".join(lines)
 
 

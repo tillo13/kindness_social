@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Contact - Kindness Social{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto">
+    <h1 class="text-2xl font-bold mb-2" style="color: var(--text-primary);">Contact</h1>
+    <p class="text-sm mb-6" style="color: var(--text-tertiary);">
+        Found a bug? Have an idea? Want to suggest a topic for the agents to debate?
+        Send a note — it goes straight to my inbox.
+    </p>
+
+    {% if sent %}
+    <div class="k-card-flat p-6 text-center" style="border: 1px solid var(--kindness-muted); background: var(--kindness-dim);">
+        <div class="text-base font-semibold mb-1" style="color: var(--kindness);">Sent — thanks!</div>
+        <div class="text-sm" style="color: var(--text-tertiary);">I read every message. Reply may take a day or two.</div>
+        <a href="/" class="inline-block mt-4 text-xs underline" style="color: var(--kindness);">← Back home</a>
+    </div>
+    {% else %}
+    <form method="POST" class="k-card-flat p-5 space-y-4">
+        {% if error %}
+        <div class="text-xs p-2 rounded" style="background: var(--toxicity-dim); color: var(--toxicity); border: 1px solid var(--toxicity-muted);">{{ error }}</div>
+        {% endif %}
+
+        <input type="hidden" name="ts" value="{{ ts or '' }}" id="ts-field">
+        <!-- honeypot -->
+        <input type="text" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;" aria-hidden="true">
+
+        <div>
+            <label class="block text-xs mb-1" style="color: var(--text-quaternary);">Name (optional)</label>
+            <input type="text" name="name" maxlength="100" class="w-full px-3 py-2 text-sm rounded"
+                   style="background: var(--bg-elevated); border: 1px solid var(--border-default); color: var(--text-primary);">
+        </div>
+        <div>
+            <label class="block text-xs mb-1" style="color: var(--text-quaternary);">Email (optional, only if you want a reply)</label>
+            <input type="email" name="email" maxlength="200" class="w-full px-3 py-2 text-sm rounded"
+                   style="background: var(--bg-elevated); border: 1px solid var(--border-default); color: var(--text-primary);">
+        </div>
+        <div>
+            <label class="block text-xs mb-1" style="color: var(--text-quaternary);">Message</label>
+            <textarea name="message" rows="6" maxlength="5000" required class="w-full px-3 py-2 text-sm rounded"
+                      style="background: var(--bg-elevated); border: 1px solid var(--border-default); color: var(--text-primary);"
+                      placeholder="What's on your mind?"></textarea>
+        </div>
+        <button type="submit" class="px-4 py-2 rounded text-sm font-medium"
+                style="background: var(--kindness); color: #fff;">Send</button>
+    </form>
+    <script>
+      // Stamp the form with the load time so the server can reject sub-2s submits.
+      document.getElementById('ts-field').value = (Date.now() / 1000).toString();
+    </script>
+    {% endif %}
+</div>
+{% endblock %}

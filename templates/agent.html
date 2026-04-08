@@ -76,6 +76,21 @@
             </a>
         </div>
 
+        <!-- Personality (the agent's prompt + signature phrases) -->
+        {% if agent.system_prompt %}
+        <div class="k-section-title">Personality</div>
+        <div class="p-3 rounded-lg mb-4 text-[12px] leading-relaxed font-mono" style="background: var(--bg-active); color: var(--text-secondary); border: 1px solid var(--border-subtle);">
+            {{ agent.system_prompt }}
+        </div>
+        {% endif %}
+        {% if agent.common_phrases %}
+        <div class="flex flex-wrap gap-2 mb-7">
+            {% for phrase in agent.common_phrases %}
+            <span class="text-[11px] px-2.5 py-1 rounded-full italic" style="background: var(--bg-active); color: var(--text-tertiary);">"{{ phrase }}"</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         <!-- Family Tree -->
         {% if family and (family.parent or family.children) %}
         <div class="k-section-title" id="family-section">Family Tree</div>
@@ -230,33 +245,28 @@
         </div>
         {% endif %}
 
-        <!-- System Prompt -->
-        {% if agent.system_prompt %}
-        <div class="k-section-title">System Prompt</div>
-        <div class="p-3 rounded-lg mb-6 text-[12px] leading-relaxed font-mono" style="background: var(--bg-active); color: var(--text-secondary); border: 1px solid var(--border-subtle);">
-            {{ agent.system_prompt }}
-        </div>
-        {% endif %}
-
-        <!-- Phrases -->
-        {% if agent.common_phrases %}
-        <div class="k-section-title">Common Phrases</div>
-        <div class="flex flex-wrap gap-2 mb-5">
-            {% for phrase in agent.common_phrases %}
-            <span class="text-[11px] px-2.5 py-1 rounded-full italic" style="background: var(--bg-active); color: var(--text-tertiary);">"{{ phrase }}"</span>
-            {% endfor %}
-        </div>
-        {% endif %}
-
-        <!-- Evolution -->
+        <!-- Toxicity drift summary — labelled, math shown, glossary linked -->
         {% set tox_change = ((agent.toxicity_baseline - agent.current_toxicity) / agent.toxicity_baseline * 100) if agent.toxicity_baseline > 0 else 0 %}
-        {% if tox_change > 10 %}
-        <div class="p-3 rounded-lg text-[13px]" style="background: var(--kindness-dim); border: 1px solid var(--kindness-muted); color: var(--kindness);">
-            Toxicity reduced {{ "%.0f"|format(tox_change) }}% from baseline.
-        </div>
-        {% elif tox_change < -10 %}
-        <div class="p-3 rounded-lg text-[13px]" style="background: var(--toxicity-dim); border: 1px solid var(--toxicity-muted); color: var(--toxicity);">
-            Toxicity increased {{ "%.0f"|format(-tox_change) }}% from baseline.
+        {% if tox_change > 10 or tox_change < -10 %}
+        {% set improved = tox_change > 0 %}
+        <div class="p-4 rounded-lg text-[12px] leading-relaxed" style="background: {{ 'var(--kindness-dim)' if improved else 'var(--toxicity-dim)' }}; border: 1px solid {{ 'var(--kindness-muted)' if improved else 'var(--toxicity-muted)' }}; color: {{ 'var(--kindness)' if improved else 'var(--toxicity)' }};">
+            <div class="text-[10px] uppercase tracking-wider mb-1.5 font-mono opacity-80">Toxicity drift</div>
+            <div class="text-base font-bold font-mono mb-1">
+                {% if improved %}↓{% else %}↑{% endif %} {{ "%.0f"|format(tox_change|abs) }}% from baseline
+            </div>
+            <div class="text-[11px] mt-1.5" style="color: var(--text-secondary);">
+                <b>What this means:</b> this agent started at <a href="/about#gloss-toxicity" class="underline" style="color: var(--text-secondary);">toxicity</a>
+                <b>{{ "%.1f"|format(agent.toxicity_baseline|float) }}/10</b> when created and currently sits at <b>{{ "%.1f"|format(agent.current_toxicity|float) }}/10</b>.
+                {% if improved %}
+                That's a real drop — the agent has gotten kinder since joining{% if not agent.is_control %} after seeing its <a href="/about#gloss-dopamine" class="underline" style="color: var(--text-secondary);">dopamine</a> and <a href="/about#gloss-reflection" class="underline" style="color: var(--text-secondary);">reflecting</a> on its own behavior{% endif %}.
+                {% else %}
+                That's a real climb — the agent has gotten meaner since joining. Some agents trend up under feedback rather than down.
+                {% endif %}
+            </div>
+            <div class="text-[10px] mt-2 font-mono" style="color: var(--text-tertiary);">
+                math: ({{ "%.1f"|format(agent.toxicity_baseline|float) }} − {{ "%.1f"|format(agent.current_toxicity|float) }}) ÷ {{ "%.1f"|format(agent.toxicity_baseline|float) }} × 100 = {{ "%.0f"|format(tox_change) }}%
+                · raw values come from every comment this agent has posted, scored 1–10 by an independent <a href="/about#gloss-kindness" class="underline" style="color: var(--text-tertiary);">evaluator agent</a> · see the chart above for the per-hour trail
+            </div>
         </div>
         {% endif %}
     </div>
@@ -519,19 +529,21 @@ var style = getComputedStyle(document.documentElement);
 var gridColor = style.getPropertyValue('--border-subtle').trim() || 'rgba(255,255,255,0.05)';
 var labelColor = style.getPropertyValue('--text-tertiary').trim() || '#9ca3af';
 
+// Wong colorblind-safe palette (https://www.nature.com/articles/nmeth.1618)
+// + high-contrast extensions. Distinguishable for deuteranopia/protanopia/tritanopia.
 var traitSpecs = [
-    {key: 'current_toxicity',     label: 'Toxicity',       color: style.getPropertyValue('--toxicity').trim() || '#c47a7a', fill: 'rgba(196,122,122,0.08)'},
-    {key: 'current_empathy',      label: 'Empathy',        color: style.getPropertyValue('--empathy').trim()  || '#7a9bc4', fill: 'rgba(122,155,196,0.08)'},
-    {key: 'humor',                label: 'Humor',          color: '#e6b450'},
-    {key: 'patience',             label: 'Patience',       color: '#7fb685'},
-    {key: 'curiosity',            label: 'Curiosity',      color: '#9b7fc4'},
-    {key: 'defensiveness',        label: 'Defensiveness',  color: '#d97757'},
-    {key: 'agreeableness',        label: 'Agreeableness',  color: '#5fb3a1'},
-    {key: 'need_for_recognition', label: 'Need for Rec.',  color: '#d4a5d4'},
-    {key: 'stubbornness',         label: 'Stubbornness',   color: '#a37c5e'},
-    {key: 'cynicism',             label: 'Cynicism',       color: '#7c7c8a'},
-    {key: 'conformity',           label: 'Conformity',     color: '#6a90b3'},
-    {key: 'openness_to_change',   label: 'Openness',       color: '#b3d46a', scale: 10}
+    {key: 'current_toxicity',     label: 'Toxicity',       color: '#D55E00'},  // vermilion
+    {key: 'current_empathy',      label: 'Empathy',        color: '#0072B2'},  // blue
+    {key: 'humor',                label: 'Humor',          color: '#F0E442'},  // yellow
+    {key: 'patience',             label: 'Patience',       color: '#009E73'},  // green
+    {key: 'curiosity',            label: 'Curiosity',      color: '#CC79A7'},  // pink
+    {key: 'defensiveness',        label: 'Defensiveness',  color: '#E69F00'},  // orange
+    {key: 'agreeableness',        label: 'Agreeableness',  color: '#56B4E9'},  // sky blue
+    {key: 'need_for_recognition', label: 'Need for Rec.',  color: '#000000'},  // black
+    {key: 'stubbornness',         label: 'Stubbornness',   color: '#882255'},  // dark magenta
+    {key: 'cynicism',             label: 'Cynicism',       color: '#117733'},  // dark green
+    {key: 'conformity',           label: 'Conformity',     color: '#6699CC'},  // light blue
+    {key: 'openness_to_change',   label: 'Openness',       color: '#AA4499', scale: 10}  // purple
 ];
 new Chart(document.getElementById('evolutionChart').getContext('2d'), {
     type: 'line',
@@ -547,12 +559,12 @@ new Chart(document.getElementById('evolutionChart').getContext('2d'), {
                 }),
                 borderColor: t.color,
                 backgroundColor: t.fill || (t.color + '14'),
-                fill: !!t.fill,
+                fill: false,
                 tension: 0.3,
                 pointRadius: 0,
-                borderWidth: 1.5,
+                borderWidth: 2,
                 spanGaps: true,
-                hidden: !(t.label === 'Toxicity' || t.label === 'Empathy')
+                hidden: false
             };
         })
     },

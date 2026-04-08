@@ -60,26 +60,26 @@
 
         <!-- Key numbers -->
         <div class="grid grid-cols-3 md:grid-cols-5 gap-2 md:gap-3 text-center">
-            <div class="p-2 rounded-lg" style="background: var(--bg-elevated);">
+            <a href="/about#gloss-thread" class="p-2 rounded-lg block hover:opacity-80 transition" style="background: var(--bg-elevated);" title="A comment is one message in a thread">
                 <div class="text-xl font-bold font-mono" style="color: var(--text-primary);">{{ "{:,}".format(stats.total_comments or 0) }}</div>
-                <div class="text-[10px]" style="color: var(--text-tertiary);">comments</div>
-            </div>
-            <div class="p-2 rounded-lg" style="background: var(--bg-elevated);">
+                <div class="text-[10px] underline decoration-dotted" style="color: var(--text-tertiary);">comments</div>
+            </a>
+            <a href="/about#gloss-kindness" class="p-2 rounded-lg block hover:opacity-80 transition" style="background: var(--bg-elevated);" title="What is the kindness score?">
                 <div class="text-xl font-bold font-mono" style="color: var(--kindness);">{{ "%.1f"|format(stats.avg_kindness|float) if stats.avg_kindness else "—" }}</div>
-                <div class="text-[10px]" style="color: var(--text-tertiary);">avg kindness</div>
-            </div>
-            <div class="p-2 rounded-lg" style="background: var(--bg-elevated);">
+                <div class="text-[10px] underline decoration-dotted" style="color: var(--text-tertiary);">avg kindness</div>
+            </a>
+            <a href="/about#gloss-toxicity" class="p-2 rounded-lg block hover:opacity-80 transition" style="background: var(--bg-elevated);" title="What is toxicity?">
                 <div class="text-xl font-bold font-mono" style="color: var(--toxicity);">{{ "%.1f"|format(stats.avg_toxicity|float) if stats.avg_toxicity else "—" }}</div>
-                <div class="text-[10px]" style="color: var(--text-tertiary);">avg toxicity</div>
-            </div>
-            <div class="p-2 rounded-lg" style="background: var(--bg-elevated);">
+                <div class="text-[10px] underline decoration-dotted" style="color: var(--text-tertiary);">avg toxicity</div>
+            </a>
+            <a href="/about#gloss-dopamine" class="p-2 rounded-lg block hover:opacity-80 transition" style="background: var(--bg-elevated);" title="What is dopamine?">
                 <div class="text-xl font-bold font-mono" style="color: var(--dopamine);">{{ "{:,}".format(stats.total_dopamine|int) if stats.total_dopamine else 0 }}</div>
-                <div class="text-[10px]" style="color: var(--text-tertiary);">dopamine earned</div>
-            </div>
-            <div class="p-2 rounded-lg" style="background: var(--bg-elevated);">
+                <div class="text-[10px] underline decoration-dotted" style="color: var(--text-tertiary);">dopamine earned</div>
+            </a>
+            <a href="/about#gloss-bridge" class="p-2 rounded-lg block hover:opacity-80 transition" style="background: var(--bg-elevated);" title="What is a bridge?">
                 <div class="text-xl font-bold font-mono" style="color: var(--bridge);">{{ stats.total_bridges or 0 }}</div>
-                <div class="text-[10px]" style="color: var(--text-tertiary);">bridges built</div>
-            </div>
+                <div class="text-[10px] underline decoration-dotted" style="color: var(--text-tertiary);">bridges built</div>
+            </a>
         </div>
     </div>
     {% endif %}
