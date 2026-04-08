@@ -174,13 +174,28 @@ def _revisit_one_thread(thread, settings):
                 parent_comment_id=parent_id, replied_to_agent_id=replied_to,
             )
             posted += 1
-            # Add to in-memory comment list so subsequent picks see this reply
+            # Add to in-memory comment list so subsequent picks see this reply.
+            # Carry agent personality fields so downstream evaluators (which key
+            # into political_lean, current_toxicity, etc.) don't KeyError.
             comments.append({
-                'id': None, 'agent_id': agent['id'], 'parent_comment_id': parent_id,
+                'id': None,
+                'agent_id': agent['id'],
+                'parent_comment_id': parent_id,
                 'replied_to_agent_id': replied_to,
                 'kindness_score': scores.get('kindness', 5),
                 'toxicity_score': scores.get('toxicity', 5),
                 'empathy_score': scores.get('empathy', 5),
+                'comment_text': comment_text,
+                'political_lean': agent.get('political_lean', 0),
+                'current_toxicity': agent.get('current_toxicity', 5),
+                'current_empathy': agent.get('current_empathy', 5),
+                'display_name': agent.get('display_name', '?'),
+                'llm_backend': agent.get('llm_backend', '?'),
+                'defensiveness': agent.get('defensiveness', 5),
+                'curiosity': agent.get('curiosity', 5),
+                'agreeableness': agent.get('agreeableness', 5),
+                'vote_willingness': agent.get('vote_willingness', 0.5),
+                'trigger_topics': agent.get('trigger_topics', []),
             })
         except Exception as e:
             logger.warning(f"  [revisit] {agent['display_name']} failed: {e}")
