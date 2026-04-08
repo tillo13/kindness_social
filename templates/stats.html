@@ -19,6 +19,42 @@
     </div>
     {% else %}
 
+    {# ── Headline result — same metric the home page leads with ─────── #}
+    {% set kind_m = analysis.metrics.get('avg_kindness_score', {}) %}
+    {% if kind_m.get('treatment_mean') and kind_m.get('control_mean') and kind_m.control_mean > 0 %}
+    {% set gap_pct = ((kind_m.treatment_mean - kind_m.control_mean) / kind_m.control_mean * 100)|round|int %}
+    <div class="text-center mb-6">
+        <div class="text-[10px] uppercase tracking-widest mb-2" style="color: var(--text-quaternary);">Headline result</div>
+        {% if gap_pct > 0 %}
+        <div class="text-2xl md:text-4xl font-bold leading-tight" style="color: var(--text-primary); letter-spacing: -0.02em;">
+            Rewarded agents are
+            <span style="color: var(--kindness);">{{ gap_pct }}% kinder</span>
+            than the control group
+        </div>
+        {% elif gap_pct == 0 %}
+        <div class="text-2xl md:text-4xl font-bold leading-tight" style="color: var(--text-primary);">
+            Rewarded and control are <span style="color: var(--dopamine);">tied</span> on kindness
+        </div>
+        {% else %}
+        <div class="text-2xl md:text-4xl font-bold leading-tight" style="color: var(--text-primary);">
+            <span style="color: var(--toxicity);">Control leading by {{ gap_pct|abs }}%</span> on kindness
+        </div>
+        {% endif %}
+        <div class="text-xs mt-3 font-mono" style="color: var(--text-tertiary);">
+            Treatment {{ "%.2f"|format(kind_m.treatment_mean) }}/10 · Control {{ "%.2f"|format(kind_m.control_mean) }}/10
+            {% if kind_m.get('significant') %}
+            · <span style="color: var(--kindness);">{{ kind_m.stars }} {{ kind_m.p_label }}</span>
+            · effect size <span style="color: var(--text-secondary);">{{ "%.2f"|format(kind_m.cohens_d) }} ({{ kind_m.effect_label }})</span>
+            {% else %}
+            · <span style="color: var(--text-quaternary);">{{ kind_m.p_label }}, not yet significant</span>
+            {% endif %}
+        </div>
+        <div class="text-[11px] mt-2" style="color: var(--text-quaternary);">
+            ↓ full math below — supporting metrics aligned underneath
+        </div>
+    </div>
+    {% endif %}
+
     <!-- TLDR -->
     {% set tox_m = analysis.metrics.get('tox_change', {}) %}
     {% set emp_m = analysis.metrics.get('emp_change', {}) %}
@@ -79,11 +115,14 @@
         </p>
     </div>
 
-    <!-- Results Table -->
+    <!-- Results Table — Kindness Score is the headline metric (loop yields it first) -->
     {% for key, m in analysis.metrics.items() %}
-    <div class="k-card-flat p-5 mb-4" style="{% if m.significant %}border-left: 3px solid var(--kindness);{% endif %}">
+    {% set is_headline = (key == 'avg_kindness_score') %}
+    <div class="k-card-flat p-5 mb-4" style="{% if is_headline %}border: 2px solid var(--kindness); background: var(--kindness-dim);{% elif m.significant %}border-left: 3px solid var(--kindness);{% endif %}">
         <div class="flex items-baseline justify-between mb-1">
-            <div class="font-bold text-sm" style="color: var(--text-primary);">{{ m.name }}</div>
+            <div class="font-bold text-sm" style="color: var(--text-primary);">
+                {% if is_headline %}<span class="text-[9px] uppercase tracking-widest mr-2" style="color: var(--kindness);">HEADLINE</span>{% endif %}{{ m.name }}
+            </div>
             <div class="flex items-center gap-2">
                 {% if m.significant %}
                 <span class="px-2 py-0.5 rounded-full text-[10px] font-mono" style="background: var(--kindness-muted); color: var(--kindness);">

@@ -123,12 +123,14 @@ def analyze_experiment(raw_data):
     if len(treatment) < 2 or len(control) < 2:
         return None
 
+    # Order matters — Kindness Score is the headline metric (matches the
+    # /home result stat). Everything else is supporting evidence below it.
     metrics = {}
     for metric_name, key, higher_is_better in [
-        ('Toxicity Reduction', 'tox_change', True),
-        ('Empathy Growth', 'emp_change', True),
         ('Kindness Score', 'avg_kindness_score', True),
         ('Toxicity Score', 'avg_toxicity_score', False),
+        ('Toxicity Reduction', 'tox_change', True),
+        ('Empathy Growth', 'emp_change', True),
         ('Dopamine Earned', 'total_dopamine', True),
     ]:
         t_vals = [float(r[key]) for r in treatment]
