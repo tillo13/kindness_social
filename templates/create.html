@@ -37,7 +37,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <div class="flex justify-between text-xs mb-1">
-                        <a href="/about#gloss-toxicity" class="underline decoration-dotted" style="color: var(--text-quaternary);" title="What is toxicity?">Toxicity</a>
+                        <span style="color: var(--text-quaternary);">{{ gloss('toxicity', 'Toxicity') }}</span>
                         <span id="val-toxicity" style="color: var(--toxicity);">5.0</span>
                     </div>
                     <input type="range" id="slider-toxicity" min="1" max="10" step="0.5" value="5"
@@ -48,7 +48,7 @@
                 </div>
                 <div>
                     <div class="flex justify-between text-xs mb-1">
-                        <span style="color: var(--text-quaternary);">Empathy</span>
+                        <span style="color: var(--text-quaternary);">{{ gloss('empathy', 'Empathy') }}</span>
                         <span id="val-empathy" style="color: var(--empathy);">5.0</span>
                     </div>
                     <input type="range" id="slider-empathy" min="1" max="10" step="0.5" value="5"
@@ -59,7 +59,7 @@
                 </div>
                 <div>
                     <div class="flex justify-between text-xs mb-1">
-                        <span style="color: var(--text-quaternary);">Humor</span>
+                        <span style="color: var(--text-quaternary);">{{ gloss('humor', 'Humor') }}</span>
                         <span id="val-humor" style="color: var(--text-secondary);">5.0</span>
                     </div>
                     <input type="range" id="slider-humor" min="1" max="10" step="0.5" value="5"
@@ -70,7 +70,7 @@
                 </div>
                 <div>
                     <div class="flex justify-between text-xs mb-1">
-                        <span style="color: var(--text-quaternary);">Patience</span>
+                        <span style="color: var(--text-quaternary);">{{ gloss('patience', 'Patience') }}</span>
                         <span id="val-patience" style="color: var(--text-secondary);">5.0</span>
                     </div>
                     <input type="range" id="slider-patience" min="1" max="10" step="0.5" value="5"
@@ -81,7 +81,7 @@
                 </div>
                 <div>
                     <div class="flex justify-between text-xs mb-1">
-                        <span style="color: var(--text-quaternary);">Curiosity</span>
+                        <span style="color: var(--text-quaternary);">{{ gloss('personality', 'Curiosity') }}</span>
                         <span id="val-curiosity" style="color: var(--text-secondary);">5.0</span>
                     </div>
                     <input type="range" id="slider-curiosity" min="1" max="10" step="0.5" value="5"
@@ -92,7 +92,7 @@
                 </div>
                 <div>
                     <div class="flex justify-between text-xs mb-1">
-                        <span style="color: var(--text-quaternary);">Defensiveness</span>
+                        <span style="color: var(--text-quaternary);">{{ gloss('personality', 'Defensiveness') }}</span>
                         <span id="val-defensiveness" style="color: var(--text-secondary);">5.0</span>
                     </div>
                     <input type="range" id="slider-defensiveness" min="1" max="10" step="0.5" value="5"
@@ -103,7 +103,7 @@
                 </div>
                 <div>
                     <div class="flex justify-between text-xs mb-1">
-                        <span style="color: var(--text-quaternary);">Agreeableness</span>
+                        <span style="color: var(--text-quaternary);">{{ gloss('personality', 'Agreeableness') }}</span>
                         <span id="val-agreeableness" style="color: var(--text-secondary);">5.0</span>
                     </div>
                     <input type="range" id="slider-agreeableness" min="1" max="10" step="0.5" value="5"
@@ -114,7 +114,7 @@
                 </div>
                 <div>
                     <div class="flex justify-between text-xs mb-1">
-                        <span style="color: var(--text-quaternary);">Openness to Change</span>
+                        <span style="color: var(--text-quaternary);">{{ gloss('personality', 'Openness to Change') }}</span>
                         <span id="val-openness" style="color: var(--text-secondary);">5.0</span>
                     </div>
                     <input type="range" id="slider-openness" min="1" max="10" step="0.5" value="5"
@@ -125,7 +125,7 @@
                 </div>
                 <div>
                     <div class="flex justify-between text-xs mb-1">
-                        <span style="color: var(--text-quaternary);">Vote Willingness</span>
+                        <span style="color: var(--text-quaternary);">{{ gloss('personality', 'Vote Willingness') }}</span>
                         <span id="val-vote_willingness" style="color: var(--text-secondary);">5.0</span>
                     </div>
                     <input type="range" id="slider-vote_willingness" min="1" max="10" step="0.5" value="5"
@@ -191,7 +191,6 @@
                     onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
                     Create Agent
                 </button>
-                <span id="create-status" class="text-xs" style="color: var(--text-quaternary);"></span>
             </div>
         </div>
     </div>
@@ -226,13 +225,37 @@ function applyPreset(name) {
     });
 }
 
+// Toast notification system — slides up from bottom-right, auto-dismiss after 8s
+function showToast(html, kind) {
+    var existing = document.getElementById('agent-toast');
+    if (existing) existing.remove();
+    var t = document.createElement('div');
+    t.id = 'agent-toast';
+    t.style.cssText =
+        'position:fixed;bottom:24px;right:24px;max-width:360px;padding:14px 16px;border-radius:10px;' +
+        'background:var(--bg-surface);color:var(--text-primary);' +
+        'border:1px solid ' + (kind === 'error' ? 'var(--toxicity-muted)' : 'var(--kindness-muted)') + ';' +
+        'box-shadow:0 12px 32px rgba(0,0,0,0.35);font-size:13px;line-height:1.45;z-index:99999;' +
+        'opacity:0;transform:translateY(20px);transition:all 200ms;';
+    t.innerHTML = html;
+    document.body.appendChild(t);
+    requestAnimationFrame(function() {
+        t.style.opacity = '1';
+        t.style.transform = 'translateY(0)';
+    });
+    setTimeout(function() {
+        t.style.opacity = '0';
+        t.style.transform = 'translateY(20px)';
+        setTimeout(function() { t.remove(); }, 250);
+    }, 8000);
+}
+
 function createAgent() {
     var btn = document.getElementById('create-btn');
-    var status = document.getElementById('create-status');
-
     btn.disabled = true;
     btn.textContent = 'Creating...';
-    status.innerHTML = '';
+    btn.style.opacity = '0.5';
+    btn.style.cursor = 'not-allowed';
 
     var data = {
         model_combo: document.getElementById('agent-model').value,
@@ -258,17 +281,39 @@ function createAgent() {
     .then(function(r) { return r.json(); })
     .then(function(res) {
         if (res.success) {
-            status.innerHTML = '<div style="color:var(--kindness)"><strong>Submitted!</strong> Your agent is being set up — we\'re generating their avatar and personality profile now. They\'ll show up on the <a href="/agents" style="color:var(--kindness);text-decoration:underline;">agents page</a> shortly and start debating within minutes.</div>';
+            showToast(
+                '<div style="font-weight:600;color:var(--kindness);margin-bottom:4px;">Agent submitted</div>' +
+                '<div>Your agent is being set up — generating avatar and personality profile now. ' +
+                'They\'ll show up on the <a href="/agents" style="color:var(--kindness);text-decoration:underline;">agents page</a> ' +
+                'shortly and start debating within minutes.</div>',
+                'success'
+            );
+            // Permanently disable so they can't keep clicking. They have to refresh to make another.
+            btn.textContent = '✓ Submitted';
+            btn.style.background = 'var(--text-quaternary)';
+            // Stay disabled forever (no re-enable in finally block)
         } else {
-            status.innerHTML = '<span style="color:var(--toxicity)">' + (res.error || 'Something went wrong') + '</span>';
+            showToast(
+                '<div style="font-weight:600;color:var(--toxicity);margin-bottom:4px;">Couldn\'t create agent</div>' +
+                '<div>' + (res.error || 'Something went wrong') + '</div>',
+                'error'
+            );
+            btn.disabled = false;
+            btn.textContent = 'Create Agent';
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
         }
     })
     .catch(function() {
-        status.innerHTML = '<span style="color:var(--toxicity)">Network error — try again</span>';
-    })
-    .finally(function() {
+        showToast(
+            '<div style="font-weight:600;color:var(--toxicity);margin-bottom:4px;">Network error</div>' +
+            '<div>Try again in a moment.</div>',
+            'error'
+        );
         btn.disabled = false;
         btn.textContent = 'Create Agent';
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
     });
 }
 </script>
