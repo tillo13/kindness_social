@@ -415,6 +415,80 @@ def roadmap():
     return render_template('roadmap.html')
 
 
+@app.route('/api/research/export.csv')
+def research_export_csv():
+    """Public CSV export of per-agent experiment data for academic use.
+    No auth — the data is already visible on every agent profile page."""
+    import csv as _csv
+    import io as _io
+    from utilities.postgres_utils import db_cursor
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("""
+            SELECT agent_id, display_name, llm_backend, is_control,
+                   gender_presentation, age_bracket, authority_level, political_lean,
+                   toxicity_baseline, current_toxicity,
+                   empathy_baseline, current_empathy,
+                   humor, patience, curiosity, defensiveness, agreeableness,
+                   need_for_recognition, stubbornness, cynicism, conformity,
+                   openness_to_change, vote_willingness,
+                   total_interactions, total_dopamine, total_kudos_received,
+                   total_kudos_given, kindness_streak,
+                   created_at, updated_at, invited_by, is_active
+            FROM kindness_agents
+            ORDER BY created_at ASC
+        """)
+        rows = cur.fetchall()
+    if not rows:
+        return Response('', mimetype='text/csv')
+    buf = _io.StringIO()
+    writer = _csv.DictWriter(buf, fieldnames=list(rows[0].keys()))
+    writer.writeheader()
+    for r in rows:
+        writer.writerow({k: ('' if v is None else v) for k, v in r.items()})
+    return Response(
+        buf.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=kindness_social_agents.csv'},
+    )
+
+
+@app.route('/api/health')
+def api_health():
+    """Lightweight health check for monitoring. Returns 200 if DB + agents look alive,
+    500 if anything's clearly broken. Designed to be hit on a schedule."""
+    try:
+        from utilities.postgres_utils import db_cursor
+        with db_cursor(dict_cursor=True) as cur:
+            cur.execute("SELECT COUNT(*) AS n FROM kindness_agents WHERE is_active = TRUE")
+            agents = cur.fetchone()['n']
+            cur.execute("SELECT COUNT(*) AS n FROM kindness_comments WHERE created_at > NOW() - INTERVAL '1 hour'")
+            recent_comments = cur.fetchone()['n']
+            cur.execute("SELECT COUNT(*) AS n FROM kindness_llm_telemetry WHERE created_at > NOW() - INTERVAL '15 minutes' AND success = FALSE")
+            recent_failures = cur.fetchone()['n']
+        ok = agents > 0
+        return jsonify({
+            'status': 'ok' if ok else 'degraded',
+            'agents_active': agents,
+            'comments_last_hour': recent_comments,
+            'llm_failures_last_15m': recent_failures,
+        }), (200 if ok else 503)
+    except Exception as e:
+        logger.exception("health check failed")
+        return jsonify({'status': 'error', 'error': str(e)[:200]}), 500
+
+
+@app.route('/privacy')
+def privacy():
+    from datetime import date
+    return render_template('privacy.html', today=date.today().strftime('%B %Y'))
+
+
+@app.route('/terms')
+def terms():
+    from datetime import date
+    return render_template('terms.html', today=date.today().strftime('%B %Y'))
+
+
 @app.route('/about')
 def about():
     """About page: the thesis, methodology, and why it matters."""
