@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} — Kindness Social{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto text-center py-16">
+    <div class="font-mono text-[80px] leading-none mb-4" style="color: var(--kindness);">{{ code }}</div>
+    <h1 class="text-2xl font-bold mb-3" style="color: var(--text-primary);">{{ heading }}</h1>
+    <p class="text-sm mb-8" style="color: var(--text-tertiary);">{{ message }}</p>
+
+    <div class="flex flex-wrap gap-2 justify-center">
+        <a href="/" class="px-4 py-2 rounded-lg text-sm font-medium" style="background: var(--kindness); color: #fff;">← Home</a>
+        <a href="/agents" class="px-4 py-2 rounded-lg text-sm" style="background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border-default);">Browse Agents</a>
+        <a href="/threads" class="px-4 py-2 rounded-lg text-sm" style="background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border-default);">All Threads</a>
+        <a href="/contact" class="px-4 py-2 rounded-lg text-sm" style="background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border-default);">Report this</a>
+    </div>
+</div>
+{% endblock %}

@@ -323,8 +323,10 @@
     /* ── Generic popover for [data-pop="elementId"] — click on desktop+mobile ── */
     (function() {
       var bubble = null;
+      var lastTrigger = null;
       function close() {
         if (bubble) { bubble.remove(); bubble = null; }
+        if (lastTrigger) { lastTrigger.setAttribute('aria-expanded', 'false'); }
       }
       function open(btn) {
         close();
@@ -333,12 +335,14 @@
         if (!src) return;
         bubble = document.createElement('div');
         bubble.className = 'pop-bubble';
+        bubble.setAttribute('role', 'dialog');
         bubble.innerHTML = src.innerHTML;
         document.body.appendChild(bubble);
+        lastTrigger = btn;
+        btn.setAttribute('aria-expanded', 'true');
         var rect = btn.getBoundingClientRect();
         var bw = bubble.offsetWidth;
         var bh = bubble.offsetHeight;
-        // Try to position above; flip below if not enough room
         var top = rect.top - bh - 8;
         if (top < 8) top = rect.bottom + 8;
         var left = rect.left + rect.width / 2 - bw / 2;
@@ -356,55 +360,104 @@
         }
         if (bubble && !e.target.closest('.pop-bubble')) close();
       });
+      // Esc closes and returns focus to trigger
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && bubble) {
+          var t = lastTrigger;
+          close();
+          if (t) t.focus();
+        }
+      });
       window.addEventListener('scroll', close, true);
       window.addEventListener('resize', close);
     })();
 
-    /* ── Glossary hover tooltip — works on any element with data-gloss="X" ── */
+    /* ── Glossary tooltip — hover on desktop, tap on mobile ── */
     (function() {
       var tip = document.createElement('div');
       tip.id = 'gloss-tip';
+      tip.setAttribute('role', 'tooltip');
       document.body.appendChild(tip);
       var hideTimer = null;
+      var pinnedEl = null; // tap-pinned element on mobile
 
-      function show(el, evt) {
-        var key = el.dataset.gloss;
+      function render(key) {
         var def = window.GLOSSARY && window.GLOSSARY[key];
-        if (!def) return;
+        if (!def) return false;
         var title = key.replace(/_/g, ' ');
         tip.innerHTML =
           '<div class="gloss-title">' + title + '</div>' +
           '<div>' + def + '</div>' +
           '<a class="gloss-link" href="/about#gloss-' + key + '">→ full glossary entry</a>';
-        // Position above the element when possible, otherwise below
+        return true;
+      }
+      function position(el) {
         var rect = el.getBoundingClientRect();
-        var tipW = 320;
-        var left = Math.min(window.innerWidth - tipW - 12, Math.max(12, rect.left));
-        var top = rect.top - 8;
+        // Render once to measure
+        tip.style.left = '0px';
+        tip.style.top = '0px';
+        tip.style.transform = 'none';
+        tip.classList.add('show');
+        var tw = tip.offsetWidth, th = tip.offsetHeight;
+        var left = Math.max(8, Math.min(window.innerWidth - tw - 8, rect.left + rect.width/2 - tw/2));
+        var top = rect.top - th - 8;
+        if (top < 8) top = rect.bottom + 8; // flip below
         tip.style.left = left + 'px';
         tip.style.top = top + 'px';
-        tip.style.transform = 'translateY(-100%)';
-        tip.classList.add('show');
+      }
+      function show(el) {
+        if (!render(el.dataset.gloss)) return;
+        position(el);
         if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
       }
       function hide() {
+        if (pinnedEl) return;
         hideTimer = setTimeout(function() { tip.classList.remove('show'); }, 120);
       }
+      function pin(el) {
+        pinnedEl = el;
+        if (!render(el.dataset.gloss)) return;
+        position(el);
+      }
+      function unpin() {
+        pinnedEl = null;
+        tip.classList.remove('show');
+      }
+      // Hover (desktop)
       document.addEventListener('mouseover', function(e) {
         var el = e.target.closest('[data-gloss]');
-        if (el) show(el, e);
+        if (el && !pinnedEl) show(el);
       });
       document.addEventListener('mouseout', function(e) {
         var el = e.target.closest('[data-gloss]');
         if (el) hide();
       });
-      // Click on a glossary term jumps to the full entry
+      // Tap (mobile + desktop) — first tap pins, second tap or outside-tap dismisses
       document.addEventListener('click', function(e) {
         var el = e.target.closest('[data-gloss]');
-        if (el && !el.matches('a')) {
-          window.location.href = '/about#gloss-' + el.dataset.gloss;
+        if (el) {
+          e.preventDefault();
+          if (pinnedEl === el) {
+            unpin();
+            // Second tap navigates to full entry
+            window.location.href = '/about#gloss-' + el.dataset.gloss;
+          } else {
+            pin(el);
+          }
+          return;
+        }
+        // Tap outside the tooltip closes it
+        if (pinnedEl && !e.target.closest('#gloss-tip')) unpin();
+      });
+      // Esc key dismisses
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && (pinnedEl || tip.classList.contains('show'))) {
+          unpin();
+          tip.classList.remove('show');
         }
       });
+      window.addEventListener('scroll', function() { if (!pinnedEl) tip.classList.remove('show'); }, true);
+      window.addEventListener('resize', function() { unpin(); tip.classList.remove('show'); });
     })();
 
     /* ── Avatar fallback: local → GCS → hide ── */

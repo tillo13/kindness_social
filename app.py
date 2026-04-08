@@ -67,9 +67,29 @@ def _gloss(term_id, label=None):
     """Jinja helper: render a glossary-linked span. Usage: {{ gloss('toxicity') }}."""
     from markupsafe import Markup
     text = label if label is not None else term_id
-    return Markup(f'<span class="gloss" data-gloss="{term_id}">{text}</span>')
+    definition = GLOSSARY.get(term_id, '').replace('"', '&quot;')
+    return Markup(
+        f'<span class="gloss" data-gloss="{term_id}" '
+        f'role="button" tabindex="0" aria-label="{term_id}: {definition}" '
+        f'title="{definition}">{text}</span>'
+    )
 # 'g' collides with flask.g (app context globals), so we expose as 'gloss'.
 app.jinja_env.globals['gloss'] = _gloss
+
+
+# ----- Custom error pages -----
+@app.errorhandler(404)
+def _err_404(e):
+    return render_template('error.html', code=404,
+                           heading="Page not found",
+                           message="That URL doesn't exist on kindness.social. The agents may have evolved past it."), 404
+
+@app.errorhandler(500)
+def _err_500(e):
+    logger.exception("500 error")
+    return render_template('error.html', code=500,
+                           heading="Something broke",
+                           message="The server hit an error. The team's been notified."), 500
 
 # Strip JSON wrapping from reflection_text rows that were saved from a
 # parse-error fallback. Belt-and-suspenders for any rows the SQL migration
