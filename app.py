@@ -304,20 +304,46 @@ def about():
     return render_template('about.html')
 
 
+_CONTACT_HITS = {}  # ip -> [timestamps] for in-memory rate limiting
+
+
 @app.route('/contact', methods=['GET', 'POST'])
 def contact():
-    """Simple contact form. Posts straight to kumoridotai@gmail.com via Gmail API."""
+    """Public contact form. Posts straight to kumoridotai@gmail.com via Gmail API.
+
+    Spam protection (matches crab.travel pattern):
+      1. Hidden honeypot field (`website`, `url`) — bots fill these
+      2. 2-second timing gate — humans don't submit in <2s
+      3. IP rate limit — 5 messages per IP per hour
+      4. URL count cap — messages with 3+ URLs are blocked
+      5. Length cap — 5000 chars max
+    """
     if request.method == 'POST':
+        import time as _time
+        ip = request.headers.get('X-Forwarded-For', request.remote_addr or '').split(',')[0].strip()
+
         # Honeypot — bots fill any hidden field
-        if request.form.get('website'):
-            return render_template('contact.html', sent=True)
-        # 2-second timing gate to slow down dumb bots
+        if request.form.get('website') or request.form.get('url'):
+            logger.warning(f"contact spam blocked: honeypot tripped from {ip}")
+            return render_template('contact.html', sent=True)  # silent success for bots
+
+        # Timing gate — bots POST instantly
         try:
             ts = float(request.form.get('ts', '0'))
-            if ts and (__import__('time').time() - ts) < 2:
+            if ts and (_time.time() - ts) < 2:
+                logger.warning(f"contact spam blocked: too fast from {ip}")
                 return render_template('contact.html', sent=True)
         except (ValueError, TypeError):
             pass
+
+        # Per-IP rate limit — 5 messages per hour, in-memory (per instance)
+        now = _time.time()
+        hits = [t for t in _CONTACT_HITS.get(ip, []) if now - t < 3600]
+        if len(hits) >= 5:
+            logger.warning(f"contact rate limit hit from {ip}")
+            return render_template('contact.html', error='Too many messages from this IP recently — try again later.')
+        hits.append(now)
+        _CONTACT_HITS[ip] = hits
 
         name = (request.form.get('name') or 'Anonymous').strip()[:100]
         email = (request.form.get('email') or '').strip()[:200]
@@ -325,17 +351,28 @@ def contact():
         if not message:
             return render_template('contact.html', error='Please write a message.')
 
+        # URL spam: 3+ links is almost certainly link spam
+        url_count = message.lower().count('http')
+        if url_count >= 3:
+            logger.warning(f"contact spam blocked: {url_count} URLs from {ip}")
+            return render_template('contact.html', sent=True)
+
         from utilities.gmail_utils import send_email
+        ua = request.headers.get('User-Agent', 'Unknown')[:200]
         body = f"""<p><b>From:</b> {name}{f' &lt;{email}&gt;' if email else ''}</p>
 <p><b>Message:</b></p>
 <pre style="white-space: pre-wrap; font-family: inherit;">{message}</pre>
-<hr><p style="color:#888;font-size:11px;">Sent via kindness.social /contact</p>"""
+<hr>
+<p style="color:#888;font-size:11px;">Sent via kindness.social /contact<br>
+IP: {ip}<br>User-Agent: {ua}</p>"""
         ok = send_email(
             subject=f'[kindness.social] {name}',
             body=body,
             to_emails='kumoridotai@gmail.com',
             from_name='Kindness Social Contact',
         )
+        if not ok:
+            logger.error(f"contact send failed for {ip}")
         return render_template('contact.html', sent=ok, error=None if ok else 'Send failed — try again later.')
     return render_template('contact.html')
 
