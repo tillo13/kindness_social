@@ -2,6 +2,9 @@
     "project_id": "kindness-io",
     "app_name": "Kindness Social",
     "github_repo": "kindness_social",
+    "shared_files": [
+        {"src": "litellm/litellm_plus_router.py", "dst": "utilities/litellm_plus_router.py"}
+    ],
     "custom_domain": "https://kindness.social",
     "cron_yaml": true,
     "cloud_run_services": [
