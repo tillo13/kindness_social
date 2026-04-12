@@ -7,7 +7,7 @@ import json
 import logging
 import os
 import yaml
-from flask import Flask, render_template, jsonify, request, Response
+from flask import Flask, render_template, jsonify, request, redirect, Response
 
 from core import db_ops
 from core.simulator import run_thread
@@ -23,6 +23,13 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev-kindness-key')
+
+
+@app.before_request
+def force_canonical_host():
+    host = request.headers.get('Host', '')
+    if host.startswith('www.'):
+        return redirect(f'https://kindness.social{request.full_path}', code=301)
 
 # Auto-run schema migrations on first import. create_tables() is idempotent
 # (CREATE TABLE IF NOT EXISTS + ALTER TABLE ADD COLUMN IF NOT EXISTS) so it's

@@ -1,5 +1,7 @@
 # Kindness Social — LLM Rules
 
+**📋 Always read `next_steps.md` at the repo root first** — it's auto-maintained nightly with the latest shipped commits, pending queue (from `deploy --next`), and any uncommitted WIP or TODO markers.
+
 ## Claude / Anthropic API: NEVER as a fallback
 
 Claude (haiku/sonnet/opus) costs real money and must NEVER be used as a fallback or catch-all.
@@ -18,9 +20,15 @@ Claude (haiku/sonnet/opus) costs real money and must NEVER be used as a fallback
 
 ### The point of this project
 
-Each agent has its OWN model — that's the whole experiment. A groq agent reflects with Groq. A cerebras agent reflects with Cerebras. They are NOT the same. Claude stepping in when one is rate-limited defeats the entire premise.
+Each agent has its OWN model — that's the whole experiment. A groq agent reflects with Groq. A cerebras agent reflects with Cerebras. They are NOT the same.
 
-If an agent can't respond because its backend is down: **it stays silent.** That's honest. That's correct.
+**An agent MUST always use its exact assigned backend. No exceptions. No substitutions.**
+
+- Backend rate-limited? Agent waits and stays silent.
+- Backend quota exhausted? Agent stays silent until it resets.
+- Backend temporarily down? Agent stays silent.
+
+Never substitute a different model — that would change who the agent *is*. The wait is correct. The silence is honest.
 
 ### Paid backends: when they ARE appropriate
 

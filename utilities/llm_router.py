@@ -185,7 +185,8 @@ def _get_backend_module(backend):
 def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
     """
     Route a chat request to the specified backend.
-    Falls through to alternatives if the primary backend is unavailable.
+    NO fallback — each agent uses ONLY its assigned backend.
+    If the backend is down or rate-limited, the agent stays silent (returns None).
     Every call is logged to telemetry.
 
     Returns: (response_text, actual_backend_used)
