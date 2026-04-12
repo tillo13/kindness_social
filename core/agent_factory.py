@@ -56,19 +56,25 @@ PERSONALITY_WEIGHTS = [0.25, 0.50, 0.25]
 # Only backends that are confirmed working get agents assigned
 # Others stay in the router for fallback but don't get new agents
 AVAILABLE_BACKENDS = [
-    'groq',         # Llama 3.3 70B — 1K RPD, 30 RPM
-    'groq-kimi',    # Kimi K2 on Groq — 1K RPD, 60 RPM
-    'groq-qwen',    # Qwen3 32B on Groq — 1K RPD, 60 RPM
-    'groq-gptoss',  # GPT-OSS 120B on Groq — 1K RPD, 30 RPM
-    'cerebras',     # Llama 3.1 8B — 1M tokens/day free, FASTEST
-    'mistral',      # Mistral Small — 2 RPM, 1B tok/month
-    'nvidia',       # NVIDIA NIM Llama 70B — 5K lifetime credits, 40 RPM
-    'llm7',         # LLM7.io DeepSeek R1 — no key needed, 30 RPM
+    'groq',              # Llama 3.3 70B — 1K RPD, 30 RPM
+    'groq-kimi',         # Kimi K2 on Groq — 1K RPD, 60 RPM
+    'groq-qwen',         # Qwen3 32B on Groq — 1K RPD, 60 RPM
+    'groq-gptoss',       # GPT-OSS 120B on Groq — 1K RPD, 30 RPM
+    'cerebras',          # Llama 3.1 8B — 1M tokens/day free, FASTEST
+    'mistral',           # Mistral Small — 2 RPM, 1B tok/month
+    'nvidia',            # NVIDIA NIM Llama 70B — 5K lifetime credits, 40 RPM
+    'llm7',              # LLM7.io DeepSeek R1 — no key needed, 30 RPM
+    'grok_fast',         # Grok 3 Fast — free via Cloud Run worker
+    'grok4',             # Grok 4 — free via Cloud Run worker
+    'gemini-lite',       # Gemini 2.5 Flash Lite — free, 500/day
+    'gemma',             # Gemma 3 4B — free, 500/day
+    'openrouter-gemma',  # Gemma 3 4B via OpenRouter — free
+    'openrouter-mistral',# Mistral Small via OpenRouter — free
     # NEVER assign paid backends to agents — free only!
     # gpt4o_mini, haiku, sonnet, opus are router fallbacks only
 ]
-# Cloud Run / local only: grok (native deps), deepseek (native deps)
-# Broken/unreliable: gemini(429 quota), together(401 needs deposit), openrouter(empty responses)
+# Cloud Run / local only: grok_fast, grok4 (routed through kindness-worker)
+# Broken/unreliable: together(401 needs deposit)
 
 # Structured naming: provider.model_short.NNN
 BACKEND_NAMING = {
@@ -83,8 +89,14 @@ BACKEND_NAMING = {
     'nvidia':       ('nvidia', 'llama70b'),
     'llm7':         ('llm7', 'deepseek-r1'),
     'grok':         ('xai', 'grok3'),
-    'deepseek':     ('deepseek', 'chat-v3'),
-    'gpt4o_mini':   ('openai', 'gpt4o-mini'),
+    'deepseek':          ('deepseek', 'chat-v3'),
+    'grok_fast':         ('xai', 'grok3-fast'),
+    'grok4':             ('xai', 'grok4'),
+    'gemini-lite':       ('google', 'flash-lite'),
+    'gemma':             ('google', 'gemma3-4b'),
+    'openrouter-gemma':  ('openrouter', 'gemma3-4b'),
+    'openrouter-mistral':('openrouter', 'mistral-sm'),
+    'gpt4o_mini':        ('openai', 'gpt4o-mini'),
     'gpt4o':        ('openai', 'gpt4o'),
     'haiku':        ('anthropic', 'haiku'),
     'sonnet':       ('anthropic', 'sonnet'),

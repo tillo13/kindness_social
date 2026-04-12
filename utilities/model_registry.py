@@ -39,6 +39,36 @@ MODELS = {
         'provider': 'xAI',
         'display': 'Grok 3',
     },
+    'grok_fast': {
+        'model_id': 'grok-3-fast',
+        'provider': 'xAI',
+        'display': 'Grok 3 Fast',
+    },
+    'grok4': {
+        'model_id': 'grok-4',
+        'provider': 'xAI',
+        'display': 'Grok 4',
+    },
+    'gemini-lite': {
+        'model_id': 'gemini-2.5-flash-lite',
+        'provider': 'Google',
+        'display': 'Gemini 2.5 Flash Lite',
+    },
+    'gemma': {
+        'model_id': 'gemma-3-4b-it',
+        'provider': 'Google',
+        'display': 'Gemma 3 4B',
+    },
+    'openrouter-gemma': {
+        'model_id': 'google/gemma-3-4b-it:free',
+        'provider': 'OpenRouter',
+        'display': 'Gemma 3 4B (OpenRouter Free)',
+    },
+    'openrouter-mistral': {
+        'model_id': 'mistralai/mistral-small-3.1-24b-instruct:free',
+        'provider': 'OpenRouter',
+        'display': 'Mistral Small (OpenRouter Free)',
+    },
     'deepseek': {
         'model_id': 'deepseek-chat',
         'provider': 'DeepSeek',
@@ -80,7 +110,9 @@ MODELS = {
 # Backends that cost $0 — free tiers or self-hosted
 FREE_BACKENDS = {
     'gemini', 'groq', 'cerebras', 'together', 'mistral',
-    'openrouter', 'grok', 'grok_fast', 'grok4', 'deepseek', 'local',
+    'openrouter', 'openrouter-gemma', 'openrouter-mistral',
+    'grok', 'grok_fast', 'grok4', 'deepseek',
+    'gemini-lite', 'gemma', 'nvidia', 'llm7', 'local',
 }
 
 # Backends with actual per-token cost
