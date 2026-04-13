@@ -261,9 +261,9 @@ def run_peer_recognition(thread_history, thread_db_id, config):
         response, _ = chat_eval(persona.get('llm_backend', 'haiku'), prompt,
                                 system="Reply with ONLY a single number.")
 
-        # Parse which comment they voted for
+        # Parse which comment they voted for (response can be None if eval backend is down)
         try:
-            digits = ''.join(c for c in response if c.isdigit())
+            digits = ''.join(c for c in (response or '') if c.isdigit())
             vote_idx = int(digits) - 1 if digits else -1
         except (ValueError, IndexError):
             vote_idx = -1

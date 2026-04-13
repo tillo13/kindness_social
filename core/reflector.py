@@ -325,24 +325,26 @@ def reflect_agent(agent, platform_ctx):
             if adj != 0:
                 any_changed = True
 
-        # Save reflection to history
+        # Save reflection to history (skip if no internal thought content)
+        thought_text = (result.get('internal_thought') or '').strip()
         interactions_since = agent['total_interactions'] - (agent.get('interactions_at_last_reflection') or 0)
-        with db_cursor() as cur:
-            cur.execute("""
-                INSERT INTO kindness_reflections
-                    (agent_id, reflection_text, decided_to_change, change_reason,
-                     old_values, new_values, adjustments, interactions_since_last)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """, (
-                agent['id'],
-                result.get('internal_thought', ''),
-                any_changed,
-                result.get('reason', ''),
-                json.dumps(old_values),
-                json.dumps(new_values),
-                json.dumps(applied_adjustments),
-                interactions_since,
-            ))
+        if thought_text:
+            with db_cursor() as cur:
+                cur.execute("""
+                    INSERT INTO kindness_reflections
+                        (agent_id, reflection_text, decided_to_change, change_reason,
+                         old_values, new_values, adjustments, interactions_since_last)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    agent['id'],
+                    thought_text,
+                    any_changed,
+                    result.get('reason', ''),
+                    json.dumps(old_values),
+                    json.dumps(new_values),
+                    json.dumps(applied_adjustments),
+                    interactions_since,
+                ))
 
         # Apply changes to agent
         if any_changed:
@@ -431,23 +433,26 @@ def reflect_agent(agent, platform_ctx):
                 cleaned = _re.sub(r'["\}\]]+\s*$', '', cleaned)
                 cleaned = _re.sub(r'",\s*"adjustments".*$', '', cleaned, flags=_re.DOTALL)
                 raw_thought = cleaned[:300].strip(' "{}[],')
+        # Still update the agent's reflection timestamp so it doesn't retry immediately
         with db_cursor() as cur:
-            cur.execute("""
-                INSERT INTO kindness_reflections
-                    (agent_id, reflection_text, decided_to_change, change_reason,
-                     old_values, new_values, adjustments, interactions_since_last)
-                VALUES (%s, %s, FALSE, 'parse error — raw thought saved', %s, %s, %s, %s)
-            """, (
-                agent['id'], raw_thought,
-                json.dumps({}), json.dumps({}), json.dumps({}),
-                agent['total_interactions'] - (agent.get('interactions_at_last_reflection') or 0),
-            ))
             cur.execute("""
                 UPDATE kindness_agents SET
                     last_reflected_at = NOW(),
                     interactions_at_last_reflection = total_interactions
                 WHERE id = %s
             """, (agent['id'],))
+            # Only save the reflection if we actually got content
+            if raw_thought.strip():
+                cur.execute("""
+                    INSERT INTO kindness_reflections
+                        (agent_id, reflection_text, decided_to_change, change_reason,
+                         old_values, new_values, adjustments, interactions_since_last)
+                    VALUES (%s, %s, FALSE, 'parse error — raw thought saved', %s, %s, %s, %s)
+                """, (
+                    agent['id'], raw_thought,
+                    json.dumps({}), json.dumps({}), json.dumps({}),
+                    agent['total_interactions'] - (agent.get('interactions_at_last_reflection') or 0),
+                ))
         return {
             'agent': agent['display_name'],
             'changed': False,

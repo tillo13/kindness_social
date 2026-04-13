@@ -54,17 +54,29 @@ BACKENDS = [
     {'name': 'groq-kimi', 'url': 'https://api.groq.com/openai/v1/chat/completions', 'model': 'moonshotai/kimi-k2-instruct', 'secret': 'KINDNESS_GROQ_API_KEY', 'gateway_model': 'groq-kimi'},
     {'name': 'groq-qwen', 'url': 'https://api.groq.com/openai/v1/chat/completions', 'model': 'qwen/qwen3-32b', 'secret': 'KINDNESS_GROQ_API_KEY', 'gateway_model': 'groq-qwen'},
     {'name': 'groq-gptoss', 'url': 'https://api.groq.com/openai/v1/chat/completions', 'model': 'openai/gpt-oss-120b', 'secret': 'KINDNESS_GROQ_API_KEY', 'gateway_model': 'groq-gptoss'},
+    {'name': 'groq-llama4-scout', 'url': 'https://api.groq.com/openai/v1/chat/completions', 'model': 'meta-llama/llama-4-scout-17b-16e-instruct', 'secret': 'KINDNESS_GROQ_API_KEY', 'gateway_model': 'groq-llama4-scout'},
     # Tier 1: Cerebras
     {'name': 'cerebras', 'url': 'https://api.cerebras.ai/v1/chat/completions', 'model': 'llama3.1-8b', 'secret': 'KINDNESS_CEREBRAS_API_KEY', 'gateway_model': 'cerebras-llama'},
+    {'name': 'cerebras-qwen3-235b', 'url': 'https://api.cerebras.ai/v1/chat/completions', 'model': 'qwen-3-235b-a22b-instruct-2507', 'secret': 'KINDNESS_CEREBRAS_API_KEY', 'gateway_model': 'cerebras-qwen3-235b'},
     # Tier 2: Gemini (multiple models for separate quota pools) + llm7
     {'name': 'gemini', 'type': 'gemini', 'secret': 'KINDNESS_GEMINI_API_KEY', 'gemini_model': 'gemini-2.5-flash', 'gateway_model': 'gemini-flash'},
     {'name': 'gemini-lite', 'type': 'gemini', 'secret': 'KINDNESS_GEMINI_API_KEY', 'gemini_model': 'gemini-2.5-flash-lite'},
     {'name': 'gemma', 'type': 'gemini', 'secret': 'KINDNESS_GEMINI_API_KEY', 'gemini_model': 'gemma-3-4b-it'},
+    {'name': 'gemma-27b', 'type': 'gemini', 'secret': 'KINDNESS_GEMINI_API_KEY', 'gemini_model': 'gemma-3-27b-it', 'gateway_model': 'gemini-gemma-27b'},
     {'name': 'llm7', 'url': 'https://api.llm7.io/v1/chat/completions', 'model': 'deepseek-r1', 'secret': None, 'gateway_model': 'llm7-deepseek'},
     # Tier 3: OpenRouter free slots (share one key / ~50/day pool)
     {'name': 'openrouter-gemma', 'url': 'https://openrouter.ai/api/v1/chat/completions', 'model': 'google/gemma-3-4b-it:free', 'secret': 'KINDNESS_OPENROUTER_API_KEY', 'gateway_model': 'openrouter-gemma'},
     {'name': 'openrouter-llama', 'url': 'https://openrouter.ai/api/v1/chat/completions', 'model': 'meta-llama/llama-3.2-3b-instruct:free', 'secret': 'KINDNESS_OPENROUTER_API_KEY', 'gateway_model': 'openrouter-llama'},
     {'name': 'openrouter-gemma-nano', 'url': 'https://openrouter.ai/api/v1/chat/completions', 'model': 'google/gemma-3n-e2b-it:free', 'secret': 'KINDNESS_OPENROUTER_API_KEY', 'gateway_model': 'openrouter-gemma-nano'},
+    # Tier 2: Cloudflare Workers AI (10K neurons/day, 300 RPM, 50+ models)
+    {'name': 'cloudflare-llama-70b', 'url': 'https://api.cloudflare.com/client/v4/accounts/80e562b6b3515f2fb5e11fc0475a8578/ai/run/@cf/meta/llama-3.3-70b-instruct-fp8-fast', 'secret': 'KINDNESS_CLOUDFLARE_API_KEY', 'type': 'cloudflare', 'gateway_model': 'cloudflare-llama-70b'},
+    {'name': 'cloudflare-qwen-coder', 'url': 'https://api.cloudflare.com/client/v4/accounts/80e562b6b3515f2fb5e11fc0475a8578/ai/run/@cf/qwen/qwen2.5-coder-32b-instruct', 'secret': 'KINDNESS_CLOUDFLARE_API_KEY', 'type': 'cloudflare', 'gateway_model': 'cloudflare-qwen-coder'},
+    # Tier 3: Cohere (20 RPM, 1K req/month — different model family)
+    {'name': 'cohere-command-a', 'url': 'https://api.cohere.com/v2/chat', 'model': 'command-a-03-2025', 'secret': 'KINDNESS_COHERE_API_KEY', 'type': 'cohere', 'gateway_model': 'cohere-command-a'},
+    {'name': 'cohere-command-r-plus', 'url': 'https://api.cohere.com/v2/chat', 'model': 'command-r-plus-08-2024', 'secret': 'KINDNESS_COHERE_API_KEY', 'type': 'cohere', 'gateway_model': 'cohere-command-r-plus'},
+    # Tier 3: GitHub Models (free with GitHub PAT, OpenAI-compatible)
+    {'name': 'github-gpt4nano', 'url': 'https://models.github.ai/inference/chat/completions', 'model': 'openai/gpt-4.1-nano', 'secret': 'SCATTERBRAIN_GITHUB_TOKEN', 'gateway_model': 'github-gpt4nano'},
+    {'name': 'github-deepseek-r1', 'url': 'https://models.github.ai/inference/chat/completions', 'model': 'deepseek/DeepSeek-R1', 'secret': 'SCATTERBRAIN_GITHUB_TOKEN', 'gateway_model': 'github-deepseek-r1'},
     # Tier 3: NVIDIA NIM (5K LIFETIME credits — precious)
     {'name': 'nvidia', 'url': 'https://integrate.api.nvidia.com/v1/chat/completions', 'model': 'meta/llama-3.3-70b-instruct', 'secret': 'KINDNESS_NVIDIA_API_KEY', 'gateway_model': 'nvidia-llama'},
     # Tier 3: Grok + DeepSeek via kindness-worker (free, zero-auth, slow)
@@ -108,10 +120,13 @@ _FALLBACK_LIMITS = {
     'groq-kimi': {'daily_limit': 1000, 'rpm_spacing_sec': 4.0, 'backoff_sec': 120, 'enabled': True},
     'groq-qwen': {'daily_limit': 1000, 'rpm_spacing_sec': 4.0, 'backoff_sec': 120, 'enabled': True},
     'groq-gptoss': {'daily_limit': 200, 'rpm_spacing_sec': 4.0, 'backoff_sec': 120, 'enabled': True},
+    'groq-llama4-scout': {'daily_limit': 1000, 'rpm_spacing_sec': 4.0, 'backoff_sec': 120, 'enabled': True},
     'cerebras': {'daily_limit': 10, 'rpm_spacing_sec': 3.0, 'backoff_sec': 120, 'enabled': True, 'conservation': True},
+    'cerebras-qwen3-235b': {'daily_limit': 500, 'rpm_spacing_sec': 3.0, 'backoff_sec': 120, 'enabled': True},
     'gemini': {'daily_limit': 20, 'rpm_spacing_sec': 10.0, 'backoff_sec': 300, 'enabled': True},
     'gemini-lite': {'daily_limit': 500, 'rpm_spacing_sec': 5.0, 'backoff_sec': 300, 'enabled': True},
     'gemma': {'daily_limit': 500, 'rpm_spacing_sec': 5.0, 'backoff_sec': 300, 'enabled': True},
+    'gemma-27b': {'daily_limit': 500, 'rpm_spacing_sec': 5.0, 'backoff_sec': 300, 'enabled': True},
     'llm7': {'daily_limit': 300, 'rpm_spacing_sec': 4.0, 'backoff_sec': 120, 'enabled': True},
     'openrouter-gemma': {'daily_limit': 50, 'rpm_spacing_sec': 10.0, 'backoff_sec': 120, 'enabled': True},
     'openrouter-llama': {'daily_limit': 50, 'rpm_spacing_sec': 10.0, 'backoff_sec': 120, 'enabled': True},
@@ -121,6 +136,12 @@ _FALLBACK_LIMITS = {
     'grok_fast': {'daily_limit': 100, 'rpm_spacing_sec': 10.0, 'backoff_sec': 120, 'enabled': True},
     'grok4': {'daily_limit': 100, 'rpm_spacing_sec': 10.0, 'backoff_sec': 120, 'enabled': True},
     'deepseek': {'daily_limit': 100, 'rpm_spacing_sec': 10.0, 'backoff_sec': 120, 'enabled': True},
+    'cloudflare-llama-70b': {'daily_limit': 500, 'rpm_spacing_sec': 0.2, 'backoff_sec': 120, 'enabled': True},
+    'cloudflare-qwen-coder': {'daily_limit': 500, 'rpm_spacing_sec': 0.2, 'backoff_sec': 120, 'enabled': True},
+    'cohere-command-a': {'daily_limit': 30, 'rpm_spacing_sec': 3.0, 'backoff_sec': 120, 'enabled': True},
+    'cohere-command-r-plus': {'daily_limit': 30, 'rpm_spacing_sec': 3.0, 'backoff_sec': 120, 'enabled': True},
+    'github-gpt4nano': {'daily_limit': 50, 'rpm_spacing_sec': 5.0, 'backoff_sec': 120, 'enabled': True},
+    'github-deepseek-r1': {'daily_limit': 50, 'rpm_spacing_sec': 5.0, 'backoff_sec': 120, 'enabled': True},
     'mistral': {'daily_limit': 100, 'rpm_spacing_sec': 60.0, 'backoff_sec': 120, 'enabled': True},
     'litellm-gateway': {'daily_limit': 500, 'rpm_spacing_sec': 2.0, 'backoff_sec': 120, 'enabled': True},
     'gpt4o-mini': {'daily_limit': 50, 'rpm_spacing_sec': 2.0, 'backoff_sec': 120, 'enabled': True},
@@ -416,6 +437,48 @@ def _try_deepseek(prompt, max_tokens, temperature):
         return text if text else None
 
 
+def _try_cloudflare(backend, prompt, max_tokens, temperature):
+    """Cloudflare Workers AI — non-OpenAI response format (result.response)."""
+    key = _get_key(backend['secret'])
+    if not key:
+        return None
+    payload = json.dumps({
+        'messages': [{'role': 'user', 'content': prompt}],
+        'max_tokens': max_tokens,
+    }).encode()
+    req = urllib.request.Request(
+        backend['url'], data=payload,
+        headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {key}'},
+        method='POST',
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        data = json.loads(resp.read())
+        text = data.get('result', {}).get('response', '')
+        return text.strip() if text.strip() else None
+
+
+def _try_cohere(backend, prompt, max_tokens, temperature):
+    """Cohere v2 chat — non-OpenAI response format (message.content[0].text)."""
+    key = _get_key(backend['secret'])
+    if not key:
+        return None
+    payload = json.dumps({
+        'model': backend['model'],
+        'messages': [{'role': 'user', 'content': prompt}],
+        'max_tokens': max_tokens,
+    }).encode()
+    req = urllib.request.Request(
+        backend['url'], data=payload,
+        headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {key}'},
+        method='POST',
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        data = json.loads(resp.read())
+        content = data.get('message', {}).get('content', [{}])
+        text = content[0].get('text', '') if content else ''
+        return text.strip() if text.strip() else None
+
+
 def _try_litellm_gateway(backend, prompt, max_tokens, temperature):
     """Route through the LiteLLM Cloud Run gateway. Gateway has its own fallback chain."""
     if not _litellm_url or not _litellm_key:
@@ -514,6 +577,10 @@ def _try_backend(backend, prompt, max_tokens, temperature, caller):
             text = _try_grok4(prompt, max_tokens, temperature)
         elif btype == 'deepseek':
             text = _try_deepseek(prompt, max_tokens, temperature)
+        elif btype == 'cloudflare':
+            text = _try_cloudflare(backend, prompt, max_tokens, temperature)
+        elif btype == 'cohere':
+            text = _try_cohere(backend, prompt, max_tokens, temperature)
         elif btype == 'litellm':
             text = _try_litellm_gateway(backend, prompt, max_tokens, temperature)
         else:
