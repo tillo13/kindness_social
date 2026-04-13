@@ -15,7 +15,7 @@ import os
 import time
 
 from core import db_ops
-from utilities.llm_router import chat, set_telemetry_context
+from utilities.kumori_free_llms import chat as _kf_chat
 from utilities.postgres_utils import db_cursor
 
 logger = logging.getLogger(__name__)
@@ -159,7 +159,7 @@ def get_platform_context():
 
 def reflect_agent(agent, platform_ctx):
     """Run a single agent's reflection. Returns the reflection result."""
-    from utilities.usage_limiter import is_backend_in_backoff
+    from utilities.kumori_free_llms import _is_backed_off as is_backend_in_backoff
     backend = agent.get('llm_backend', 'gemini')
     if is_backend_in_backoff(backend):
         return None
@@ -253,13 +253,12 @@ def reflect_agent(agent, platform_ctx):
         total_agents=social['total_agents'],
     )
 
-    set_telemetry_context(agent_id=agent.get('agent_id'), call_type='reflect')
-
     try:
-        response, actual_backend = chat(
+        response, actual_backend = _kf_chat(
             backend,
             [{"role": "user", "content": prompt}],
             max_tokens=1200,
+            caller='kindness_social',
             temperature=0.4,
         )
 

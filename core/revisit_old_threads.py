@@ -31,8 +31,7 @@ from core.responder import (
 )
 from core.evaluator import generate_comment, evaluate_comment
 from core.simulator import calculate_dopamine, update_persona, DEFAULT_CONFIG
-from utilities.usage_limiter import is_backend_in_backoff
-from utilities.llm_router import set_telemetry_context
+from utilities.kumori_free_llms import _is_backed_off as is_backend_in_backoff
 
 logger = logging.getLogger(__name__)
 
@@ -139,8 +138,6 @@ def _revisit_one_thread(thread, settings):
         attempted += 1
 
         logger.info(f"  [revisit] {agent['display_name']} → {thread['thread_id']} ({reason})")
-        set_telemetry_context(agent_id=agent.get('agent_id'), thread_id=thread['thread_id'])
-
         reply_context = build_reply_context(thread_context, target)
         thread_history = [{'persona': c, 'comment': c.get('comment_text', ''), 'scores': {
             'kindness': c.get('kindness_score', 5),

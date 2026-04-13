@@ -240,7 +240,7 @@ def chat(message, history=None):
     if count >= MAX_CHATS_PER_DAY:
         return "Daily chat limit reached (100/day). Come back tomorrow!"
 
-    from utilities.llm_router import chat as llm_chat
+    from utilities.kumori_free_llms import chat as _kf_chat
 
     context = build_experiment_context()
     system = SYSTEM_PROMPT.replace("{live_data}", context)
@@ -253,12 +253,13 @@ def chat(message, history=None):
 
     # Free tier first — chatbot is informational, not science-critical
     try:
-        response, _ = llm_chat(
+        response, _ = _kf_chat(
             'haiku',
             messages,
             max_tokens=1000,
             temperature=0.3,
             system=system,
+            caller='kindness_social',
         )
         log_chat_message()
         return response or "I couldn't generate a response. Try again."

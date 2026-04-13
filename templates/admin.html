@@ -36,18 +36,9 @@
                 <div class="flex gap-2 mt-2">
                     <select id="single-backend" class="flex-1 px-2 py-1.5 rounded text-xs font-mono"
                             style="background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-default);">
-                        <option value="groq">groq</option>
-                        <option value="cerebras">cerebras</option>
-                        <option value="mistral">mistral</option>
-                        <option value="gpt4o_mini">gpt4o_mini</option>
-                        <option value="haiku">haiku</option>
-                        <option value="sonnet">sonnet</option>
-                        <option value="gemini">gemini</option>
-                        <option value="openrouter">openrouter</option>
-                        <option value="gpt4o">gpt4o</option>
-                        <option value="opus">opus</option>
-                        <option value="grok">grok (Cloud Run)</option>
-                        <option value="deepseek">deepseek (Cloud Run)</option>
+                        {% for b in backends %}
+                        <option value="{{ b }}">{{ b }}</option>
+                        {% endfor %}
                     </select>
                     <button onclick="apiCall('/api/admin/test-backend', 'POST', 'test-ae-result', {backend: document.getElementById('single-backend').value})"
                             class="px-3 py-1.5 rounded text-xs font-medium"

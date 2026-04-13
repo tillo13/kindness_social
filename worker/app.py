@@ -153,8 +153,14 @@ def _test_model(provider, model_id):
     elif provider == 'DeepSeek':
         return _test_deepseek(model_id)
     else:
-        # Use the standard router for API-key backends
-        from utilities.llm_router import chat
+        # Use the standard router for API-key backends — lazy init on first use
+        from utilities import kumori_free_llms
+        if not getattr(kumori_free_llms, '_initialized', False):
+            from utilities.google_secret_utils import get_secret
+            from utilities.postgres_utils import db_cursor
+            kumori_free_llms.init(app_name='kindness_social',
+                                  get_secret_fn=get_secret, db_cursor_fn=db_cursor,
+                                  policy='silent')
         # Map provider to backend name
         backend_map = {
             'Google': 'gemini',
@@ -166,7 +172,8 @@ def _test_model(provider, model_id):
             'OpenRouter': 'openrouter',
         }
         backend = backend_map.get(provider, provider.lower())
-        text, actual = chat(backend, msg, max_tokens=30)
+        text, actual = kumori_free_llms.chat(backend, msg, max_tokens=30,
+                                              caller='kindness_social')
         return text
 
 

@@ -11,7 +11,6 @@ from datetime import datetime
 
 from core import db_ops
 from core.evaluator import generate_comment, evaluate_comment
-from utilities.llm_router import set_telemetry_context
 
 logger = logging.getLogger(__name__)
 
@@ -98,8 +97,6 @@ def run_thread(config=None):
         if successful >= target_count:
             break  # hit our target, stop walking the oversample
         logger.info(f"[{thread_slug}] Pos {position+1}/{len(participants)}: {persona['display_name']} ({persona['llm_backend']})")
-        set_telemetry_context(agent_id=persona.get('agent_id'), thread_id=thread_slug)
-
         # Generate comment — if backend is down, agent stays silent
         comment, actual_backend, gen_time_ms = generate_comment(
             persona, topic, thread_history, position, config
@@ -257,9 +254,9 @@ def run_peer_recognition(thread_history, thread_db_id, config):
             + "\n".join(comments_summary)
         )
 
-        from utilities.llm_router import chat_eval
-        response, _ = chat_eval(persona.get('llm_backend', 'haiku'), prompt,
-                                system="Reply with ONLY a single number.")
+        from utilities.kumori_free_llms import chat_eval as _kf_chat_eval
+        response, _ = _kf_chat_eval(prompt, system="Reply with ONLY a single number.",
+                                    caller='kindness_social')
 
         # Parse which comment they voted for (response can be None if eval backend is down)
         try:

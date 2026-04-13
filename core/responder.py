@@ -11,7 +11,6 @@ from datetime import datetime, timezone, timedelta
 from core import db_ops
 from core.evaluator import generate_comment, evaluate_comment
 from core.simulator import calculate_dopamine, update_persona, DEFAULT_CONFIG
-from utilities.llm_router import set_telemetry_context
 
 logger = logging.getLogger(__name__)
 
@@ -266,7 +265,7 @@ def run_agent_responses(config=None):
     - Reactions happen ~50% of the time, from 2-3 random browsers
     """
     config = config or DEFAULT_CONFIG
-    from utilities.usage_limiter import is_backend_in_backoff
+    from utilities.kumori_free_llms import _is_backed_off as is_backend_in_backoff
 
     # Check open threads — grab up to 8
     open_threads = get_open_threads(limit=8)
@@ -334,8 +333,6 @@ def run_agent_responses(config=None):
                 continue
 
             logger.info(f"  {agent['display_name']} responding to thread {thread['thread_id']} ({reason})")
-            set_telemetry_context(agent_id=agent.get('agent_id'), thread_id=thread['thread_id'])
-
             reply_context = build_reply_context(thread_context, target)
             thread_history = [{'persona': c, 'comment': c.get('comment_text', ''), 'scores': {
                 'kindness': c.get('kindness_score', 5),

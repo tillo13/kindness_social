@@ -1,13 +1,22 @@
 """
 Evaluator - LLM-based comment generation and scoring.
-Adapted from original to use llm_router instead of LM Studio.
+Evaluator - LLM-based comment generation and scoring.
 """
 
 import os
 import time
 import logging
 
-from utilities.llm_router import chat, chat_eval, set_telemetry_context
+from utilities.kumori_free_llms import chat as _kf_chat, chat_eval as _kf_chat_eval
+
+
+def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
+    return _kf_chat(backend, messages, max_tokens=max_tokens,
+                    temperature=temperature, system=system, caller='kindness_social')
+
+
+def chat_eval(backend, prompt, system="Return ONLY a number 1-10."):
+    return _kf_chat_eval(prompt, system=system, caller='kindness_social')
 
 logger = logging.getLogger(__name__)
 
@@ -81,8 +90,6 @@ def generate_comment(persona, topic, thread_history, position, config):
     # Use agent's unique system prompt if available
     system_prompt = persona.get('system_prompt')
 
-    set_telemetry_context(agent_id=persona.get('agent_id'), call_type='generate')
-
     start = time.time()
     text, actual_backend = chat(backend, messages, max_tokens=500, temperature=0.3,
                                  system=system_prompt)
@@ -105,19 +112,16 @@ def evaluate_comment(comment, persona, thread_history, topic, config):
     scores = {}
 
     # Kindness
-    set_telemetry_context(agent_id=persona.get('agent_id'), call_type='eval_kindness')
     template = _load_prompt('evaluate_kindness.txt')
     prompt = template.format(comment=comment, context=topic['post_text'])
     scores['kindness'] = _parse_score(chat_eval(backend, prompt))
 
     # Toxicity
-    set_telemetry_context(agent_id=persona.get('agent_id'), call_type='eval_toxicity')
     template = _load_prompt('evaluate_toxicity.txt')
     prompt = template.format(comment=comment)
     scores['toxicity'] = _parse_score(chat_eval(backend, prompt))
 
     # Empathy
-    set_telemetry_context(agent_id=persona.get('agent_id'), call_type='eval_empathy')
     template = _load_prompt('evaluate_empathy.txt')
     prompt = template.format(comment=comment, context=topic['post_text'])
     scores['empathy'] = _parse_score(chat_eval(backend, prompt))
@@ -131,7 +135,6 @@ def evaluate_comment(comment, persona, thread_history, topic, config):
         last = thread_history[-1]
         distance = abs(persona['political_lean'] - last['persona']['political_lean'])
         if distance >= min_distance:
-            set_telemetry_context(agent_id=persona.get('agent_id'), call_type='eval_bridge')
             template = _load_prompt('evaluate_bridge.txt')
             prompt = template.format(
                 comment=comment,
