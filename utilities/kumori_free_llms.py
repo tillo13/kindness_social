@@ -30,11 +30,18 @@ import urllib.request
 import urllib.error
 from datetime import date
 
-from backend_registry import (
-    BACKENDS, LITELLM_BACKENDS, PAID_BACKENDS,
-    FALLBACK_LIMITS as _FALLBACK_LIMITS,
-    EVAL_POOL_FREE,
-)
+try:
+    from utilities.backend_registry import (
+        BACKENDS, LITELLM_BACKENDS, PAID_BACKENDS,
+        FALLBACK_LIMITS as _FALLBACK_LIMITS,
+        EVAL_POOL_FREE,
+    )
+except ImportError:
+    from backend_registry import (
+        BACKENDS, LITELLM_BACKENDS, PAID_BACKENDS,
+        FALLBACK_LIMITS as _FALLBACK_LIMITS,
+        EVAL_POOL_FREE,
+    )
 
 logger = logging.getLogger(__name__)
 
