@@ -368,6 +368,7 @@ def _try_litellm_gateway(backend, prompt, max_tokens, temperature):
         'messages': [{'role': 'user', 'content': prompt}],
         'max_tokens': max_tokens,
         'temperature': temperature,
+        'metadata': {'app_name': _app_name or 'unknown'},
     }).encode()
 
     req = urllib.request.Request(
@@ -413,7 +414,8 @@ def _try_haiku(prompt, max_tokens, temperature):
     with urllib.request.urlopen(req, timeout=30) as resp:
         data = json.loads(resp.read())
         if _log_api_usage_fn:
-            _log_api_usage_fn('claude-haiku-4-5-20251001', data.get('usage', {}), feature='haiku_last_resort')
+            _log_api_usage_fn('claude-haiku-4-5-20251001', data.get('usage', {}), feature='haiku_last_resort',
+                              user_id="system:haiku_fallback")
         return data['content'][0]['text']
 
 
