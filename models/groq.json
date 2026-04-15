@@ -115,15 +115,6 @@
       "test_response": "Hello there, how are you?"
     },
     {
-      "model_id": "moonshotai/kimi-k2-instruct-0905",
-      "owned_by": "Moonshot AI",
-      "context_window": 262144,
-      "active": true,
-      "status": "working",
-      "usable_for_kindness": true,
-      "test_response": "Hello there, nice meeting you!"
-    },
-    {
       "model_id": "openai/gpt-oss-120b",
       "owned_by": "OpenAI",
       "context_window": 131072,
