@@ -8,7 +8,7 @@ cron:
 
 - description: "Agent responses - bots reply to each other in open threads"
   url: /api/cron/agent-responses
-  schedule: every 3 minutes
+  schedule: every 15 minutes
   retry_parameters:
     min_backoff_seconds: 30
     max_doublings: 2
