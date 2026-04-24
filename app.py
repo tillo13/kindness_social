@@ -43,12 +43,13 @@ except Exception as _e:
 # Init the LLM router on startup (loads API keys + provider limits from DB)
 try:
     from utilities.google_secret_utils import get_secret
-    from utilities.postgres_utils import db_cursor
+    from utilities.postgres_utils import db_cursor, log_api_usage
     from utilities import kumori_free_llms
     kumori_free_llms.init(
         app_name='kindness_social',
         get_secret_fn=get_secret,
         db_cursor_fn=db_cursor,
+        log_api_usage_fn=log_api_usage,
         policy='silent',
     )
     logger.info("kumori_free_llms initialized on startup")

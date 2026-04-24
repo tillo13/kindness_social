@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-04-21 04:32*
+*Last refreshed: 2026-04-23 04:30*
 
 ## 🎯 Pending
 
@@ -15,9 +15,7 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
-- `5364314` · 2026-04-15 07:23 — remove decommissioned groq kimi-k2-instruct-0905 from models/groq.json
-- `728abdc` · 2026-04-15 07:06 — kumori_free_llms: tag gateway requests with metadata.app_name
-- `f094b97` · 2026-04-15 06:16 — pick up new LITELLM_GATEWAY_URL (llm.kumori.ai)
+- `f38a26d` · 2026-04-21 20:51 — cron: agent-responses 3min → 15min (cost trim)
 <!-- shipped:end -->
 
 ## ⚠️ Unfinished / WIP

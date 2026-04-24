@@ -157,9 +157,10 @@ def _test_model(provider, model_id):
         from utilities import kumori_free_llms
         if not getattr(kumori_free_llms, '_initialized', False):
             from utilities.google_secret_utils import get_secret
-            from utilities.postgres_utils import db_cursor
+            from utilities.postgres_utils import db_cursor, log_api_usage
             kumori_free_llms.init(app_name='kindness_social',
                                   get_secret_fn=get_secret, db_cursor_fn=db_cursor,
+                                  log_api_usage_fn=log_api_usage,
                                   policy='silent')
         # Map provider to backend name
         backend_map = {

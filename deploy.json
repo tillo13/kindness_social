@@ -1,21 +1,37 @@
 {
-    "project_id": "kindness-io",
-    "app_name": "Kindness Social",
-    "github_repo": "kindness_social",
-    "shared_files": [
-        {"src": "kumori_free_llm/kumori_free_llms.py", "dst": "utilities/kumori_free_llms.py"},
-        {"src": "kumori_free_llm/backend_registry.py", "dst": "utilities/backend_registry.py"}
-    ],
-    "custom_domain": "https://kindness.social",
-    "cron_yaml": true,
-    "cloud_run_services": [
-        {
-            "name": "kindness-worker",
-            "source": ".",
-            "dockerfile": "worker/Dockerfile",
-            "memory": "512Mi",
-            "timeout": "900",
-            "exclude_dirs": ["static", "templates", "docs", "tests", "prompts"]
-        }
-    ]
+  "project_id": "kindness-io",
+  "app_name": "Kindness Social",
+  "github_repo": "kindness_social",
+  "shared_files": [
+    {
+      "src": "kumori_free_llm/kumori_free_llms.py",
+      "dst": "utilities/kumori_free_llms.py"
+    },
+    {
+      "src": "kumori_free_llm/backend_registry.py",
+      "dst": "utilities/backend_registry.py"
+    },
+    {
+      "src": "anthropic_logger/anthropic_logger.py",
+      "dst": "utilities/anthropic_logger.py"
+    }
+  ],
+  "custom_domain": "https://kindness.social",
+  "cron_yaml": true,
+  "cloud_run_services": [
+    {
+      "name": "kindness-worker",
+      "source": ".",
+      "dockerfile": "worker/Dockerfile",
+      "memory": "512Mi",
+      "timeout": "900",
+      "exclude_dirs": [
+        "static",
+        "templates",
+        "docs",
+        "tests",
+        "prompts"
+      ]
+    }
+  ]
 }

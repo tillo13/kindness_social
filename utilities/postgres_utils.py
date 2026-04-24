@@ -133,3 +133,33 @@ def db_cursor(dict_cursor=False):
     finally:
         cursor.close()
         conn.close()
+
+
+def log_api_usage(model, usage, feature=None, streaming=False,
+                  image_count=0, user_id=None, duration_ms=None):
+    """Minimal logger for kumori_api_usage. Fire-and-forget background thread.
+    Cost left at 0; admin API cost_report is the ground truth for $ reconciliation."""
+    import threading
+
+    def _do_log():
+        try:
+            def _get(k):
+                return getattr(usage, k, None) or (usage.get(k, 0) if isinstance(usage, dict) else 0) or 0
+            input_tokens = _get('input_tokens')
+            output_tokens = _get('output_tokens')
+            cache_creation = _get('cache_creation_input_tokens')
+            cache_read = _get('cache_read_input_tokens')
+
+            with db_cursor() as cur:
+                cur.execute("""
+                    INSERT INTO kumori_api_usage
+                    (app_name, feature, model, input_tokens, output_tokens,
+                     cache_creation_tokens, cache_read_tokens, image_count,
+                     streaming, user_id, duration_ms, estimated_cost_usd)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0)
+                """, ('kindness_social', feature, model, input_tokens, output_tokens,
+                      cache_creation, cache_read, image_count, streaming, user_id, duration_ms))
+        except Exception as e:
+            logger.warning(f"log_api_usage failed (non-fatal): {e}")
+
+    threading.Thread(target=_do_log, daemon=True).start()
