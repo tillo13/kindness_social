@@ -212,17 +212,26 @@ FREE_MODEL_COUNT = len(MODELS)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# LiteLLM gateway (free backends routed through Cloud Run for spend tracking).
-# Paid backends (Anthropic / OpenAI) intentionally absent — see CLAUDE.md.
+# LiteLLM gateway + paid backends (not in MODELS — separate tier)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 LITELLM_BACKENDS = [
     {'name': 'litellm-gateway', 'type': 'litellm', 'litellm_model': 'groq-llama-70b'},
 ]
 
-# Non-router entries for kindness_social model_registry (local-only, never paid)
+PAID_BACKENDS = [
+    {'name': 'gpt4o-mini', 'url': 'https://api.openai.com/v1/chat/completions', 'model': 'gpt-4o-mini', 'secret': 'KINDNESS_OPENAI_API_KEY'},
+    {'name': 'gpt4o',      'url': 'https://api.openai.com/v1/chat/completions', 'model': 'gpt-4o',      'secret': 'KINDNESS_OPENAI_API_KEY'},
+]
+
+# Non-router entries for kindness_social model_registry (paid/local, not in free pool)
 KINDNESS_ONLY_MODELS = {
+    'haiku':  {'model_id': 'claude-haiku-4-5-20251001',  'provider': 'Anthropic',        'display': 'Claude Haiku 4.5'},
+    'sonnet': {'model_id': 'claude-sonnet-4-5-20250929', 'provider': 'Anthropic',        'display': 'Claude Sonnet 4.5'},
+    'opus':   {'model_id': 'claude-opus-4-5-20251101',   'provider': 'Anthropic',        'display': 'Claude Opus 4.5'},
     'local':  {'model_id': 'lmstudio/auto',              'provider': 'LM Studio (local)', 'display': 'Local LLM (LM Studio)'},
+    'gpt4o_mini': {'model_id': 'gpt-4o-mini',            'provider': 'OpenAI',           'display': 'GPT-4o Mini'},
+    'gpt4o':      {'model_id': 'gpt-4o',                 'provider': 'OpenAI',           'display': 'GPT-4o'},
 }
 
 
@@ -279,8 +288,11 @@ def build_fallback_limits():
             base.update(m['overrides'])
         limits[m['name']] = base
 
-    # Non-model backends (free only)
+    # Non-model backends
     limits['litellm-gateway'] = {'daily_limit': 500, 'rpm_spacing_sec': 2.0, 'backoff_sec': 120, 'enabled': True}
+    limits['gpt4o-mini'] = {'daily_limit': 50, 'rpm_spacing_sec': 2.0, 'backoff_sec': 120, 'enabled': True}
+    limits['gpt4o'] = {'daily_limit': 20, 'rpm_spacing_sec': 2.0, 'backoff_sec': 120, 'enabled': True}
+    limits['haiku'] = {'daily_limit': 10, 'rpm_spacing_sec': 2.0, 'backoff_sec': 120, 'enabled': True}
     return limits
 
 
@@ -310,7 +322,15 @@ def build_available_backends():
 def build_backend_naming():
     """Build BACKEND_NAMING dict: backend_name -> (provider_slug, model_short)."""
     naming = {m['name']: m['naming'] for m in MODELS if m.get('naming')}
-    naming['local'] = ('local', 'lmstudio')
+    # Add non-free backends for completeness
+    naming.update({
+        'gpt4o_mini': ('openai', 'gpt4o-mini'),
+        'gpt4o': ('openai', 'gpt4o'),
+        'haiku': ('anthropic', 'haiku'),
+        'sonnet': ('anthropic', 'sonnet'),
+        'opus': ('anthropic', 'opus'),
+        'local': ('local', 'lmstudio'),
+    })
     return naming
 
 
