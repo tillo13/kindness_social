@@ -487,8 +487,8 @@ def admin_page():
     if not is_admin_request():
         return "Forbidden — pass ?key=YOUR_KEY", 403
     key = request.headers.get('X-Admin-Key') or request.args.get('key', '')
-    from utilities.backend_registry import BACKENDS, LITELLM_BACKENDS, PAID_BACKENDS
-    all_backends = [b['name'] for b in BACKENDS + LITELLM_BACKENDS + PAID_BACKENDS] + ['haiku', 'sonnet', 'opus']
+    from utilities.backend_registry import BACKENDS, LITELLM_BACKENDS
+    all_backends = [b['name'] for b in BACKENDS + LITELLM_BACKENDS]
     return render_template('admin.html', admin_key=key, backends=all_backends)
 
 

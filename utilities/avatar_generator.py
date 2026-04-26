@@ -183,6 +183,10 @@ def generate_avatar(agent, force=False):
     Generate a cartoon avatar for an agent using Flux.
     Returns the local file path, or None on failure.
     Skips if avatar already exists (unless force=True).
+
+    DISABLED 2026-04-25 — kindness_social is free-tier only. Existing avatars
+    in GCS continue to be served by get_avatar_url(); no new generations fire.
+    Re-enable by removing the early-return below if you ever want avatars again.
     """
     agent_id = agent.get('agent_id', 'unknown')
     path = get_avatar_path(agent_id)
@@ -191,6 +195,10 @@ def generate_avatar(agent, force=False):
         logger.info(f"Avatar already exists for {agent_id}, skipping")
         return path
 
+    logger.info(f"avatar_generator: disabled — skipping new avatar for {agent_id}")
+    return None
+
+    # ── unreachable — preserved for the day Andy re-enables ─────────────────
     prompt = build_prompt(agent)
     logger.info(f"Generating avatar for {agent_id}: {prompt[:80]}...")
 

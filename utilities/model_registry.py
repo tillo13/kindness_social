@@ -15,8 +15,9 @@ MODELS = build_model_registry()
 # Backends that cost $0 — free tiers or self-hosted
 FREE_BACKENDS = build_free_backends_set() | {'local'}
 
-# Backends with actual per-token cost
-PAID_BACKENDS = {'haiku', 'sonnet', 'opus', 'gpt4o_mini', 'gpt4o'}
+# Backends with actual per-token cost — intentionally empty in kindness_social.
+# Paid backends were ripped out 2026-04-25; see CLAUDE.md "NEVER as a fallback".
+PAID_BACKENDS = set()
 
 
 def is_free(backend):

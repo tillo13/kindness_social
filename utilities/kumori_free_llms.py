@@ -1,9 +1,13 @@
 """
 kumori_free_llms.py — Combined super router for all kumori apps.
 
-Round-robin free backends, RPM throttle, cross-app daily caps,
-grok/deepseek via kindness-worker, LiteLLM gateway fallback,
-paid fallbacks, and haiku last resort.
+Round-robin free backends ONLY. RPM throttle, cross-app daily caps,
+grok/deepseek via kindness-worker, LiteLLM gateway fallback.
+
+NO PAID BACKENDS. Anthropic / OpenAI / Claude / GPT-4 are not routable from
+kindness_social — see CLAUDE.md "Claude / Anthropic API: NEVER as a fallback".
+If every free backend is down, generate() returns (None, None) — silence is
+honest.
 
 Lives in _infrastructure/kumori_free_llm/. Any kumori app can import and use it.
 Self-contained — NO imports from utilities.* — all deps injected via init().
@@ -15,7 +19,6 @@ Usage:
         app_name='scatterbrain',
         get_secret_fn=get_secret,           # (secret_name) -> str
         db_cursor_fn=db_cursor,             # context manager yielding cursor (optional)
-        anthropic_key_fn=get_anthropic_key,  # () -> str (optional, for haiku)
         log_api_usage_fn=log_api_usage,     # (model, usage, feature) (optional)
     )
 
@@ -32,13 +35,13 @@ from datetime import date
 
 try:
     from utilities.backend_registry import (
-        BACKENDS, LITELLM_BACKENDS, PAID_BACKENDS,
+        BACKENDS, LITELLM_BACKENDS,
         FALLBACK_LIMITS as _FALLBACK_LIMITS,
         EVAL_POOL_FREE,
     )
 except ImportError:
     from backend_registry import (
-        BACKENDS, LITELLM_BACKENDS, PAID_BACKENDS,
+        BACKENDS, LITELLM_BACKENDS,
         FALLBACK_LIMITS as _FALLBACK_LIMITS,
         EVAL_POOL_FREE,
     )
@@ -51,7 +54,6 @@ logger = logging.getLogger(__name__)
 _app_name = None
 _get_secret_fn = None       # (secret_name) -> str
 _db_cursor_fn = None        # context manager yielding DB cursor
-_anthropic_key_fn = None    # () -> str
 _log_api_usage_fn = None    # (model, usage_dict, feature=) -> None
 _litellm_url = None         # LiteLLM gateway URL
 _litellm_key = None         # LiteLLM virtual key for this app
@@ -385,40 +387,6 @@ def _try_litellm_gateway(backend, prompt, max_tokens, temperature):
         return content.strip() if content.strip() else None
 
 
-def _try_haiku(prompt, max_tokens, temperature):
-    """Anthropic Haiku — absolute last resort (paid)."""
-    if _anthropic_key_fn:
-        api_key = _anthropic_key_fn()
-    else:
-        api_key = _get_key('KUMORI_ANTHROPIC_API_KEY')
-    if not api_key:
-        raise ValueError("No Anthropic API key available")
-
-    payload = json.dumps({
-        'model': 'claude-haiku-4-5-20251001',
-        'max_tokens': max_tokens,
-        'temperature': temperature,
-        'messages': [{'role': 'user', 'content': prompt}],
-    }).encode()
-
-    req = urllib.request.Request(
-        'https://api.anthropic.com/v1/messages',
-        data=payload,
-        headers={
-            'x-api-key': api_key,
-            'anthropic-version': '2023-06-01',
-            'content-type': 'application/json',
-        },
-        method='POST',
-    )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        data = json.loads(resp.read())
-        if _log_api_usage_fn:
-            _log_api_usage_fn('claude-haiku-4-5-20251001', data.get('usage', {}), feature='haiku_last_resort',
-                              user_id="system:haiku_fallback")
-        return data['content'][0]['text']
-
-
 # Worker backend types — dispatched to _try_worker
 _WORKER_TYPES = {'grok', 'grok_fast', 'grok4', 'deepseek'}
 
@@ -528,9 +496,9 @@ def _try_backend(backend, prompt, max_tokens, temperature, caller):
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def init(app_name, get_secret_fn=None, db_cursor_fn=None,
-         anthropic_key_fn=None, log_api_usage_fn=None,
+         log_api_usage_fn=None,
          litellm_url=None, litellm_key=None,
-         policy='always_answer'):
+         policy='silent'):
     """
     Initialize the router. Call once at app startup.
 
@@ -539,22 +507,21 @@ def init(app_name, get_secret_fn=None, db_cursor_fn=None,
         get_secret_fn: (secret_name) -> str. Fetches API keys from Secret Manager.
         db_cursor_fn: Optional context manager yielding a DB cursor. Enables cross-app
                       daily cap coordination via kumori_llm_daily_caps table.
-        anthropic_key_fn: Optional () -> str. For Haiku last resort.
-        log_api_usage_fn: Optional (model, usage_dict, feature=) -> None. For paid usage logging.
+        log_api_usage_fn: Optional (model, usage_dict, feature=) -> None.
         litellm_url: LiteLLM gateway URL. Auto-fetched from LITELLM_GATEWAY_URL secret if omitted.
         litellm_key: LiteLLM virtual key. Auto-fetched from SCATTERBRAIN_LITELLM_KEY secret if omitted.
-        policy: 'always_answer' (fall through to paid) or 'silent' (return None if free fails).
+        policy: only 'silent' is supported (free pool only). Argument retained for caller
+                compatibility but no paid-fallback path exists in this build.
     """
-    global _app_name, _get_secret_fn, _db_cursor_fn, _anthropic_key_fn
+    global _app_name, _get_secret_fn, _db_cursor_fn
     global _log_api_usage_fn, _litellm_url, _litellm_key
     global _caps_db_write_fn, _caps_db_read_fn, _initialized, _policy
 
     _app_name = app_name
     _get_secret_fn = get_secret_fn
     _db_cursor_fn = db_cursor_fn
-    _anthropic_key_fn = anthropic_key_fn
     _log_api_usage_fn = log_api_usage_fn
-    _policy = policy
+    _policy = 'silent'  # forced — paid fallbacks have been ripped out
 
     # Load provider limits from DB (caps, RPM spacing, lifetime, backoff, enabled)
     if db_cursor_fn:
@@ -622,15 +589,14 @@ def init(app_name, get_secret_fn=None, db_cursor_fn=None,
 
 def generate(prompt, max_tokens=500, temperature=1.0, caller=None):
     """
-    Route a prompt through all available backends.
+    Route a prompt through all available FREE backends.
 
     Returns: (text, backend_name) or (None, None) on total failure.
 
     Order:
       1. Direct free backends (round-robin rotation)
       2. LiteLLM gateway (independent retry state, spend tracking)
-      3. Paid backends (gpt4o-mini) — only if policy='always_answer'
-      4. Haiku last resort — only if policy='always_answer'
+    No paid fallback — silence is honest.
     """
     global _call_counter
 
@@ -639,7 +605,6 @@ def generate(prompt, max_tokens=500, temperature=1.0, caller=None):
         return None, None
 
     caller = caller or _app_name or 'unknown'
-    policy = getattr(generate, '_policy_override', None) or _policy
 
     # -- Tier: Direct free backends (round-robin) --
     n = len(BACKENDS)
@@ -658,49 +623,22 @@ def generate(prompt, max_tokens=500, temperature=1.0, caller=None):
         if text:
             return text, backend['name']
 
-    # -- Silent policy stops here --
-    if policy == 'silent':
-        logger.warning(f"All free backends failed, policy=silent — returning None (caller={caller})")
-        return None, None
-
-    # -- Tier: Paid backends --
-    for backend in PAID_BACKENDS:
-        text = _try_backend(backend, prompt, max_tokens, temperature, caller)
-        if text:
-            return text, backend['name']
-
-    # -- Tier: Haiku last resort --
-    if not _check_daily_cap('haiku'):
-        logger.warning("All backends at daily cap — cannot serve request")
-        return None, None
-
-    start = time.time()
-    try:
-        text = _try_haiku(prompt, max_tokens, temperature)
-        ms = int((time.time() - start) * 1000)
-        _record_call('haiku')
-        logger.info(f"💰 Haiku LAST RESORT ({len(text)} chars, {ms}ms) caller={caller}")
-        return text, 'haiku'
-    except Exception as e:
-        total = len(BACKENDS) + len(LITELLM_BACKENDS) + len(PAID_BACKENDS) + 1
-        logger.error(f"ALL {total} backends failed: {e}")
-        return None, None
+    logger.warning(f"All free backends failed — returning None (caller={caller})")
+    return None, None
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # chat() — message-based interface (used by kindness_social agents)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-# Map backend names to the corresponding entry in BACKENDS / PAID_BACKENDS
+# Map backend names to the corresponding entry in BACKENDS / LITELLM_BACKENDS
 _BACKEND_BY_NAME = {}
 
 
 def _ensure_backend_index():
     if not _BACKEND_BY_NAME:
-        for b in BACKENDS + LITELLM_BACKENDS + PAID_BACKENDS:
+        for b in BACKENDS + LITELLM_BACKENDS:
             _BACKEND_BY_NAME[b['name']] = b
-        # Also add haiku as a special entry
-        _BACKEND_BY_NAME['haiku'] = {'name': 'haiku', 'type': 'haiku'}
 
 
 def _messages_to_prompt(messages, system=None):
@@ -798,7 +736,7 @@ def get_usage_summary():
     _reset_if_new_day()
     # Collect all known backends from both DB limits and backend configs
     all_backends = set()
-    for b in BACKENDS + LITELLM_BACKENDS + PAID_BACKENDS:
+    for b in BACKENDS + LITELLM_BACKENDS:
         all_backends.add(b['name'])
     all_backends.update(_provider_limits.keys())
     all_backends.update(_FALLBACK_LIMITS.keys())
@@ -836,7 +774,7 @@ def get_usage_summary():
 def list_backends():
     """List all configured backends with their current status."""
     rows = []
-    for backend in BACKENDS + LITELLM_BACKENDS + PAID_BACKENDS:
+    for backend in BACKENDS + LITELLM_BACKENDS:
         name = backend['name']
         cap = _get_limit(name, 'daily_limit', 50) or 0
         used = _daily_counts.get(name, 0)

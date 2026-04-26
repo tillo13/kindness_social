@@ -33,5 +33,6 @@
         "prompts"
       ]
     }
-  ]
+  ],
+  "pre_deploy_test": "/Users/at/Desktop/code/_infrastructure/anthropic_logger/check_violations.sh ."
 }

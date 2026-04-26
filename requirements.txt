@@ -3,7 +3,6 @@ gunicorn==21.2.0
 psycopg2-binary==2.9.9
 google-cloud-secret-manager==2.18.1
 google-generativeai==0.8.0
-anthropic
 requests==2.31.0
 PyYAML==6.0.1
 ddgs>=9.0
