@@ -5,7 +5,18 @@
 <style>
   .lc-card { background: var(--bg-elevated, #fff); border: 1px solid var(--border, #e5e7eb);
              border-radius: 8px; padding: 16px; margin-bottom: 20px; }
-  .lc-h { font-size: 14px; font-weight: 600; margin-bottom: 12px;
+  /* Native <details>/<summary> collapse — no JS. Each section is independently
+     toggleable; default open via the `open` attribute. */
+  details.lc-card > summary { list-style: none; cursor: pointer; user-select: none; }
+  details.lc-card > summary::-webkit-details-marker { display: none; }
+  details.lc-card[open] > summary { margin-bottom: 12px; }
+  details.lc-card > summary::after {
+    content: '▾'; margin-left: auto; color: var(--text-quaternary, #9ca3af);
+    transition: transform 0.15s ease; font-size: 12px;
+  }
+  details.lc-card:not([open]) > summary::after { transform: rotate(-90deg); }
+  details.lc-card:not([open]) > summary { margin-bottom: 0; }
+  .lc-h { font-size: 14px; font-weight: 600; margin-bottom: 0;
           color: var(--text-primary, #111); display: flex; align-items: center; gap: 8px; }
   .lc-pill { font-size: 11px; padding: 2px 8px; border-radius: 999px;
              background: var(--kindness-muted, #eef); color: var(--kindness, #336); }
@@ -25,9 +36,9 @@
     <span class="lc-pill">LLMs: {{ state.active|length }} active · {{ state.probationary|length }} probationary · {{ state.retired|length + state.retired_failed_smoke|length }} retired · ImgGen: {{ imggen_services|length }}</span>
   </div>
 
-  <div class="lc-card">
-    <div class="lc-h">🖼️  Image Generation Services <span class="lc-pill">{{ imggen_services|length }}</span>
-      <span class="muted">— live-probed on dashboard load (cached 5 min). When a free service breaks or rate-limits us, it shows up here so we know to swap it out.</span></div>
+  <details class="lc-card" open>
+    <summary class="lc-h">🖼️  Image Generation Services <span class="lc-pill">{{ imggen_services|length }}</span>
+      <span class="muted">— live-probed on dashboard load (cached 5 min). When a free service breaks or rate-limits us, it shows up here so we know to swap it out.</span></summary>
     {% if imggen_services %}
     <table class="lc">
       <tr><th>service</th><th>tier</th><th>auth</th><th>health</th><th>probe latency</th><th>spacing</th><th>used today</th><th>backoff?</th><th>notes</th></tr>
@@ -46,13 +57,13 @@
       {% endfor %}
     </table>
     {% else %}<div class="muted">No image gen services registered.</div>{% endif %}
-  </div>
+  </details>
 
   <h2 style="font-size:18px;font-weight:600;margin:24px 0 12px;color:var(--text-primary)">LLM Backends</h2>
 
-  <div class="lc-card">
-    <div class="lc-h">📊 Activity (last 12 months)
-      <span class="muted">— from <code>kumori_llm_registry_events</code></span></div>
+  <details class="lc-card" open>
+    <summary class="lc-h">📊 Activity (last 12 months)
+      <span class="muted">— from <code>kumori_llm_registry_events</code></span></summary>
     {% if chart_buckets %}
       {% set max_n = (chart_buckets|map(attribute='activated')|list + chart_buckets|map(attribute='retired')|list + chart_buckets|map(attribute='failed')|list)|max %}
       {# Axis layout: 60px left margin for Y labels, 30px bottom for X labels.
@@ -103,11 +114,11 @@
     {% else %}
       <div class="muted">No events recorded yet.</div>
     {% endif %}
-  </div>
+  </details>
 
-  <div class="lc-card">
-    <div class="lc-h">🟢 Active <span class="lc-pill">{{ state.active|length }}</span>
-      <span class="muted">— per-backend health + telemetry. Click any column header to sort. Cost / token aggregates remain at <a href="/metrics" style="color:var(--kindness)">/metrics</a>.</span></div>
+  <details class="lc-card" open>
+    <summary class="lc-h">🟢 Active <span class="lc-pill">{{ state.active|length }}</span>
+      <span class="muted">— per-backend health + telemetry. Click any column header to sort. Cost / token aggregates remain at <a href="/metrics" style="color:var(--kindness)">/metrics</a>.</span></summary>
     <table class="lc sortable" id="active-table">
       <thead>
         <tr>
@@ -140,7 +151,7 @@
       {% endfor %}
       </tbody>
     </table>
-  </div>
+  </details>
 
   <script>
     // Click-to-sort for any table.lc.sortable. Reads each cell's data-v
@@ -186,9 +197,9 @@
     })();
   </script>
 
-  <div class="lc-card">
-    <div class="lc-h">⏸ Probationary <span class="lc-pill">{{ state.probationary|length }}</span>
-      <span class="muted">— smoke test failed previous attempts; retrying nightly</span></div>
+  <details class="lc-card" open>
+    <summary class="lc-h">⏸ Probationary <span class="lc-pill">{{ state.probationary|length }}</span>
+      <span class="muted">— smoke test failed previous attempts; retrying nightly</span></summary>
     {% if state.probationary %}
     <table class="lc">
       <tr><th>backend</th><th>provider</th><th>model_id</th><th>attempts</th><th>last seen</th></tr>
@@ -199,11 +210,11 @@
       {% endfor %}
     </table>
     {% else %}<div class="muted">— none —</div>{% endif %}
-  </div>
+  </details>
 
-  <div class="lc-card">
-    <div class="lc-h">🔴 Retired <span class="lc-pill">{{ state.retired|length }}</span>
-      <span class="muted">— provider removed from catalog</span></div>
+  <details class="lc-card" open>
+    <summary class="lc-h">🔴 Retired <span class="lc-pill">{{ state.retired|length }}</span>
+      <span class="muted">— provider removed from catalog</span></summary>
     {% if state.retired %}
     <table class="lc">
       <tr><th>backend</th><th>provider</th><th>model_id</th><th>retired</th><th>reason</th></tr>
@@ -214,11 +225,11 @@
       {% endfor %}
     </table>
     {% else %}<div class="muted">— none —</div>{% endif %}
-  </div>
+  </details>
 
-  <div class="lc-card">
-    <div class="lc-h">🪦 Failed smoke <span class="lc-pill">{{ state.retired_failed_smoke|length }}</span>
-      <span class="muted">— gave up after 3 smoke attempts</span></div>
+  <details class="lc-card" open>
+    <summary class="lc-h">🪦 Failed smoke <span class="lc-pill">{{ state.retired_failed_smoke|length }}</span>
+      <span class="muted">— gave up after 3 smoke attempts</span></summary>
     {% if state.retired_failed_smoke %}
     <table class="lc">
       <tr><th>backend</th><th>provider</th><th>model_id</th><th>last error</th></tr>
@@ -228,10 +239,10 @@
       {% endfor %}
     </table>
     {% else %}<div class="muted">— none —</div>{% endif %}
-  </div>
+  </details>
 
-  <div class="lc-card">
-    <div class="lc-h">📜 Recent events <span class="muted">— last 30</span></div>
+  <details class="lc-card" open>
+    <summary class="lc-h">📜 Recent events <span class="muted">— last 30</span></summary>
     {% if recent_events %}
     <table class="lc">
       <tr><th>when</th><th>event</th><th>backend</th><th>model_id</th><th>reason</th></tr>
@@ -246,6 +257,6 @@
       {% endfor %}
     </table>
     {% else %}<div class="muted">— none —</div>{% endif %}
-  </div>
+  </details>
 </div>
 {% endblock %}
