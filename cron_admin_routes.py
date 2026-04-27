@@ -784,11 +784,13 @@ def admin_birth_agent():
         return jsonify({'error': str(e)[:200]}), 500
 
 
-@bp.route('/api/admin/system-status')
+@bp.route('/api/system-status')          # public canonical URL
+@bp.route('/api/admin/system-status')    # legacy URL kept for old callers
 def admin_system_status():
-    """Full system health: backends, agents, threads, usage, backoff state."""
-    if not is_admin_request():
-        return jsonify({'error': 'Forbidden'}), 403
+    """Full system health: backends, agents, threads, usage, backoff state.
+
+    Public — pure DB read + in-process router state. No secrets exposed.
+    """
 
     from utilities.kumori_free_llms import get_usage_summary, _backoff_until
     from utilities.backend_registry import CLOUD_RUN_ONLY, FALLBACK_ORDER
@@ -833,11 +835,11 @@ def admin_system_status():
     })
 
 
-@bp.route('/api/admin/cerebras-burn')
+@bp.route('/api/cerebras-burn')          # public canonical URL
+@bp.route('/api/admin/cerebras-burn')    # legacy URL kept for old callers
 def admin_cerebras_burn():
-    """Cerebras token burn rate — historical usage, daily breakdown, projected exhaustion."""
-    if not is_admin_request():
-        return jsonify({'error': 'Forbidden'}), 403
+    """Cerebras token burn rate — historical usage, daily breakdown,
+    projected exhaustion. Public — pure DB read."""
     from core.db_ops import get_cerebras_burn_rate
     return jsonify(get_cerebras_burn_rate())
 
@@ -872,16 +874,18 @@ def init_tables():
     return jsonify({'status': 'tables created'})
 
 
-@bp.route('/admin/llm-lifecycle')
+@bp.route('/llm-lifecycle')          # public canonical URL
+@bp.route('/admin/llm-lifecycle')    # legacy URL kept so old links don't 404
 def admin_llm_lifecycle():
-    """Read-only dashboard of LLM backend lifecycle.
+    """Read-only dashboard of LLM + image-gen service lifecycle.
 
-    Shows current state (active / probationary / retired / failed-smoke) plus
-    a monthly chart of activations vs retirements pulled from the events log.
-    All data comes from kumori_llm_provider_limits + kumori_llm_registry_events.
+    Shows current state (active / probationary / retired / failed-smoke),
+    a monthly chart of activations vs retirements from the events log, and
+    live image-gen provider health probes.
+
+    Public — no auth. Pure DB read + cached HTTP probes; no secrets shown,
+    no money spent loading the page.
     """
-    if not is_admin_request():
-        return "Forbidden — pass ?key=YOUR_KEY", 403
 
     from utilities.postgres_utils import db_cursor
 

@@ -166,28 +166,109 @@ _DISPATCH = {
 }
 
 
-def generate_image(prompt: str, width: int = 512, height: int = 512) -> bytes | None:
-    """Try each registered service in tier order. Return first success.
+def _pick_next_service(services: list[tuple[str, dict]]) -> tuple[str | None, dict | None, float]:
+    """Round-robin picker: among READY services, return the one used longest
+    ago. If none ready, return the one whose next-available timestamp is
+    soonest (so caller can briefly wait for it).
 
-    Returns image bytes (JPEG or PNG) or None if every service failed/skipped.
+    Returns (name, cfg, wait_seconds). wait_seconds=0 if ready now,
+    >0 if the caller should sleep first.
     """
-    services = sorted(_providers().items(), key=lambda kv: kv[1].get('tier', 99))
+    now = time.time()
+    ready = []     # [(last_call_ts, name, cfg)] — oldest last-call wins
+    waiting = []   # [(next_avail_ts, name, cfg)] — earliest wins
     for name, cfg in services:
-        with _lock:
-            ok, reason = _is_available(name, cfg)
-        if not ok:
-            logger.info(f'imggen: skip {name} ({reason})')
-            continue
         if name not in _DISPATCH:
             continue
+        # Daily quota first — if exhausted, skip entirely
+        _reset_daily_if_needed()
+        cap = cfg.get('daily_limit')
+        if cap:
+            pool = cfg.get('shared_pool')
+            if pool:
+                used = sum(_daily_count.get(n, 0) for n, c in _providers().items()
+                           if c.get('shared_pool') == pool)
+            else:
+                used = _daily_count.get(name, 0)
+            if used >= cap:
+                continue
+        # Compute when this service is next available
+        last = _last_call.get(name, 0)
+        spacing = cfg.get('min_seconds_between_requests', 0)
+        backoff = _backoff_until.get(name, 0)
+        next_avail = max(last + spacing, backoff)
+        if next_avail <= now:
+            # Tier as gentle tiebreaker so cold start (no last_call) prefers
+            # the keyless services over bearer-keyed ones.
+            ready.append((last, cfg.get('tier', 99), name, cfg))
+        else:
+            waiting.append((next_avail, name, cfg))
+    if ready:
+        ready.sort()  # oldest last_call first, tier as tiebreaker
+        _, _, name, cfg = ready[0]
+        return name, cfg, 0.0
+    if waiting:
+        waiting.sort()
+        next_avail, name, cfg = waiting[0]
+        return name, cfg, max(0.0, next_avail - now)
+    return None, None, 0.0
+
+
+def generate_image(prompt: str, width: int = 512, height: int = 512,
+                   mode: str = 'roundrobin', max_wait_sec: float = 30.0) -> bytes | None:
+    """Generate one image. Returns bytes or None.
+
+    mode='roundrobin' (default): among ready services, pick the one used
+        longest ago. Spreads load across all 4 providers so no single one
+        gets hammered. If none are ready, briefly wait (up to max_wait_sec)
+        for the soonest-available one.
+    mode='priority': old behavior — strict tier order, first ready wins.
+    """
+    services = sorted(_providers().items(), key=lambda kv: kv[1].get('tier', 99))
+
+    if mode == 'priority':
+        for name, cfg in services:
+            with _lock:
+                ok, reason = _is_available(name, cfg)
+            if not ok or name not in _DISPATCH:
+                continue
+            t0 = time.time()
+            img = _DISPATCH[name](name, cfg, prompt, width, height)
+            ms = int((time.time() - t0) * 1000)
+            with _lock:
+                _record_attempt(name, ok=bool(img))
+            if img:
+                logger.info(f'imggen[priority]: {name} OK in {ms}ms ({len(img)}B)')
+                return img
+            logger.warning(f'imggen[priority]: {name} failed after {ms}ms')
+        logger.error('imggen[priority]: every service failed')
+        return None
+
+    # Round-robin: try each ready service, falling back to others on failure
+    tried = set()
+    while len(tried) < len(services):
+        with _lock:
+            remaining = [(n, c) for n, c in services if n not in tried]
+            name, cfg, wait = _pick_next_service(remaining)
+        if not name:
+            logger.error('imggen[rr]: no services available (all over quota?)')
+            return None
+        if wait > 0:
+            if wait > max_wait_sec:
+                logger.warning(f'imggen[rr]: next service {name} not ready for {wait:.1f}s '
+                               f'(>max_wait {max_wait_sec}s) — giving up')
+                return None
+            logger.info(f'imggen[rr]: waiting {wait:.1f}s for {name}')
+            time.sleep(wait)
+        tried.add(name)
         t0 = time.time()
         img = _DISPATCH[name](name, cfg, prompt, width, height)
         ms = int((time.time() - t0) * 1000)
         with _lock:
             _record_attempt(name, ok=bool(img))
         if img:
-            logger.info(f'imggen: {name} OK in {ms}ms ({len(img)}B)')
+            logger.info(f'imggen[rr]: {name} OK in {ms}ms ({len(img)}B)')
             return img
-        logger.warning(f'imggen: {name} returned no image after {ms}ms — trying next')
-    logger.error('imggen: every service failed')
+        logger.warning(f'imggen[rr]: {name} failed after {ms}ms — trying next ready service')
+    logger.error('imggen[rr]: every service failed')
     return None
