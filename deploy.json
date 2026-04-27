@@ -14,6 +14,30 @@
     {
       "src": "anthropic_logger/anthropic_logger.py",
       "dst": "utilities/anthropic_logger.py"
+    },
+    {
+      "src": "kumori_free_image_generations/kumori_free_imggen.py",
+      "dst": "utilities/kumori_free_imggen.py"
+    },
+    {
+      "src": "kumori_free_image_generations/providers.json",
+      "dst": "utilities/providers.json"
+    },
+    {
+      "src": "kumori_free_image_generations/adapters/__init__.py",
+      "dst": "utilities/adapters/__init__.py"
+    },
+    {
+      "src": "kumori_free_image_generations/adapters/pollinations.py",
+      "dst": "utilities/adapters/pollinations.py"
+    },
+    {
+      "src": "kumori_free_image_generations/adapters/cloudflare.py",
+      "dst": "utilities/adapters/cloudflare.py"
+    },
+    {
+      "src": "kumori_free_image_generations/adapters/horde.py",
+      "dst": "utilities/adapters/horde.py"
     }
   ],
   "custom_domain": "https://kindness.social",

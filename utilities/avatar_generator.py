@@ -180,13 +180,16 @@ def build_prompt(agent):
 
 def generate_avatar(agent, force=False):
     """
-    Generate a cartoon avatar for an agent using Flux.
+    Generate a cartoon avatar for an agent using the kumori_free_imggen
+    router (truly-free providers only — Pollinations + Stable Horde with
+    Cloudflare Workers AI as bearer-keyed fallback).
+
     Returns the local file path, or None on failure.
     Skips if avatar already exists (unless force=True).
 
-    DISABLED 2026-04-25 — kindness_social is free-tier only. Existing avatars
-    in GCS continue to be served by get_avatar_url(); no new generations fire.
-    Re-enable by removing the early-return below if you ever want avatars again.
+    Re-enabled 2026-04-27. The original Replicate-paid path is preserved
+    below as `_generate_avatar_via_replicate()` for reference but is no
+    longer called.
     """
     agent_id = agent.get('agent_id', 'unknown')
     path = get_avatar_path(agent_id)
@@ -195,8 +198,40 @@ def generate_avatar(agent, force=False):
         logger.info(f"Avatar already exists for {agent_id}, skipping")
         return path
 
-    logger.info(f"avatar_generator: disabled — skipping new avatar for {agent_id}")
-    return None
+    prompt = build_prompt(agent)
+    logger.info(f"avatar_generator: requesting via kumori_free_imggen for {agent_id}")
+    try:
+        from utilities import kumori_free_imggen
+    except Exception as e:
+        logger.error(f"kumori_free_imggen import failed: {e}")
+        return None
+
+    img_bytes = kumori_free_imggen.generate_image(prompt, width=512, height=512)
+    if not img_bytes:
+        logger.warning(f"avatar_generator: no provider returned an image for {agent_id}")
+        return None
+
+    # Normalize to 256x256 JPEG (matches the old Replicate path's storage shape)
+    try:
+        from PIL import Image
+        from io import BytesIO
+        img = Image.open(BytesIO(img_bytes)).convert('RGB')
+        img = img.resize((256, 256), Image.LANCZOS)
+        buf = BytesIO()
+        img.save(buf, 'JPEG', quality=80, optimize=True)
+        img_bytes = buf.getvalue()
+    except Exception as e:
+        logger.warning(f"avatar resize failed for {agent_id}, saving raw bytes: {e}")
+
+    # Save locally if writable; always upload to GCS for App Engine + cross-instance use
+    try:
+        with open(path, 'wb') as f:
+            f.write(img_bytes)
+        logger.info(f"Avatar saved locally: {path} ({len(img_bytes)} bytes)")
+    except (OSError, IOError):
+        logger.info(f"Local save failed (read-only fs), using GCS only")
+    _upload_to_gcs(agent_id, img_bytes)
+    return path
 
     # ── unreachable — preserved for the day Andy re-enables ─────────────────
     prompt = build_prompt(agent)
