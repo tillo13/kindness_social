@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}LLM Lifecycle - Kindness Social{% endblock %}
+
+{% block content %}
+<style>
+  .lc-card { background: var(--bg-elevated, #fff); border: 1px solid var(--border, #e5e7eb);
+             border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+  .lc-h { font-size: 14px; font-weight: 600; margin-bottom: 12px;
+          color: var(--text-primary, #111); display: flex; align-items: center; gap: 8px; }
+  .lc-pill { font-size: 11px; padding: 2px 8px; border-radius: 999px;
+             background: var(--kindness-muted, #eef); color: var(--kindness, #336); }
+  table.lc { width: 100%; border-collapse: collapse; font-size: 12px; font-family: ui-monospace, monospace; }
+  table.lc th { text-align: left; padding: 6px 10px; background: #f3f4f6; color: #374151; font-weight: 600; border-bottom: 1px solid #e5e7eb; }
+  table.lc td { padding: 6px 10px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+  table.lc tr:hover td { background: #fafafa; }
+  .muted { color: #6b7280; font-size: 11px; }
+  .chart-svg { width: 100%; height: 220px; display: block; }
+  .chart-legend { display: flex; gap: 16px; font-size: 11px; color: #6b7280; margin-top: 6px; }
+  .chart-legend i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; vertical-align: middle; border-radius: 2px; }
+</style>
+
+<div class="max-w-6xl mx-auto">
+  <div class="flex items-baseline justify-between mb-6">
+    <h1 class="text-xl font-semibold" style="color: var(--text-primary);">LLM Lifecycle</h1>
+    <span class="lc-pill">{{ state.active|length }} active · {{ state.probationary|length }} probationary · {{ state.retired|length + state.retired_failed_smoke|length }} retired</span>
+  </div>
+
+  <div class="lc-card">
+    <div class="lc-h">📊 Activity (last 12 months)
+      <span class="muted">— from <code>kumori_llm_registry_events</code></span></div>
+    {% if chart_buckets %}
+      {% set max_n = (chart_buckets|map(attribute='activated')|list + chart_buckets|map(attribute='retired')|list + chart_buckets|map(attribute='failed')|list)|max %}
+      {% set step = 100.0 / chart_buckets|length %}
+      <svg class="chart-svg" viewBox="0 0 1000 220" preserveAspectRatio="none">
+        {% for b in chart_buckets %}
+          {% set x = loop.index0 * step %}
+          {% set bw = step * 0.8 %}
+          {% set ah = (b.activated / max_n * 180) if max_n else 0 %}
+          {% set rh = (b.retired   / max_n * 180) if max_n else 0 %}
+          {% set fh = (b.failed    / max_n * 180) if max_n else 0 %}
+          <g transform="translate({{ x*10 }},0)">
+            <rect x="0"           y="{{ 200 - ah }}" width="{{ bw*3.3 }}" height="{{ ah }}" fill="#10b981"/>
+            <rect x="{{ bw*3.3 }}" y="{{ 200 - rh }}" width="{{ bw*3.3 }}" height="{{ rh }}" fill="#ef4444"/>
+            <rect x="{{ bw*6.6 }}" y="{{ 200 - fh }}" width="{{ bw*3.3 }}" height="{{ fh }}" fill="#9ca3af"/>
+            <text x="{{ bw*5 }}" y="215" font-size="10" text-anchor="middle" fill="#6b7280">{{ b.month[5:] }}</text>
+          </g>
+        {% endfor %}
+      </svg>
+      <div class="chart-legend">
+        <span><i style="background:#10b981"></i>activated</span>
+        <span><i style="background:#ef4444"></i>retired</span>
+        <span><i style="background:#9ca3af"></i>smoke failed</span>
+      </div>
+    {% else %}
+      <div class="muted">No events recorded yet.</div>
+    {% endif %}
+  </div>
+
+  <div class="lc-card">
+    <div class="lc-h">🟢 Active <span class="lc-pill">{{ state.active|length }}</span></div>
+    <table class="lc">
+      <tr><th>backend</th><th>provider</th><th>model_id</th><th>tier</th><th>daily limit</th><th>agents</th><th>last seen</th><th>assignable</th></tr>
+      {% for r in state.active %}
+      <tr>
+        <td>{{ r.backend }}</td>
+        <td>{{ r.provider }}</td>
+        <td>{{ r.model_id }}</td>
+        <td>{{ r.tier }}</td>
+        <td>{{ r.daily_limit or '—' }}</td>
+        <td>{{ r.agent_count }}</td>
+        <td class="muted">{{ r.last_seen_at.strftime('%Y-%m-%d') if r.last_seen_at else '—' }}</td>
+        <td>{{ '✓' if r.assign_new_agents else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <div class="lc-card">
+    <div class="lc-h">⏸ Probationary <span class="lc-pill">{{ state.probationary|length }}</span>
+      <span class="muted">— smoke test failed previous attempts; retrying nightly</span></div>
+    {% if state.probationary %}
+    <table class="lc">
+      <tr><th>backend</th><th>provider</th><th>model_id</th><th>attempts</th><th>last seen</th></tr>
+      {% for r in state.probationary %}
+      <tr><td>{{ r.backend }}</td><td>{{ r.provider }}</td><td>{{ r.model_id }}</td>
+          <td>{{ r.smoke_attempts }}</td>
+          <td class="muted">{{ r.last_seen_at.strftime('%Y-%m-%d') if r.last_seen_at else '—' }}</td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<div class="muted">— none —</div>{% endif %}
+  </div>
+
+  <div class="lc-card">
+    <div class="lc-h">🔴 Retired <span class="lc-pill">{{ state.retired|length }}</span>
+      <span class="muted">— provider removed from catalog</span></div>
+    {% if state.retired %}
+    <table class="lc">
+      <tr><th>backend</th><th>provider</th><th>model_id</th><th>retired</th><th>reason</th></tr>
+      {% for r in state.retired %}
+      <tr><td>{{ r.backend }}</td><td>{{ r.provider }}</td><td>{{ r.model_id }}</td>
+          <td class="muted">{{ r.decommissioned_at.strftime('%Y-%m-%d') if r.decommissioned_at else '—' }}</td>
+          <td class="muted">{{ r.decommission_reason or '' }}</td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<div class="muted">— none —</div>{% endif %}
+  </div>
+
+  <div class="lc-card">
+    <div class="lc-h">🪦 Failed smoke <span class="lc-pill">{{ state.retired_failed_smoke|length }}</span>
+      <span class="muted">— gave up after 3 smoke attempts</span></div>
+    {% if state.retired_failed_smoke %}
+    <table class="lc">
+      <tr><th>backend</th><th>provider</th><th>model_id</th><th>last error</th></tr>
+      {% for r in state.retired_failed_smoke %}
+      <tr><td>{{ r.backend }}</td><td>{{ r.provider }}</td><td>{{ r.model_id }}</td>
+          <td class="muted">{{ r.decommission_reason or '' }}</td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<div class="muted">— none —</div>{% endif %}
+  </div>
+
+  <div class="lc-card">
+    <div class="lc-h">📜 Recent events <span class="muted">— last 30</span></div>
+    {% if recent_events %}
+    <table class="lc">
+      <tr><th>when</th><th>event</th><th>backend</th><th>model_id</th><th>reason</th></tr>
+      {% for e in recent_events %}
+      <tr>
+        <td class="muted">{{ e.occurred_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td>{{ e.event_type }}</td>
+        <td>{{ e.backend }}</td>
+        <td>{{ e.model_id }}</td>
+        <td class="muted">{{ (e.reason or '')[:120] }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<div class="muted">— none —</div>{% endif %}
+  </div>
+</div>
+{% endblock %}

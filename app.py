@@ -560,9 +560,16 @@ def about():
     experiment = db_ops.get_control_vs_treatment()
     treatment_count = (experiment.get('treatment') or {}).get('agent_count', 0)
     control_count = (experiment.get('control') or {}).get('agent_count', 0)
+    # Live model + provider counts — registry is now DB-driven and auto-updates
+    # daily via /api/cron/llm-catalog-audit, so the marketing copy reflects reality.
+    from utilities.backend_registry import MODELS
+    model_count = len(MODELS)
+    provider_count = len({m['provider'] for m in MODELS if m.get('provider')})
     return render_template('about.html',
                            treatment_count=treatment_count,
-                           control_count=control_count)
+                           control_count=control_count,
+                           model_count=model_count,
+                           provider_count=provider_count)
 
 
 _CONTACT_HITS = {}  # ip -> [timestamps] for in-memory rate limiting

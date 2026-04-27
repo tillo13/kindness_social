@@ -870,3 +870,123 @@ def init_tables():
         return "Forbidden", 403
     db_ops.create_tables()
     return jsonify({'status': 'tables created'})
+
+
+@bp.route('/admin/llm-lifecycle')
+def admin_llm_lifecycle():
+    """Read-only dashboard of LLM backend lifecycle.
+
+    Shows current state (active / probationary / retired / failed-smoke) plus
+    a monthly chart of activations vs retirements pulled from the events log.
+    All data comes from kumori_llm_provider_limits + kumori_llm_registry_events.
+    """
+    if not is_admin_request():
+        return "Forbidden — pass ?key=YOUR_KEY", 403
+
+    from utilities.postgres_utils import db_cursor
+
+    state = {'active': [], 'probationary': [], 'retired': [], 'retired_failed_smoke': []}
+    chart_buckets = []   # [{month: '2026-04', activated: N, retired: N, failed: N}]
+    recent_events = []   # last 30 events for the activity log
+
+    with db_cursor(dict_cursor=True) as cur:
+        # Current state, with agent count per active backend
+        cur.execute("""
+            SELECT pl.backend, pl.provider, pl.model_id, pl.display_name, pl.status,
+                   pl.daily_limit, pl.tier, pl.assign_new_agents,
+                   pl.last_seen_at, pl.decommissioned_at, pl.decommission_reason,
+                   pl.smoke_attempts,
+                   (SELECT COUNT(*) FROM kindness_agents a
+                     WHERE a.llm_backend = pl.backend) AS agent_count
+              FROM kumori_llm_provider_limits pl
+             WHERE pl.status IN ('active', 'probationary', 'retired', 'retired_failed_smoke')
+             ORDER BY pl.status, pl.provider, pl.backend
+        """)
+        for r in cur.fetchall():
+            state[r['status']].append(dict(r))
+
+        # Monthly chart: 12 months back
+        cur.execute("""
+            SELECT TO_CHAR(occurred_at, 'YYYY-MM') AS month,
+                   event_type,
+                   COUNT(*) AS n
+              FROM kumori_llm_registry_events
+             WHERE occurred_at > NOW() - INTERVAL '12 months'
+             GROUP BY 1, 2
+             ORDER BY 1
+        """)
+        bucket_map = {}
+        for r in cur.fetchall():
+            b = bucket_map.setdefault(r['month'], {'month': r['month'],
+                                                    'activated': 0,
+                                                    'retired': 0,
+                                                    'failed': 0})
+            if r['event_type'] == 'activated':
+                b['activated'] += int(r['n'])
+            elif r['event_type'] in ('retired', 'retired_failed_smoke'):
+                b['retired'] += int(r['n'])
+            elif r['event_type'] == 'smoke_test_failed':
+                b['failed'] += int(r['n'])
+        chart_buckets = sorted(bucket_map.values(), key=lambda x: x['month'])
+
+        cur.execute("""
+            SELECT backend, provider, model_id, event_type, occurred_at, reason
+              FROM kumori_llm_registry_events
+             ORDER BY occurred_at DESC
+             LIMIT 30
+        """)
+        recent_events = [dict(r) for r in cur.fetchall()]
+
+    return render_template(
+        'llm_lifecycle.html',
+        admin_key=request.headers.get('X-Admin-Key') or request.args.get('key', ''),
+        state=state,
+        chart_buckets=chart_buckets,
+        recent_events=recent_events,
+    )
+
+
+@bp.route('/api/cron/llm-catalog-audit')
+def cron_llm_catalog_audit():
+    """Daily audit + auto-validation of every LLM backend in the registry.
+
+    Probes each provider's /v1/models, retires anything missing, discovers +
+    smoke-tests new models. Apps using backend_registry_db pick up changes
+    on next 5-min cache refresh.
+
+    Manual: append ?force=1 to bypass the cron-header check.
+    """
+    if not is_cron_request() and request.args.get('force') != '1':
+        return "Forbidden", 403
+
+    from utilities.llm_catalog_audit import run_catalog_audit, render_digest_html
+    from utilities.gmail_utils import send_email
+
+    summary = run_catalog_audit()
+    n_act = len(summary['newly_activated'])
+    n_ret = len(summary['newly_retired'])
+    n_fail = len(summary['smoke_failed'])
+    n_gave_up = len(summary['gave_up'])
+
+    # Only email if there's news worth reading
+    if (n_act or n_ret or n_gave_up or summary['probe_errors']):
+        html = (
+            f"<h2>Kindness Social — LLM Catalog Audit</h2>"
+            f"<p>Daily diff between <code>kumori_llm_provider_limits</code> and "
+            f"each provider's live <code>/v1/models</code> catalog, plus smoke-test "
+            f"results for newly-discovered models.</p>"
+            + render_digest_html(summary) +
+            f"<hr><p><small>/api/cron/llm-catalog-audit</small></p>"
+        )
+        subject = (f"Kumori LLM: {n_act} new · {n_ret} retired · {n_fail} smoke-fail"
+                   + (f" · {n_gave_up} gave up" if n_gave_up else ''))
+        send_email(subject, html, ['andytillo@gmail.com'])
+
+    return jsonify({
+        'newly_activated':   [r['backend'] for r in summary['newly_activated']],
+        'newly_retired':     [r['backend'] for r in summary['newly_retired']],
+        'smoke_failed':      [r['backend'] for r in summary['smoke_failed']],
+        'gave_up':           [r['backend'] for r in summary['gave_up']],
+        'confirmed_count':   summary['confirmed_count'],
+        'probe_errors':      summary['probe_errors'],
+    })
