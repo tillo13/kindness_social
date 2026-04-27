@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}LLM Lifecycle - Kindness Social{% endblock %}
+{% block title %}Service Lifecycle - Kindness Social{% endblock %}
 
 {% block content %}
 <style>
@@ -21,9 +21,34 @@
 
 <div class="max-w-6xl mx-auto">
   <div class="flex items-baseline justify-between mb-6">
-    <h1 class="text-xl font-semibold" style="color: var(--text-primary);">LLM Lifecycle</h1>
-    <span class="lc-pill">{{ state.active|length }} active · {{ state.probationary|length }} probationary · {{ state.retired|length + state.retired_failed_smoke|length }} retired</span>
+    <h1 class="text-xl font-semibold" style="color: var(--text-primary);">Service Lifecycle</h1>
+    <span class="lc-pill">LLMs: {{ state.active|length }} active · {{ state.probationary|length }} probationary · {{ state.retired|length + state.retired_failed_smoke|length }} retired · ImgGen: {{ imggen_services|length }}</span>
   </div>
+
+  <div class="lc-card">
+    <div class="lc-h">🖼️  Image Generation Services <span class="lc-pill">{{ imggen_services|length }}</span>
+      <span class="muted">— live-probed on dashboard load (cached 5 min). When a free service breaks or rate-limits us, it shows up here so we know to swap it out.</span></div>
+    {% if imggen_services %}
+    <table class="lc">
+      <tr><th>service</th><th>tier</th><th>auth</th><th>health</th><th>probe latency</th><th>spacing</th><th>used today</th><th>backoff?</th><th>notes</th></tr>
+      {% for s in imggen_services %}
+      <tr>
+        <td>{{ s.service }}</td>
+        <td>{{ s.tier }}</td>
+        <td>{{ s.auth_type }}</td>
+        <td>{% if s.status == 'ok' %}<span style="color:#059669">✅ ok</span>{% elif s.status == 'unreachable' %}<span style="color:#dc2626">❌ unreachable</span>{% elif s.status == 'down' %}<span style="color:#dc2626">❌ 5xx</span>{% else %}<span style="color:#a16207">⚠️ {{ s.status }}</span>{% endif %}</td>
+        <td>{{ s.latency_ms }}ms</td>
+        <td>{{ s.spacing_sec }}s</td>
+        <td>{{ s.daily_used }}{% if s.daily_cap %} / {{ s.daily_cap }}{% endif %}</td>
+        <td>{% if s.backoff_until and s.backoff_until > 0 %}{{ ((s.backoff_until - 1) | int) }}{% else %}—{% endif %}</td>
+        <td class="muted">{{ s.notes[:120] }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<div class="muted">No image gen services registered.</div>{% endif %}
+  </div>
+
+  <h2 style="font-size:18px;font-weight:600;margin:24px 0 12px;color:var(--text-primary)">LLM Backends</h2>
 
   <div class="lc-card">
     <div class="lc-h">📊 Activity (last 12 months)

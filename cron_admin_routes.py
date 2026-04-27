@@ -937,13 +937,78 @@ def admin_llm_lifecycle():
         """)
         recent_events = [dict(r) for r in cur.fetchall()]
 
+    # Image generation services — live-probe each on dashboard load (cached
+    # for 5 min via in-process router state). Same lifecycle reality as LLMs:
+    # they go down, get rate-limited, get deprecated. We just have many fewer.
+    imggen_services = _imggen_health_snapshot()
+
     return render_template(
         'llm_lifecycle.html',
         admin_key=request.headers.get('X-Admin-Key') or request.args.get('key', ''),
         state=state,
         chart_buckets=chart_buckets,
         recent_events=recent_events,
+        imggen_services=imggen_services,
     )
+
+
+# Module-level cache so repeated dashboard loads don't re-probe
+_imggen_health_cache = {'when': 0, 'data': []}
+
+
+def _imggen_health_snapshot():
+    """Return a list of {service, status, latency_ms, notes} for each
+    image-gen provider. Cached 5 min in-process to avoid hammering services
+    on every dashboard load."""
+    import time
+    if time.time() - _imggen_health_cache['when'] < 300 and _imggen_health_cache['data']:
+        return _imggen_health_cache['data']
+
+    from utilities import kumori_free_imggen as router
+    out = []
+    services = sorted(router._providers().items(), key=lambda kv: kv[1].get('tier', 99))
+    for name, cfg in services:
+        if name not in router._DISPATCH:
+            continue
+        last_call = router._last_call.get(name, 0)
+        backoff_until = router._backoff_until.get(name, 0)
+        daily_used = router._daily_count.get(name, 0)
+        daily_cap = cfg.get('daily_limit')
+        # Quick HEAD/GET to confirm reachable. We don't run a full image gen
+        # on every dashboard load (would waste quota). Just check the host.
+        from urllib.request import Request, urlopen
+        from urllib.parse import urlparse
+        url_for_probe = (cfg.get('url_template') or cfg.get('url_submit') or '')
+        if not url_for_probe:
+            out.append({'service': name, 'status': 'no_probe_url', 'latency_ms': 0,
+                        'last_call': last_call, 'backoff_until': backoff_until,
+                        'daily_used': daily_used, 'daily_cap': daily_cap,
+                        'tier': cfg.get('tier'), 'auth_type': cfg.get('auth_type'),
+                        'notes': 'no URL to probe'})
+            continue
+        host_url = f'{urlparse(url_for_probe).scheme}://{urlparse(url_for_probe).netloc}/'
+        t0 = time.time()
+        try:
+            req = Request(host_url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urlopen(req, timeout=8) as r:
+                status = 'ok' if r.status < 500 else 'down'
+        except Exception as e:
+            status = 'unreachable'
+            note = str(e)[:120]
+        else:
+            note = ''
+        ms = int((time.time() - t0) * 1000)
+        out.append({
+            'service': name, 'status': status, 'latency_ms': ms,
+            'last_call': last_call, 'backoff_until': backoff_until,
+            'daily_used': daily_used, 'daily_cap': daily_cap,
+            'tier': cfg.get('tier'), 'auth_type': cfg.get('auth_type'),
+            'spacing_sec': cfg.get('min_seconds_between_requests'),
+            'notes': note or cfg.get('notes', '')[:140],
+        })
+    _imggen_health_cache['when'] = time.time()
+    _imggen_health_cache['data'] = out
+    return out
 
 
 @bp.route('/api/cron/llm-catalog-audit')
