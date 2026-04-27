@@ -36,6 +36,9 @@ from utilities.postgres_utils import db_cursor, get_secret
 logger = logging.getLogger('kindness_social.llm_catalog_audit')
 
 MAX_SMOKE_ATTEMPTS = 3
+MAX_DISCOVERIES_PER_PROVIDER_PER_RUN = 3  # Cap so the cron doesn't timeout running
+                                          # 100+ agent-spawn round-trips serially.
+                                          # Catches up over a few days.
 
 # Per-provider sane defaults for newly-auto-activated rows. Tier=3 keeps them
 # out of workhorse rotation; assign_new_agents=False is the soft-launch lever.
@@ -88,43 +91,126 @@ def _slug(provider: str, model_id: str) -> str:
     return f'{provider}-{s}'[:50]
 
 
-def _smoke_call(provider: str, model_id: str) -> tuple[bool, str]:
-    """Direct API call to the provider with the new model_id. Returns
-    (passed, detail). On pass, detail = response text snippet. On fail,
-    detail = error message."""
-    probe = PROBES_BY_PROVIDER.get(provider)
-    if not probe:
-        return False, f'no probe registered for provider={provider}'
-    _, secret_name, _, chat_url = probe
-    if not chat_url:
-        # Gemini uses non-OpenAI API; treat as auto-pass for now (catalog-presence
-        # already validated). Real smoke would need google.generativeai SDK call.
-        return True, 'gemini smoke skipped (catalog-presence validated)'
-    api_key = get_secret(secret_name)
-    if not api_key:
-        return False, f'secret {secret_name} not found'
-    body = json.dumps({
-        'model':       model_id,
-        'messages':    [{'role': 'user', 'content': 'Say hi in 3 words.'}],
-        'max_tokens':  10,
-        'temperature': 0,
-    }).encode()
-    req = urllib.request.Request(
-        chat_url, data=body, method='POST',
-        headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
-    )
+def _smoke_call(backend_name: str, provider: str, model_id: str) -> tuple[bool, str, dict]:
+    """REAL smoke test: spawn an agent on this backend and have it comment on
+    a random recent public thread. Pass = the entire kindness_social pipeline
+    accepted the model. Fail = roll back the agent so the DB is clean.
+
+    Returns (passed, detail, metadata). On pass: detail = "agent X commented on
+    thread Y", metadata = {agent_id, thread_id, comment_text_preview}. On fail:
+    detail = error message, metadata = {} or partial if agent created.
+
+    This replaces the old direct-API "say hi" probe — that gave false positives
+    for models that talk but can't be wired. The agent-spawn round-trip is what
+    actually matters: avatar generation, persona injection, comment generation,
+    evaluation pipeline, DB save. If any link breaks, the model isn't usable."""
+    import random
+    agent = None
     try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            payload = json.loads(resp.read().decode())
-        text = (payload.get('choices') or [{}])[0].get('message', {}).get('content') or ''
-        if not text.strip():
-            return False, f'empty response: {str(payload)[:200]}'
-        return True, text[:80]
-    except urllib.error.HTTPError as e:
-        body = e.read().decode(errors='replace')[:300]
-        return False, f'HTTP {e.code}: {body}'
+        from core.agent_factory import create_agent
+        from core.responder import get_open_threads, get_thread_comments, build_reply_context
+        from core.evaluator import generate_comment, evaluate_comment
+        from core.simulator import calculate_dopamine, update_persona, DEFAULT_CONFIG
+        from core import db_ops
+        from utilities.postgres_utils import db_cursor as _dc
     except Exception as e:
-        return False, str(e)[:200]
+        return False, f'smoke import failed: {e}', {}
+
+    # 1. Birth the agent. agent_factory rolls back on avatar failure already.
+    try:
+        agent = create_agent(backend=backend_name)
+    except Exception as e:
+        return False, f'create_agent raised: {e}', {}
+    if not agent:
+        return False, 'create_agent returned None (likely avatar generation failure)', {}
+    agent_id = agent.get('agent_id', '?')
+    agent_db_id = agent['id']
+
+    def _rollback(reason: str):
+        try:
+            with _dc() as cur:
+                cur.execute("DELETE FROM kindness_agents WHERE id = %s", (agent_db_id,))
+        except Exception as rb_err:
+            logger.warning(f"smoke rollback DELETE failed for {agent_id}: {rb_err}")
+
+    # 2. Pick a random recent public thread
+    try:
+        open_threads = get_open_threads(limit=20)
+    except Exception as e:
+        _rollback('get_open_threads failed')
+        return False, f'get_open_threads raised: {e}', {'agent_id': agent_id}
+    if not open_threads:
+        _rollback('no threads available')
+        return False, 'no open threads available for smoke test', {'agent_id': agent_id}
+    thread = random.choice(open_threads)
+    thread_db_id = thread['id']
+
+    # 3. Build context + generate comment via the real pipeline
+    try:
+        comments = get_thread_comments(thread_db_id) or []
+        thread_context = {
+            'topic_type': thread.get('topic_type'),
+            'keywords':   thread.get('keywords', []),
+            'comments':   comments,
+            'post_text':  thread.get('post_text', ''),
+        }
+        target_comment = comments[-1] if comments else None
+        reply_context = build_reply_context(thread_context, target_comment)
+        thread_history = [{
+            'persona': c, 'comment': c.get('comment_text', ''),
+            'scores': {
+                'kindness': c.get('kindness_score', 5),
+                'toxicity': c.get('toxicity_score', 5),
+                'empathy':  c.get('empathy_score', 5),
+                'bridge':   c.get('bridge_score', 0),
+            },
+        } for c in reply_context]
+        topic = {'post_text': thread['post_text'], 'topic_id': thread.get('topic_id', '?')}
+        position = len(comments)
+
+        comment_text, actual_backend, gen_time_ms = generate_comment(
+            agent, topic, thread_history, position, DEFAULT_CONFIG
+        )
+    except Exception as e:
+        _rollback('generate_comment raised')
+        return False, f'generate_comment failed: {str(e)[:200]}', {'agent_id': agent_id}
+    if not comment_text:
+        _rollback('generate_comment returned None')
+        return False, 'generate_comment returned None (backend unavailable / rate-limited)', {'agent_id': agent_id}
+
+    # 4. Evaluate + score + save (the rest of the pipeline must accept it)
+    try:
+        scores, eval_time_ms = evaluate_comment(comment_text, agent, thread_history, topic, DEFAULT_CONFIG)
+        dopamine, source, multiplier = calculate_dopamine(
+            scores, agent, position, thread_history, DEFAULT_CONFIG
+        )
+        update_persona(agent, scores, dopamine)
+        db_ops.update_agent_state(agent['id'], agent)
+        parent_id = target_comment['id'] if target_comment and 'id' in target_comment else None
+        replied_to = target_comment.get('agent_id') if target_comment else None
+        db_ops.save_comment(
+            thread_db_id, agent['id'], position, comment_text, scores,
+            dopamine, source, multiplier, actual_backend,
+            gen_time_ms, eval_time_ms,
+            parent_comment_id=parent_id, replied_to_agent_id=replied_to,
+        )
+    except Exception as e:
+        # Comment was generated but post-pipeline failed — keep the agent
+        # (it's valid, just missing this comment) but flag the smoke as failed
+        # so the cron retries.
+        return False, f'post-pipeline failed: {str(e)[:200]}', {
+            'agent_id': agent_id, 'thread_id': thread.get('thread_id', '?'),
+            'comment_text_preview': comment_text[:120],
+        }
+
+    return True, f'agent {agent_id} commented on thread {thread.get("thread_id", "?")}', {
+        'agent_id': agent_id,
+        'thread_id': thread.get('thread_id', '?'),
+        'actual_backend': actual_backend,
+        'comment_text_preview': comment_text[:120],
+        'kindness': scores.get('kindness'),
+        'toxicity': scores.get('toxicity'),
+    }
 
 
 def _log_event(cur, backend, provider, model_id, event_type, reason=None, metadata=None):
@@ -202,20 +288,22 @@ def run_catalog_audit() -> dict:
                     })
         elif row['status'] == 'probationary':
             # Retry the smoke test for a previously-discovered model
-            passed, detail = _smoke_call(provider, row['model_id'])
+            passed, detail, sm = _smoke_call(row['backend'], provider, row['model_id'])
             with db_cursor() as cur:
                 attempts = (row['smoke_attempts'] or 0) + 1
                 if passed:
                     cur.execute("""
                         UPDATE kumori_llm_provider_limits
-                           SET status='active', smoke_attempts=%s, last_seen_at=%s, updated_at=NOW()
+                           SET status='active', assign_new_agents=TRUE,
+                               smoke_attempts=%s, last_seen_at=%s, updated_at=NOW()
                          WHERE backend=%s
                     """, (attempts, now, row['backend']))
                     _log_event(cur, row['backend'], provider, row['model_id'], 'activated',
-                               reason=f'smoke passed on attempt {attempts}',
-                               metadata={'response_preview': detail})
+                               reason=f'smoke passed on attempt {attempts}: {detail}',
+                               metadata=sm)
                     summary['newly_activated'].append({
                         'backend': row['backend'], 'provider': provider, 'model_id': row['model_id'],
+                        **sm,
                     })
                 elif attempts >= MAX_SMOKE_ATTEMPTS:
                     cur.execute("""
@@ -244,7 +332,9 @@ def run_catalog_audit() -> dict:
                         'attempt': attempts, 'error': detail[:200],
                     })
 
-    # Discover NEW models from each catalog
+    # Discover NEW models from each catalog. Cap per provider per run so the
+    # smoke-test loop (each round-trip ~5-10s) doesn't blow the App Engine
+    # request deadline. Catches up over multiple days.
     known_model_ids_per_provider = {}
     for r in db_rows:
         known_model_ids_per_provider.setdefault(r['provider'], set()).add(r['model_id'])
@@ -253,10 +343,15 @@ def run_catalog_audit() -> dict:
         known = known_model_ids_per_provider.get(provider, set())
         defaults = PROVIDER_DEFAULTS.get(provider, {'daily_limit': 50, 'rpm_spacing_sec': 5.0,
                                                      'tier': 3, 'shared_pool': None})
-        for model_id in catalog - known:
+        new_models = sorted(catalog - known)[:MAX_DISCOVERIES_PER_PROVIDER_PER_RUN]
+        for model_id in new_models:
             new_backend = _slug(provider, model_id)
             with db_cursor() as cur:
                 try:
+                    # Insert as probationary; smoke test below decides activation.
+                    # assign_new_agents is set TRUE on activation, not on insert,
+                    # because we never want to mint random agents on a model
+                    # that hasn't proven the full pipeline works.
                     cur.execute("""
                         INSERT INTO kumori_llm_provider_limits
                             (backend, provider, model_id, display_name, gateway_model,
@@ -274,20 +369,21 @@ def run_catalog_audit() -> dict:
                 except Exception as e:
                     logger.warning(f"failed to insert discovered {new_backend}: {e}")
                     continue
-            # Run smoke test immediately so single-pass audit can promote
-            passed, detail = _smoke_call(provider, model_id)
+            # Real smoke test: agent spawn + comment on a recent thread
+            passed, detail, sm = _smoke_call(new_backend, provider, model_id)
             with db_cursor() as cur:
                 if passed:
                     cur.execute("""
                         UPDATE kumori_llm_provider_limits
-                           SET status='active', smoke_attempts=1, last_seen_at=%s, updated_at=NOW()
+                           SET status='active', assign_new_agents=TRUE,
+                               smoke_attempts=1, last_seen_at=%s, updated_at=NOW()
                          WHERE backend=%s
                     """, (now, new_backend))
                     _log_event(cur, new_backend, provider, model_id, 'activated',
-                               reason='smoke passed on attempt 1',
-                               metadata={'response_preview': detail})
+                               reason=f'smoke passed: {detail}', metadata=sm)
                     summary['newly_activated'].append({
                         'backend': new_backend, 'provider': provider, 'model_id': model_id,
+                        **sm,
                     })
                 else:
                     cur.execute("""
@@ -296,7 +392,7 @@ def run_catalog_audit() -> dict:
                          WHERE backend=%s
                     """, (new_backend,))
                     _log_event(cur, new_backend, provider, model_id, 'smoke_test_failed',
-                               reason=detail[:300])
+                               reason=detail[:300], metadata=sm)
                     summary['smoke_failed'].append({
                         'backend': new_backend, 'provider': provider, 'model_id': model_id,
                         'attempt': 1, 'error': detail[:200],
