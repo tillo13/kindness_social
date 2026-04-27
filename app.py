@@ -159,10 +159,17 @@ def _get_admin_key():
 
 
 def is_cron_request():
-    """Verify request is from App Engine cron (or local dev)."""
+    """Verify request is from App Engine cron (or local dev or admin override).
+
+    Admin override: admin key holders can manually trigger cron-only endpoints
+    (useful for ops + testing new backends). Same auth bar as is_admin_request,
+    no widening of who can hit these routes."""
     if os.environ.get('FLASK_ENV') == 'development':
         return True
-    return request.headers.get('X-Appengine-Cron') == 'true'
+    if request.headers.get('X-Appengine-Cron') == 'true':
+        return True
+    key = request.headers.get('X-Admin-Key') or request.args.get('key')
+    return bool(key and key == _get_admin_key())
 
 
 def is_admin_request():
