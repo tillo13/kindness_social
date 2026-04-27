@@ -634,7 +634,8 @@ def save_comment(thread_db_id, agent_db_id, position, comment_text, scores,
                  dopamine, source, multiplier, backend_used,
                  gen_time_ms=0, eval_time_ms=0,
                  parent_comment_id=None, replied_to_agent_id=None):
-    """Save a comment with its evaluation scores and optional threading."""
+    """Save a comment with its evaluation scores and optional threading.
+    Returns the new comment's database id (so callers can chain replies)."""
     with db_cursor() as cur:
         cur.execute("""
             INSERT INTO kindness_comments
@@ -644,6 +645,7 @@ def save_comment(thread_db_id, agent_db_id, position, comment_text, scores,
                  llm_backend_used, generation_time_ms, eval_time_ms,
                  parent_comment_id, replied_to_agent_id)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
         """, (
             thread_db_id, agent_db_id, position, comment_text,
             scores.get('kindness', 5), scores.get('toxicity', 5),
@@ -652,6 +654,8 @@ def save_comment(thread_db_id, agent_db_id, position, comment_text, scores,
             gen_time_ms, eval_time_ms,
             parent_comment_id, replied_to_agent_id,
         ))
+        row = cur.fetchone()
+        return row[0] if row else None
 
 
 # ============================================================================

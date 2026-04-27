@@ -88,10 +88,18 @@ def run_thread(config=None):
     thread_db_id = db_ops.create_thread(thread_slug, topic['id'], len(participants), hour)
 
     thread_history = []
+    saved_comments = []  # for _pick_reply_target — accumulates comments as we save
     total_kindness = 0
     total_toxicity = 0
     bridge_events = 0
     successful = 0
+
+    # Use the same reply-target picker as responder.py so initial-thread
+    # comments (this code path) and follow-up replies (responder.py) produce
+    # the same threaded UX. Without this, every comment in a freshly-minted
+    # thread shows as a flat top-level reply even though the LLM text reads
+    # as conversational ("I hear you, X / fair point but...").
+    from core.responder import _pick_reply_target
 
     for position, persona in enumerate(participants):
         if successful >= target_count:
@@ -138,12 +146,33 @@ def run_thread(config=None):
             except Exception as e:
                 logger.debug(f"Reflection skipped for {persona.get('display_name')}: {e}")
 
-        # Save comment
-        db_ops.save_comment(
+        # Pick a reply target from already-saved comments. Position 0 has no
+        # prior comments → target=None (top-level reply to OP). Otherwise
+        # _pick_reply_target uses recency + controversy weighting (same as
+        # responder.py) so threading shape matches what users see in
+        # subsequent reply waves.
+        target = _pick_reply_target(saved_comments, persona) if saved_comments else None
+        parent_id = target['id'] if target else None
+        replied_to = target.get('agent_id') if target else None
+
+        # Save comment + capture its new id so subsequent comments in this
+        # loop can target it.
+        new_id = db_ops.save_comment(
             thread_db_id, persona['id'], position, comment, scores,
             dopamine, source, multiplier, actual_backend,
             gen_time_ms, eval_time_ms,
+            parent_comment_id=parent_id, replied_to_agent_id=replied_to,
         )
+        if new_id:
+            saved_comments.append({
+                'id': new_id,
+                'agent_id': persona['id'],
+                'kindness_score': scores.get('kindness'),
+                'toxicity_score': scores.get('toxicity'),
+                'empathy_score': scores.get('empathy'),
+                'parent_comment_id': parent_id,
+                'replied_to_agent_id': replied_to,
+            })
 
         # Track for thread summary
         total_kindness += scores['kindness']
