@@ -70,15 +70,15 @@ def _probe_gemini(api_key: str) -> set[str]:
 
 
 PROBES = [
-    ('groq',       'KUMORI_GROQ_API_KEY', _probe_openai_compat('https://api.groq.com/openai/v1/models'), 'https://api.groq.com/openai/v1/chat/completions'),
-    ('sambanova',  'SAMBANOVA_API_KEY',   _probe_openai_compat('https://api.sambanova.ai/v1/models'),   'https://api.sambanova.ai/v1/chat/completions'),
-    ('cerebras',   'CEREBRAS_API_KEY',    _probe_openai_compat('https://api.cerebras.ai/v1/models'),   'https://api.cerebras.ai/v1/chat/completions'),
-    ('mistral',    'MISTRAL_API_KEY',     _probe_openai_compat('https://api.mistral.ai/v1/models'),    'https://api.mistral.ai/v1/chat/completions'),
-    ('cohere',     'COHERE_API_KEY',      _probe_openai_compat('https://api.cohere.ai/compatibility/v1/models'), 'https://api.cohere.ai/compatibility/v1/chat/completions'),
-    ('openrouter', 'OPENROUTER_API_KEY',  _probe_openai_compat('https://openrouter.ai/api/v1/models'), 'https://openrouter.ai/api/v1/chat/completions'),
-    ('nvidia',     'NVIDIA_API_KEY',      _probe_openai_compat('https://integrate.api.nvidia.com/v1/models'), 'https://integrate.api.nvidia.com/v1/chat/completions'),
-    ('github',     'GITHUB_API_KEY',      _probe_openai_compat('https://models.github.ai/inference/v1/models'), 'https://models.github.ai/inference/v1/chat/completions'),
-    ('gemini',     'GEMINI_API_KEY',      _probe_gemini, None),  # gemini smoke-test handled separately
+    ('groq',       'KINDNESS_GROQ_API_KEY',       _probe_openai_compat('https://api.groq.com/openai/v1/models'),         'https://api.groq.com/openai/v1/chat/completions'),
+    ('sambanova',  'KINDNESS_SAMBANOVA_API_KEY',  _probe_openai_compat('https://api.sambanova.ai/v1/models'),            'https://api.sambanova.ai/v1/chat/completions'),
+    ('cerebras',   'KINDNESS_CEREBRAS_API_KEY',   _probe_openai_compat('https://api.cerebras.ai/v1/models'),             'https://api.cerebras.ai/v1/chat/completions'),
+    ('mistral',    'KINDNESS_MISTRAL_API_KEY',    _probe_openai_compat('https://api.mistral.ai/v1/models'),              'https://api.mistral.ai/v1/chat/completions'),
+    ('cohere',     'KINDNESS_COHERE_API_KEY',     _probe_openai_compat('https://api.cohere.ai/compatibility/v1/models'), 'https://api.cohere.ai/compatibility/v1/chat/completions'),
+    ('openrouter', 'KINDNESS_OPENROUTER_API_KEY', _probe_openai_compat('https://openrouter.ai/api/v1/models'),           'https://openrouter.ai/api/v1/chat/completions'),
+    ('nvidia',     'KINDNESS_NVIDIA_API_KEY',     _probe_openai_compat('https://integrate.api.nvidia.com/v1/models'),    'https://integrate.api.nvidia.com/v1/chat/completions'),
+    ('github',     'SCATTERBRAIN_GITHUB_TOKEN',   _probe_openai_compat('https://models.github.ai/inference/v1/models'),  'https://models.github.ai/inference/v1/chat/completions'),
+    ('gemini',     'KINDNESS_GEMINI_API_KEY',     _probe_gemini, None),  # gemini smoke-test handled separately
 ]
 PROBES_BY_PROVIDER = {p[0]: p for p in PROBES}
 
