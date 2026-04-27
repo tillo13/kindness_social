@@ -835,13 +835,12 @@ def admin_system_status():
     })
 
 
-@bp.route('/api/cerebras-burn')          # public canonical URL
-@bp.route('/api/admin/cerebras-burn')    # legacy URL kept for old callers
-def admin_cerebras_burn():
-    """Cerebras token burn rate — historical usage, daily breakdown,
-    projected exhaustion. Public — pure DB read."""
-    from core.db_ops import get_cerebras_burn_rate
-    return jsonify(get_cerebras_burn_rate())
+# ── Removed 2026-04-27: /api/admin/cerebras-burn ──
+# Was a stale debug endpoint (hardcoded 3M token estimate from when cerebras
+# entered conservation mode, never updated, never rendered anywhere). The
+# Service Lifecycle dashboard's daily_used / daily_cap columns are the live
+# equivalent. Helper get_cerebras_burn_rate() in db_ops_analytics.py kept
+# in case we want to chart it later.
 
 
 # ── Legacy admin routes ──
@@ -890,56 +889,35 @@ def admin_llm_lifecycle():
     from utilities.postgres_utils import db_cursor
 
     state = {'active': [], 'probationary': [], 'retired': [], 'retired_failed_smoke': []}
-    chart_buckets = []   # [{month: '2026-04', activated: N, retired: N, failed: N}]
-    recent_events = []   # last 30 events for the activity log
+
+    # Chart bucket query is the same regardless of state — cache 5 min
+    chart_buckets, recent_events = _lifecycle_events_cached()
 
     with db_cursor(dict_cursor=True) as cur:
-        # Current state, with agent count per active backend
+        # Single GROUP BY for agent counts — replaces the previous N+1 that
+        # ran one COUNT subquery per backend row (~460 round-trips per page
+        # load against the shared kumori Postgres)
+        cur.execute("""
+            SELECT llm_backend, COUNT(*) AS cnt
+              FROM kindness_agents
+             WHERE llm_backend IS NOT NULL
+             GROUP BY llm_backend
+        """)
+        agent_counts = {r['llm_backend']: r['cnt'] for r in cur.fetchall()}
+
         cur.execute("""
             SELECT pl.backend, pl.provider, pl.model_id, pl.display_name, pl.status,
                    pl.daily_limit, pl.tier, pl.assign_new_agents,
                    pl.last_seen_at, pl.decommissioned_at, pl.decommission_reason,
-                   pl.smoke_attempts,
-                   (SELECT COUNT(*) FROM kindness_agents a
-                     WHERE a.llm_backend = pl.backend) AS agent_count
+                   pl.smoke_attempts
               FROM kumori_llm_provider_limits pl
              WHERE pl.status IN ('active', 'probationary', 'retired', 'retired_failed_smoke')
              ORDER BY pl.status, pl.provider, pl.backend
         """)
         for r in cur.fetchall():
-            state[r['status']].append(dict(r))
-
-        # Monthly chart: 12 months back
-        cur.execute("""
-            SELECT TO_CHAR(occurred_at, 'YYYY-MM') AS month,
-                   event_type,
-                   COUNT(*) AS n
-              FROM kumori_llm_registry_events
-             WHERE occurred_at > NOW() - INTERVAL '12 months'
-             GROUP BY 1, 2
-             ORDER BY 1
-        """)
-        bucket_map = {}
-        for r in cur.fetchall():
-            b = bucket_map.setdefault(r['month'], {'month': r['month'],
-                                                    'activated': 0,
-                                                    'retired': 0,
-                                                    'failed': 0})
-            if r['event_type'] == 'activated':
-                b['activated'] += int(r['n'])
-            elif r['event_type'] in ('retired', 'retired_failed_smoke'):
-                b['retired'] += int(r['n'])
-            elif r['event_type'] == 'smoke_test_failed':
-                b['failed'] += int(r['n'])
-        chart_buckets = sorted(bucket_map.values(), key=lambda x: x['month'])
-
-        cur.execute("""
-            SELECT backend, provider, model_id, event_type, occurred_at, reason
-              FROM kumori_llm_registry_events
-             ORDER BY occurred_at DESC
-             LIMIT 30
-        """)
-        recent_events = [dict(r) for r in cur.fetchall()]
+            row = dict(r)
+            row['agent_count'] = agent_counts.get(row['backend'], 0)
+            state[row['status']].append(row)
 
     # Image generation services — live-probe each on dashboard load (cached
     # for 5 min via in-process router state). Same lifecycle reality as LLMs:
@@ -956,8 +934,53 @@ def admin_llm_lifecycle():
     )
 
 
-# Module-level cache so repeated dashboard loads don't re-probe
+# Module-level caches so repeated dashboard loads don't re-query/re-probe
 _imggen_health_cache = {'when': 0, 'data': []}
+_lifecycle_events_cache = {'when': 0, 'chart_buckets': [], 'recent_events': []}
+
+
+def _lifecycle_events_cached(ttl_sec: int = 300):
+    """Returns (chart_buckets, recent_events) — cached 5 min so the 12-month
+    GROUP BY scan and the recent-events query don't re-run on every page load."""
+    import time
+    if time.time() - _lifecycle_events_cache['when'] < ttl_sec and _lifecycle_events_cache['chart_buckets']:
+        return _lifecycle_events_cache['chart_buckets'], _lifecycle_events_cache['recent_events']
+    from utilities.postgres_utils import db_cursor
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("""
+            SELECT TO_CHAR(occurred_at, 'YYYY-MM') AS month,
+                   event_type,
+                   COUNT(*) AS n
+              FROM kumori_llm_registry_events
+             WHERE occurred_at > NOW() - INTERVAL '12 months'
+             GROUP BY 1, 2
+             ORDER BY 1
+        """)
+        bucket_map = {}
+        for r in cur.fetchall():
+            b = bucket_map.setdefault(r['month'], {'month': r['month'],
+                                                    'activated': 0, 'retired': 0, 'failed': 0})
+            if r['event_type'] == 'activated':
+                b['activated'] += int(r['n'])
+            elif r['event_type'] in ('retired', 'retired_failed_smoke'):
+                b['retired'] += int(r['n'])
+            elif r['event_type'] == 'smoke_test_failed':
+                b['failed'] += int(r['n'])
+        chart_buckets = sorted(bucket_map.values(), key=lambda x: x['month'])
+
+        cur.execute("""
+            SELECT backend, provider, model_id, event_type, occurred_at, reason
+              FROM kumori_llm_registry_events
+             ORDER BY occurred_at DESC
+             LIMIT 30
+        """)
+        recent_events = [dict(r) for r in cur.fetchall()]
+    _lifecycle_events_cache.update({
+        'when': time.time(),
+        'chart_buckets': chart_buckets,
+        'recent_events': recent_events,
+    })
+    return chart_buckets, recent_events
 
 
 def _imggen_health_snapshot():
