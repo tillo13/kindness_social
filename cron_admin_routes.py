@@ -1056,11 +1056,25 @@ def _imggen_health_snapshot():
         else:
             note = ''
         ms = int((time.time() - t0) * 1000)
+        # Honest auth label: distinguish "we send a real bearer/api key from
+        # secret manager" from "we send the documented public anonymous
+        # sentinel (no signup, no account)".
+        raw_auth = cfg.get('auth_type', 'unknown')
+        secret_status = cfg.get('secret_status', '')
+        if raw_auth == 'none':
+            auth_label = 'none (keyless)'
+        elif secret_status == 'anonymous_works':
+            anon = cfg.get('anonymous_key', '')
+            auth_label = f'anonymous ({anon!s})' if anon else 'anonymous'
+        elif secret_status == 'have_existing':
+            auth_label = f'{raw_auth} (existing key, no new signup)'
+        else:
+            auth_label = raw_auth
         out.append({
             'service': name, 'status': status, 'latency_ms': ms,
             'last_call': last_call, 'backoff_until': backoff_until,
             'daily_used': daily_used, 'daily_cap': daily_cap,
-            'tier': cfg.get('tier'), 'auth_type': cfg.get('auth_type'),
+            'tier': cfg.get('tier'), 'auth_type': auth_label,
             'spacing_sec': cfg.get('min_seconds_between_requests'),
             'notes': note or cfg.get('notes', '')[:140],
         })
