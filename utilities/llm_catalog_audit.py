@@ -87,8 +87,15 @@ PROBES_BY_PROVIDER = {p[0]: p for p in PROBES}
 
 
 def _slug(provider: str, model_id: str) -> str:
-    s = model_id.lower().replace('/', '-').replace('_', '-')
-    return f'{provider}-{s}'[:50]
+    """Backend name for a newly-discovered model that fits VARCHAR(50).
+    Truncated names get a 4-char hash suffix to prevent PK collisions."""
+    import hashlib
+    s = model_id.lower().replace('/', '-').replace('_', '-').replace(':', '-').replace('.', '-')
+    full = f'{provider}-{s}'
+    if len(full) <= 50:
+        return full
+    h = hashlib.md5(model_id.encode()).hexdigest()[:4]
+    return f'{full[:45]}-{h}'
 
 
 def _smoke_call(backend_name: str, provider: str, model_id: str) -> tuple[bool, str, dict]:
