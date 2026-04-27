@@ -187,7 +187,16 @@
     {% set color = c.color_hex or '#6B7280' %}
     {% set is_reply = depth > 0 %}
     {% set MAX_VISIBLE_DEPTH = 4 %}
-    {% set indent_px = (depth * 24) if depth <= MAX_VISIBLE_DEPTH else (MAX_VISIBLE_DEPTH * 24) %}
+    {# Below the cap: linear indent (depth × 24px) + border-left guide.
+       AT the cap exactly: same indent, but no longer adds left padding so children don't compound.
+       BEYOND the cap: zero margin so deeper replies stack vertically inside their parent's content
+       area without each level shifting another 96px right. The "replying to X" indicator
+       at the top of each reply preserves the conversation context. #}
+    {% if depth <= MAX_VISIBLE_DEPTH %}
+        {% set indent_px = depth * 24 %}
+    {% else %}
+        {% set indent_px = 0 %}
+    {% endif %}
     {% set show_border = depth > 0 and depth <= MAX_VISIBLE_DEPTH %}
     <div class="comment-node mb-3" style="margin-left: {{ indent_px }}px; {% if show_border %}border-left: 2px solid {{ color }}33; padding-left: 12px;{% endif %}">
         <div class="chat-bubble relative left self-start {{ 'is-reply' if is_reply else '' }}">
