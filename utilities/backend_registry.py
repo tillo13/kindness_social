@@ -297,6 +297,13 @@ def _load_models_from_db():
             for r in cur.fetchall():
                 (backend, provider, model_id, display, gateway_model,
                  np_, nm_, assign, gemini_model, worker_type, cf_path, overrides) = r
+                # Defensive: skip any row whose provider isn't in our static
+                # PROVIDERS dict. Prevents DB drift (legacy rows, audit
+                # discoveries from a brand-new provider) from KeyError-crashing
+                # build_backends() at import time. The audit cron is the place
+                # to resolve provider mismatches; this is the safety net.
+                if provider not in PROVIDERS:
+                    continue
                 d = {
                     'name':          backend,
                     'provider':      provider,
