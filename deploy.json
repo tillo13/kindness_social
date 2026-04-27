@@ -16,6 +16,10 @@
       "dst": "utilities/anthropic_logger.py"
     },
     {
+      "src": "killswitch/killswitch.py",
+      "dst": "utilities/killswitch.py"
+    },
+    {
       "src": "kumori_free_image_generations/kumori_free_imggen.py",
       "dst": "utilities/kumori_free_imggen.py"
     },

@@ -426,7 +426,7 @@ def api_chat():
     from core.chatbot import chat, get_chat_count_today, MAX_CHATS_PER_DAY
     remaining = MAX_CHATS_PER_DAY - get_chat_count_today()
     if remaining <= 0:
-        return jsonify({'error': 'Daily limit reached (100/day). Come back tomorrow!'}), 429
+        return jsonify({'error': f'Daily limit reached ({MAX_CHATS_PER_DAY}/day). Come back tomorrow!'}), 429
 
     history = data.get('history', [])
     response = chat(message, history)
