@@ -178,11 +178,18 @@
     </div>
 
     {# ── Recursive comment macro: renders one comment + its children, indented ── #}
+    {# Reddit-style depth cap: indent grows linearly to depth 4, then the
+       per-level padding+border STOPS compounding so deeply-nested chains
+       don't get squeezed into a single-character column. The
+       "replying to X" indicator at the top of each reply preserves the
+       conversation context once visual nesting plateaus. #}
     {% macro render_comment(c, depth=0) %}
     {% set color = c.color_hex or '#6B7280' %}
     {% set is_reply = depth > 0 %}
-    {% set indent_px = (depth * 24) if depth <= 3 else 72 %}
-    <div class="comment-node mb-3" style="margin-left: {{ indent_px }}px; {% if depth > 0 %}border-left: 2px solid {{ color }}33; padding-left: 12px;{% endif %}">
+    {% set MAX_VISIBLE_DEPTH = 4 %}
+    {% set indent_px = (depth * 24) if depth <= MAX_VISIBLE_DEPTH else (MAX_VISIBLE_DEPTH * 24) %}
+    {% set show_border = depth > 0 and depth <= MAX_VISIBLE_DEPTH %}
+    <div class="comment-node mb-3" style="margin-left: {{ indent_px }}px; {% if show_border %}border-left: 2px solid {{ color }}33; padding-left: 12px;{% endif %}">
         <div class="chat-bubble relative left self-start {{ 'is-reply' if is_reply else '' }}">
 
             <!-- Reply indicator -->
@@ -294,7 +301,7 @@
                 {{ render_comment(child, depth + 1) }}
             {% endfor %}
             {% if kids|length > visible_count %}
-            <div style="margin-left: {{ ((depth + 1) * 24) if (depth + 1) <= 3 else 72 }}px;">
+            <div style="margin-left: {{ ((depth + 1) * 24) if (depth + 1) <= MAX_VISIBLE_DEPTH else (MAX_VISIBLE_DEPTH * 24) }}px;">
                 <button type="button"
                         class="text-[11px] py-1 px-2 rounded hover:opacity-80"
                         style="color: var(--kindness); background: var(--bg-elevated); border: 1px solid var(--border-subtle);"
