@@ -894,9 +894,7 @@ def admin_llm_lifecycle():
     chart_buckets, recent_events = _lifecycle_events_cached()
 
     with db_cursor(dict_cursor=True) as cur:
-        # Single GROUP BY for agent counts — replaces the previous N+1 that
-        # ran one COUNT subquery per backend row (~460 round-trips per page
-        # load against the shared kumori Postgres)
+        # Single GROUP BY for agent counts — replaces the previous N+1
         cur.execute("""
             SELECT llm_backend, COUNT(*) AS cnt
               FROM kindness_agents
@@ -904,6 +902,20 @@ def admin_llm_lifecycle():
              GROUP BY llm_backend
         """)
         agent_counts = {r['llm_backend']: r['cnt'] for r in cur.fetchall()}
+
+        # Per-backend telemetry rollup — folds the unique signal from /metrics
+        # into the lifecycle table so users see "is this backend healthy AND
+        # is it actually being used well" in one place.
+        cur.execute("""
+            SELECT actual_backend AS backend,
+                   COUNT(*) AS calls,
+                   ROUND(100.0 * COUNT(*) FILTER (WHERE success) / COUNT(*), 1) AS success_pct,
+                   ROUND(AVG(duration_ms))::INT AS avg_ms
+              FROM kindness_llm_telemetry
+             WHERE actual_backend IS NOT NULL
+             GROUP BY actual_backend
+        """)
+        telemetry = {r['backend']: r for r in cur.fetchall()}
 
         cur.execute("""
             SELECT pl.backend, pl.provider, pl.model_id, pl.display_name, pl.status,
@@ -917,7 +929,26 @@ def admin_llm_lifecycle():
         for r in cur.fetchall():
             row = dict(r)
             row['agent_count'] = agent_counts.get(row['backend'], 0)
+            t = telemetry.get(row['backend'], {})
+            row['telemetry_calls'] = t.get('calls', 0)
+            row['telemetry_success_pct'] = t.get('success_pct')
+            row['telemetry_avg_ms'] = t.get('avg_ms')
             state[row['status']].append(row)
+
+    # Live in-process backoff state from the LLM router — folds the unique
+    # signal from /api/admin/system-status. {backend: seconds_remaining}
+    backoff_state = {}
+    try:
+        from utilities.kumori_free_llms import _backoff_until
+        import time as _time
+        _now = _time.time()
+        for b, until in _backoff_until.items():
+            if until > _now:
+                backoff_state[b] = int(until - _now)
+    except Exception:
+        pass
+    for s in state['active']:
+        s['backoff_sec'] = backoff_state.get(s['backend'])
 
     # Image generation services — live-probe each on dashboard load (cached
     # for 5 min via in-process router state). Same lifecycle reality as LLMs:

@@ -82,17 +82,20 @@
   </div>
 
   <div class="lc-card">
-    <div class="lc-h">🟢 Active <span class="lc-pill">{{ state.active|length }}</span></div>
+    <div class="lc-h">🟢 Active <span class="lc-pill">{{ state.active|length }}</span>
+      <span class="muted">— per-backend health + telemetry. Cost / token aggregates remain at <a href="/metrics" style="color:var(--kindness)">/metrics</a>.</span></div>
     <table class="lc">
-      <tr><th>backend</th><th>provider</th><th>model_id</th><th>tier</th><th>daily limit</th><th>agents</th><th>last seen</th><th>assignable</th></tr>
+      <tr><th>backend</th><th>provider</th><th>tier</th><th>agents</th><th>calls</th><th>success%</th><th>avg ms</th><th>backoff</th><th>last seen</th><th>assignable</th></tr>
       {% for r in state.active %}
       <tr>
-        <td>{{ r.backend }}</td>
+        <td title="{{ r.model_id }}">{{ r.backend }}</td>
         <td>{{ r.provider }}</td>
-        <td>{{ r.model_id }}</td>
         <td>{{ r.tier }}</td>
-        <td>{{ r.daily_limit or '—' }}</td>
         <td>{{ r.agent_count }}</td>
+        <td>{{ r.telemetry_calls or '—' }}</td>
+        <td>{% if r.telemetry_success_pct is not none %}<span style="color:{% if r.telemetry_success_pct >= 95 %}#059669{% elif r.telemetry_success_pct >= 80 %}#a16207{% else %}#dc2626{% endif %}">{{ r.telemetry_success_pct }}%</span>{% else %}—{% endif %}</td>
+        <td>{{ r.telemetry_avg_ms or '—' }}</td>
+        <td>{% if r.backoff_sec %}<span style="color:#dc2626">{{ r.backoff_sec }}s</span>{% else %}—{% endif %}</td>
         <td class="muted">{{ r.last_seen_at.strftime('%Y-%m-%d') if r.last_seen_at else '—' }}</td>
         <td>{{ '✓' if r.assign_new_agents else '—' }}</td>
       </tr>
