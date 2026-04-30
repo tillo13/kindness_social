@@ -8,6 +8,7 @@ import logging
 import os
 import threading
 import psycopg2
+import psycopg2.extensions
 import psycopg2.extras
 import psycopg2.pool
 from contextlib import contextmanager
@@ -119,14 +120,23 @@ def get_db_connection():
 
 
 @contextmanager
-def db_cursor(dict_cursor=False):
-    """Context manager for DB operations with auto-commit/rollback."""
+def db_cursor(dict_cursor=False, commit=True):
+    """Context manager for DB operations with auto-commit/rollback.
+
+    dict_cursor=False yields a plain tuple cursor — required by
+    kumori_free_llms.backend_registry_db, which indexes rows positionally.
+    Cursor factory is set explicitly so the connection's default cannot
+    surprise callers that ask for tuples.
+    """
     conn = get_db_connection()
-    cursor_factory = psycopg2.extras.DictCursor if dict_cursor else None
-    cursor = conn.cursor(cursor_factory=cursor_factory)
+    if dict_cursor:
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    else:
+        cursor = conn.cursor(cursor_factory=psycopg2.extensions.cursor)
     try:
         yield cursor
-        conn.commit()
+        if commit:
+            conn.commit()
     except Exception:
         conn.rollback()
         raise

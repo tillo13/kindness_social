@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-04-27 04:38*
+*Last refreshed: 2026-04-29 04:00*
 
 ## 🎯 Pending
 
@@ -15,19 +15,27 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
-- `681aac3` · 2026-04-26 01:45 — pick up canonical anthropic_logger killswitch + kumori_free_llms haiku rip
-- `a478b68` · 2026-04-25 18:29 — rip Anthropic + OpenAI + avatar gen — kindness_social is now free-tier-only
-- `ebcc0d1` · 2026-04-23 19:18 — kindness_social: migrate to canonical anthropic_logger via shared_files
-- `f38a26d` · 2026-04-21 20:51 — cron: agent-responses 3min → 15min (cost trim)
+- `68056be` · 2026-04-27 15:56 — thread depth cap v2: zero margin past depth 4 so deeply-nested chains stack vertically inside par...
+- `210ac12` · 2026-04-27 15:48 — thread template: cap visual indent compound at depth 4 (Reddit-style) — stops deeply-nested chain...
+- `cba3ece` · 2026-04-27 15:18 — fix simulator.run_thread threading: use same _pick_reply_target as responder so newly-generated t...
+- `7081b37` · 2026-04-27 14:53 — lifecycle: every section now collapsible (native <details>/<summary>, zero JS); cron-log moved to...
+- `3e337af` · 2026-04-27 14:36 — add anthropic dep — chatbot now routes through anthropic_logger.logged_create which needs the SDK...
+- `66324ea` · 2026-04-27 14:28 — route chatbot through anthropic_logger.logged_create — chatbot now (1) checked against $150/mo ku...
+- `ad54d69` · 2026-04-27 14:13 — show honest auth labels on lifecycle (anonymous, keyless, existing key) instead of bare protocol ...
+- `6fd3dca` · 2026-04-27 14:07 — phase 2: fold per-backend telemetry (calls, success%, avg ms) and live backoff state into lifecyc...
+- `64b74ce` · 2026-04-27 13:56 — phase 1 dashboard cleanup: open lifecycle + system-status (no admin gate, both read-only); delete...
+- `24dc16d` · 2026-04-27 13:50 — open service lifecycle + system-status + cerebras-burn — read-only, no secrets exposed; admin URL...
+- `34c073a` · 2026-04-27 13:33 — service lifecycle dashboard: add image gen probes alongside LLM lifecycle, link from Data dropdown
+- `1cf2425` · 2026-04-27 13:12 — wire avatar_generator to kumori_free_imggen — keyless Pollinations + Stable Horde first, Cloudfla...
+- `652086f` · 2026-04-27 12:34 — fix avatar gate (allow agents without avatars; was silently killing every new agent since 2026-04...
+- `279db2a` · 2026-04-27 12:00 — allow admin-key override on cron routes for ops/testing
+- `ecf8288` · 2026-04-27 11:50 — real smoke test: agent-spawn + comment on random thread; auto-set assign_new_agents=TRUE on activ...
 <!-- shipped:end -->
 
 ## ⚠️ Unfinished / WIP
 
 <!-- wip:start -->
-**4 file(s) with uncommitted changes:**
+**1 file(s) with uncommitted changes:**
 - ` M next_steps.md`
-- ` M utilities/anthropic_logger.py`
-- ` M utilities/backend_registry.py`
-- ` M utilities/kumori_free_llms.py`
 
 <!-- wip:end -->
