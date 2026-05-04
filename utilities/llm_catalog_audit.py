@@ -346,21 +346,32 @@ def run_catalog_audit() -> dict:
     for r in db_rows:
         known_model_ids_per_provider.setdefault(r['provider'], set()).add(r['model_id'])
 
+    # Provider-status gate. Look up canonical_status for each provider — only
+    # 'active' providers (verified free-tier policy) get auto-activation.
+    # Anything 'pending'/'paused'/'retired' OR a provider not in the table
+    # at all → new backends inserted with status='pending_review' so the
+    # human-in-the-loop catches surprise provider changes (the
+    # 200-OpenRouter-paid-SKU mistake from 2026-05-04).
+    provider_canonical_status = {}
+    try:
+        with db_cursor(dict_cursor=False) as cur:
+            cur.execute("SELECT name, canonical_status FROM kumori_llm_providers")
+            provider_canonical_status = dict(cur.fetchall())
+    except Exception as e:
+        logger.warning(f"could not load kumori_llm_providers: {e} — defaulting all to 'pending'")
+
+    def _initial_status(prov):
+        return 'probationary' if provider_canonical_status.get(prov) == 'active' else 'pending_review'
+
     for provider, catalog in catalogs.items():
-        # OpenRouter free-tier-only filter. The /v1/models catalog returns
-        # both free and paid SKUs. Paid SKUs return HTTP 402 from any
-        # account that hasn't purchased credits. kumori_FREE_llms is — by
-        # name and by hard rule — free-tier-only, so we only ever insert
-        # OpenRouter rows whose model_id ends in ':free'. Per OpenRouter's
-        # docs (openrouter.ai/docs/api/reference/limits): :free variants
-        # are 20 req/min and 50/day per account (1000/day if you've bought
-        # ≥$10 lifetime credits).
+        # OpenRouter free-tier-only filter (paid SKUs 402 forever).
         if provider == 'openrouter':
             catalog = {m for m in catalog if m.endswith(':free')}
         known = known_model_ids_per_provider.get(provider, set())
         defaults = PROVIDER_DEFAULTS.get(provider, {'daily_limit': 50, 'rpm_spacing_sec': 5.0,
                                                      'tier': 3, 'shared_pool': None})
         new_models = sorted(catalog - known)[:MAX_DISCOVERIES_PER_PROVIDER_PER_RUN]
+        initial_status = _initial_status(provider)
         for model_id in new_models:
             new_backend = _slug(provider, model_id)
             with db_cursor() as cur:
@@ -374,15 +385,17 @@ def run_catalog_audit() -> dict:
                             (backend, provider, model_id, display_name, gateway_model,
                              status, smoke_attempts, daily_limit, rpm_spacing_sec, tier,
                              shared_pool, assign_new_agents, last_seen_at, updated_at, notes)
-                        VALUES (%s, %s, %s, %s, %s, 'probationary', 0, %s, %s, %s, %s, FALSE,
-                                %s, NOW(), 'auto-discovered by catalog audit')
+                        VALUES (%s, %s, %s, %s, %s, %s, 0, %s, %s, %s, %s, FALSE,
+                                %s, NOW(), %s)
                         ON CONFLICT (backend) DO NOTHING
                     """, (new_backend, provider, model_id,
                           f'{model_id} ({provider})', new_backend,
+                          initial_status,
                           defaults['daily_limit'], defaults['rpm_spacing_sec'],
-                          defaults['tier'], defaults['shared_pool'], now))
+                          defaults['tier'], defaults['shared_pool'], now,
+                          f'auto-discovered by catalog audit (provider canonical_status={provider_canonical_status.get(provider, "missing")})'))
                     _log_event(cur, new_backend, provider, model_id, 'discovered',
-                               reason='auto-inserted from catalog')
+                               reason=f'auto-inserted as {initial_status}')
                 except Exception as e:
                     logger.warning(f"failed to insert discovered {new_backend}: {e}")
                     continue

@@ -41,7 +41,19 @@ PROVIDERS = {
     'openrouter': {
         'url': 'https://openrouter.ai/api/v1/chat/completions',
         'secret': 'KINDNESS_OPENROUTER_API_KEY',
-        'limits': {'daily_limit': 50, 'rpm_spacing_sec': 10.0, 'backoff_sec': 120},
+        # Free-tier-only. Per openrouter.ai/docs/api/reference/limits:
+        #   :free models = 20 req/min and 50/day TOTAL across the account
+        #   (1000/day if you've ever bought ≥$10 lifetime — we have not).
+        # rpm_spacing_sec=3.0 → 60s/20req exact spacing per model. The
+        # account-wide 50/day is APPROXIMATED here as 50/model — the
+        # router doesn't yet enforce shared_pool for LLMs (it does for
+        # imggen). With ~30 :free models in rotation, even uneven
+        # distribution stays well under the per-model cap; agent_inviter
+        # already favours least-recently-used so spread is reasonable.
+        # If we ever need exact pool enforcement, add shared_pool support
+        # to kumori_free_llms._check_daily_cap (mirror imggen's pattern).
+        'limits': {'daily_limit': 50, 'rpm_spacing_sec': 3.0, 'backoff_sec': 120,
+                   'shared_pool': 'openrouter'},
         'display': 'OpenRouter',
     },
     'cloudflare': {

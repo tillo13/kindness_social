@@ -628,6 +628,93 @@ def _try_backend(backend, prompt, max_tokens, temperature, caller):
     return None
 
 
+def probe_backend(backend, prompt='say hi', max_tokens=20, temperature=0.0):
+    """Diagnostic probe — like _try_backend but RETURNS a rich result dict
+    instead of swallowing every failure as None.
+
+    Result keys:
+      ok           : bool
+      reason       : str — short tag for grouping ('ok','disabled','cooldown',
+                     'backed_off','rpm','daily_cap','lifetime','http','exception',
+                     'empty','no_key')
+      http_status  : int|None — HTTP code if known
+      latency_ms   : int
+      error        : str|None — full error excerpt if applicable
+      response     : str|None — first 120 chars of response if ok
+
+    The probe deliberately does NOT consume rate-limit budget unless the
+    actual upstream call fires. Skip-conditions (cooldown, daily cap, etc.)
+    return immediately with the reason so the digest can show
+    "🟠 in cooldown" instead of "🔴 broken."
+    """
+    name = backend['name']
+    t0 = time.time()
+
+    def _result(ok, reason, **kw):
+        return {'ok': ok, 'reason': reason, 'http_status': kw.get('http_status'),
+                'latency_ms': int((time.time() - t0) * 1000),
+                'error': kw.get('error'), 'response': kw.get('response')}
+
+    if not _is_enabled(name):
+        return _result(False, 'disabled', error='backend disabled in provider_limits')
+    if _is_in_cooldown(name):
+        return _result(False, 'cooldown', error='circuit breaker open — auto-recovers')
+    if _is_backed_off(name):
+        return _result(False, 'backed_off', error='in 429 backoff window')
+    if not _rpm_ok(name):
+        return _result(False, 'rpm', error='rpm spacing not satisfied')
+    if not _check_daily_cap(name):
+        return _result(False, 'daily_cap', error='daily cap reached — quota exhausted today')
+    if not _check_lifetime(name):
+        return _result(False, 'lifetime', error='lifetime credit cap reached')
+
+    btype = backend.get('type')
+    try:
+        if btype == 'gemini':
+            text = _try_gemini(prompt, max_tokens, temperature, backend.get('gemini_model', 'gemini-2.5-flash'))
+        elif btype in _WORKER_TYPES:
+            text = _try_worker(btype, prompt, max_tokens, temperature)
+        elif btype == 'cloudflare':
+            text = _try_cloudflare(backend, prompt, max_tokens, temperature)
+        elif btype == 'cohere':
+            text = _try_cohere(backend, prompt, max_tokens, temperature)
+        elif btype == 'litellm':
+            text = _try_litellm_gateway(backend, prompt, max_tokens, temperature)
+        else:
+            text = _try_openai_compatible(backend, prompt, max_tokens, temperature)
+        _rpm_record(name)
+        if text and text.strip():
+            _record_breaker_success(name)
+            return _result(True, 'ok', response=text.strip()[:120])
+        # Adapter returned None / empty without raising — usually a missing
+        # secret or safety-filter empty content
+        return _result(False, 'no_key' if 'key' in str(_get_key(backend.get('secret', ''))).lower()
+                              else 'empty',
+                       error='adapter returned None (missing API key or safety filter)')
+    except urllib.error.HTTPError as e:
+        _rpm_record(name)
+        body = ''
+        try:
+            body = e.read().decode('utf-8', 'replace')[:200]
+        except Exception:
+            pass
+        _record_breaker_failure(name)
+        return _result(False, 'http', http_status=e.code,
+                       error=f'HTTP {e.code} {e.reason}: {body}'[:200])
+    except Exception as e:
+        _rpm_record(name)
+        _record_breaker_failure(name)
+        msg = str(e)[:200]
+        # Try to pull HTTP status out of the exception text (Gemini SDK etc.)
+        http = None
+        for code in (400, 401, 403, 404, 408, 429, 500, 502, 503, 504):
+            if str(code) in msg:
+                http = code
+                break
+        return _result(False, 'exception', http_status=http,
+                       error=f'{type(e).__name__}: {msg}')
+
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Public API
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
