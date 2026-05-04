@@ -40,12 +40,21 @@ _daily_count_date = None
 _lock = threading.Lock()
 
 _get_secret_fn = None  # injected; falls back to gcloud subprocess
+_record_call_fn = None  # injected; called per-attempt for cross-app stats
 
 
-def init(get_secret_fn=None):
-    """Inject a Secret Manager fetcher. Optional — falls back to gcloud CLI."""
-    global _get_secret_fn
-    _get_secret_fn = get_secret_fn
+def init(get_secret_fn=None, record_call_fn=None):
+    """Inject a Secret Manager fetcher and an optional per-attempt callback.
+
+    record_call_fn(provider: str, ok: bool, latency_ms: int, error: str|None)
+    fires once per generation attempt — caller persists wherever it likes
+    (typically kumori_image_daily_caps + kumori_image_health_samples).
+    """
+    global _get_secret_fn, _record_call_fn
+    if get_secret_fn is not None:
+        _get_secret_fn = get_secret_fn
+    if record_call_fn is not None:
+        _record_call_fn = record_call_fn
 
 
 def _gcloud_secret(name: str, project: str = 'kumori-404602') -> str | None:
@@ -237,6 +246,11 @@ def generate_image(prompt: str, width: int = 512, height: int = 512,
             ms = int((time.time() - t0) * 1000)
             with _lock:
                 _record_attempt(name, ok=bool(img))
+            if _record_call_fn:
+                try:
+                    _record_call_fn(name, bool(img), ms, None if img else 'empty')
+                except Exception as _e:
+                    logger.debug(f'record_call_fn raised: {_e}')
             if img:
                 logger.info(f'imggen[priority]: {name} OK in {ms}ms ({len(img)}B)')
                 return img
@@ -266,9 +280,46 @@ def generate_image(prompt: str, width: int = 512, height: int = 512,
         ms = int((time.time() - t0) * 1000)
         with _lock:
             _record_attempt(name, ok=bool(img))
+        if _record_call_fn:
+            try:
+                _record_call_fn(name, bool(img), ms, None if img else 'empty')
+            except Exception as _e:
+                logger.debug(f'record_call_fn raised: {_e}')
         if img:
             logger.info(f'imggen[rr]: {name} OK in {ms}ms ({len(img)}B)')
             return img
         logger.warning(f'imggen[rr]: {name} failed after {ms}ms — trying next ready service')
     logger.error('imggen[rr]: every service failed')
     return None
+
+
+def list_providers() -> list[str]:
+    """Names of every configured image-gen provider."""
+    return list(_providers().keys())
+
+
+def probe_provider(name: str, prompt: str = 'a small red circle on white',
+                   width: int = 256, height: int = 256) -> dict:
+    """Probe a single provider with one tiny generation. Bypasses
+    availability gating (rate spacing, daily caps) — caller is responsible
+    for not over-probing. Returns:
+        {'provider': name, 'ok': bool, 'latency_ms': int,
+         'bytes': int|None, 'error': str|None}
+    """
+    cfg = _providers().get(name)
+    if not cfg or name not in _DISPATCH:
+        return {'provider': name, 'ok': False, 'latency_ms': 0,
+                'bytes': None, 'error': 'not in dispatch'}
+    t0 = time.time()
+    try:
+        img = _DISPATCH[name](name, cfg, prompt, width, height)
+        ms = int((time.time() - t0) * 1000)
+        if img:
+            return {'provider': name, 'ok': True, 'latency_ms': ms,
+                    'bytes': len(img), 'error': None}
+        return {'provider': name, 'ok': False, 'latency_ms': ms,
+                'bytes': None, 'error': 'empty response'}
+    except Exception as e:
+        return {'provider': name, 'ok': False,
+                'latency_ms': int((time.time() - t0) * 1000),
+                'bytes': None, 'error': type(e).__name__ + ': ' + str(e)[:180]}

@@ -347,6 +347,16 @@ def run_catalog_audit() -> dict:
         known_model_ids_per_provider.setdefault(r['provider'], set()).add(r['model_id'])
 
     for provider, catalog in catalogs.items():
+        # OpenRouter free-tier-only filter. The /v1/models catalog returns
+        # both free and paid SKUs. Paid SKUs return HTTP 402 from any
+        # account that hasn't purchased credits. kumori_FREE_llms is — by
+        # name and by hard rule — free-tier-only, so we only ever insert
+        # OpenRouter rows whose model_id ends in ':free'. Per OpenRouter's
+        # docs (openrouter.ai/docs/api/reference/limits): :free variants
+        # are 20 req/min and 50/day per account (1000/day if you've bought
+        # ≥$10 lifetime credits).
+        if provider == 'openrouter':
+            catalog = {m for m in catalog if m.endswith(':free')}
         known = known_model_ids_per_provider.get(provider, set())
         defaults = PROVIDER_DEFAULTS.get(provider, {'daily_limit': 50, 'rpm_spacing_sec': 5.0,
                                                      'tier': 3, 'shared_pool': None})
