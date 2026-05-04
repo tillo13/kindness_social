@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-04-29 04:00*
+*Last refreshed: 2026-05-04 04:07*
 
 ## 🎯 Pending
 
@@ -15,6 +15,8 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
+- `ea3cb40` · 2026-05-01 13:35 — sync kumori_free_llms.py from canonical infra — picks up circuit breaker (cooldown_until / consec...
+- `3f7cd6c` · 2026-04-29 23:18 — fix: db_cursor accepts commit kwarg so kumori_free_llms gating loads provider_limits
 - `68056be` · 2026-04-27 15:56 — thread depth cap v2: zero margin past depth 4 so deeply-nested chains stack vertically inside par...
 - `210ac12` · 2026-04-27 15:48 — thread template: cap visual indent compound at depth 4 (Reddit-style) — stops deeply-nested chain...
 - `cba3ece` · 2026-04-27 15:18 — fix simulator.run_thread threading: use same _pick_reply_target as responder so newly-generated t...
@@ -28,14 +30,14 @@
 - `34c073a` · 2026-04-27 13:33 — service lifecycle dashboard: add image gen probes alongside LLM lifecycle, link from Data dropdown
 - `1cf2425` · 2026-04-27 13:12 — wire avatar_generator to kumori_free_imggen — keyless Pollinations + Stable Horde first, Cloudfla...
 - `652086f` · 2026-04-27 12:34 — fix avatar gate (allow agents without avatars; was silently killing every new agent since 2026-04...
-- `279db2a` · 2026-04-27 12:00 — allow admin-key override on cron routes for ops/testing
-- `ecf8288` · 2026-04-27 11:50 — real smoke test: agent-spawn + comment on random thread; auto-set assign_new_agents=TRUE on activ...
 <!-- shipped:end -->
 
 ## ⚠️ Unfinished / WIP
 
 <!-- wip:start -->
-**1 file(s) with uncommitted changes:**
+**3 file(s) with uncommitted changes:**
 - ` M next_steps.md`
+- ` M utilities/backend_registry.py`
+- ` M utilities/kumori_free_llms.py`
 
 <!-- wip:end -->

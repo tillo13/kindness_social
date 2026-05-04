@@ -42,6 +42,10 @@
     {
       "src": "kumori_free_image_generations/adapters/horde.py",
       "dst": "utilities/adapters/horde.py"
+    },
+    {
+      "src": "kumori_free_image_describe/describe.py",
+      "dst": "utilities/kumori_free_describe.py"
     }
   ],
   "custom_domain": "https://kindness.social",

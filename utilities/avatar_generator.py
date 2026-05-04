@@ -23,6 +23,83 @@ REPLICATE_API = "https://api.replicate.com/v1"
 _api_token = None
 _gcs_client = None
 
+_image_stats_wired = False
+APP_NAME = 'kindness_social'
+
+
+def _record_image_call(provider: str, ok: bool, latency_ms: int,
+                       error: str | None, kind: str):
+    """DI callback for kumori_free_imggen + kumori_free_describe.
+    Writes successes to kumori_image_daily_caps and every attempt to
+    kumori_image_health_samples. Catches all errors — must never break gen."""
+    try:
+        from utilities.postgres_utils import get_db_connection
+        conn = get_db_connection()
+        cur = conn.cursor()
+        if ok:
+            cur.execute("""
+                INSERT INTO kumori_image_daily_caps
+                    (usage_date, provider, app_name, kind, call_count)
+                VALUES (CURRENT_DATE, %s, %s, %s, 1)
+                ON CONFLICT (usage_date, provider, app_name, kind)
+                DO UPDATE SET call_count = kumori_image_daily_caps.call_count + 1
+            """, (provider, APP_NAME, kind))
+        cur.execute("""
+            INSERT INTO kumori_image_health_samples
+                (provider, kind, status, latency_ms, error_excerpt, probe_source)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (provider, kind, 'ok' if ok else 'fail',
+              latency_ms, error, f'real_traffic:{APP_NAME}'))
+        conn.commit()
+        cur.close(); conn.close()
+    except Exception as e:
+        logger.debug(f'_record_image_call swallowed: {e}')
+
+
+def _ensure_image_stats_wired():
+    """Idempotently inject our DI callback into both image libs."""
+    global _image_stats_wired
+    if _image_stats_wired:
+        return
+    try:
+        from utilities import kumori_free_imggen
+        from utilities.google_secret_utils import get_secret as _gs
+        kumori_free_imggen.init(
+            get_secret_fn=_gs,
+            record_call_fn=lambda p, ok, ms, err: _record_image_call(p, ok, ms, err, 'gen'),
+        )
+    except Exception as e:
+        logger.warning(f'imggen wiring skipped: {e}')
+    try:
+        from utilities import kumori_free_describe
+        from utilities.google_secret_utils import get_secret as _gs
+        kumori_free_describe.init(
+            get_secret_fn=_gs,
+            record_call_fn=lambda p, ok, ms, err: _record_image_call(p, ok, ms, err, 'describe'),
+        )
+    except Exception as e:
+        logger.warning(f'describe wiring skipped: {e}')
+    _image_stats_wired = True
+
+
+def _async_describe(img_bytes: bytes, agent_id: str, mime: str = 'image/jpeg'):
+    """Fire-and-forget describe in a background thread. Never blocks caller."""
+    import threading
+
+    def _run():
+        try:
+            from utilities import kumori_free_describe
+            r = kumori_free_describe.describe_image(
+                img_bytes, mime=mime,
+                prompt='Describe this avatar in one short sentence.',
+            )
+            logger.info(f'avatar describe[{agent_id}]: '
+                        f'{r["backend"]}={r["text"][:80]}')
+        except Exception as e:
+            logger.warning(f'avatar describe[{agent_id}] failed: {e}')
+
+    threading.Thread(target=_run, daemon=True).start()
+
 
 def _is_appengine():
     return os.environ.get('GAE_ENV', '').startswith('standard')
@@ -206,12 +283,16 @@ def generate_avatar(agent, force=False):
         logger.error(f"kumori_free_imggen import failed: {e}")
         return None
 
+    # One-time DI: route gen + describe attempts to the shared image stats tables.
+    _ensure_image_stats_wired()
+
     img_bytes = kumori_free_imggen.generate_image(prompt, width=512, height=512)
     if not img_bytes:
         logger.warning(f"avatar_generator: no provider returned an image for {agent_id}")
         return None
 
     # Normalize to 256x256 JPEG (matches the old Replicate path's storage shape)
+    is_jpeg = False
     try:
         from PIL import Image
         from io import BytesIO
@@ -220,8 +301,15 @@ def generate_avatar(agent, force=False):
         buf = BytesIO()
         img.save(buf, 'JPEG', quality=80, optimize=True)
         img_bytes = buf.getvalue()
+        is_jpeg = True
     except Exception as e:
         logger.warning(f"avatar resize failed for {agent_id}, saving raw bytes: {e}")
+
+    # Free QA layer: fire-and-forget describe of the avatar we just made.
+    # Validates that (a) imggen returned coherent image bytes, (b) the
+    # describe pipeline still works. Results land in kumori_image_health_samples
+    # via the DI callback wired in _ensure_image_stats_wired().
+    _async_describe(img_bytes, agent_id, mime='image/jpeg' if is_jpeg else 'image/png')
 
     # Save locally if writable; always upload to GCS for App Engine + cross-instance use
     try:
