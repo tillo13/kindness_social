@@ -29,6 +29,8 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 
+from utilities.endpoint_parser import parse as _parse_endpoint, map_status as _map_status
+
 import psycopg2.extras
 
 from utilities.postgres_utils import db_cursor, get_secret
@@ -229,6 +231,104 @@ def _log_event(cur, backend, provider, model_id, event_type, reason=None, metada
           json.dumps(metadata) if metadata else None))
 
 
+# ---------------------------------------------------------------------------
+# Dual-write to kumori_llm_endpoints. Catalog audit is the testbed for the
+# new normalized schema (post migration 004). Each legacy write site below
+# also calls one of these so endpoints stays in parity with provider_limits.
+# ---------------------------------------------------------------------------
+
+def _endpoint_set_status(cur, backend: str, new_endpoint_status: str):
+    """Update an existing endpoint row's status. Stamps current_status_since
+    + retired_at/revived_at as appropriate. No-op if backend isn't in
+    endpoints yet (pre-cutover for un-backfilled rows)."""
+    try:
+        cur.execute("SELECT id, status FROM kumori_llm_endpoints WHERE backend=%s",
+                    (backend,))
+        r = cur.fetchone()
+        if not r:
+            return  # endpoint row missing — backfill not yet run for it
+        prev_status = r['status'] if isinstance(r, dict) else r[1]
+        endpoint_id = r['id'] if isinstance(r, dict) else r[0]
+        if prev_status == new_endpoint_status:
+            cur.execute("UPDATE kumori_llm_endpoints SET last_active_at=NOW() "
+                        "WHERE id=%s", (endpoint_id,))
+            return
+
+        # Status flipping
+        retired_clause = ', retired_at=NOW()' if new_endpoint_status == 'retired' else ''
+        revived_clause = ''
+        if prev_status == 'retired' and new_endpoint_status == 'active':
+            revived_clause = ', revived_at=NOW()'
+            new_endpoint_status = 'revived'
+        cur.execute(f"""
+            UPDATE kumori_llm_endpoints
+               SET status=%s, current_status_since=NOW(),
+                   last_active_at=NOW(), updated_at=NOW()
+                   {retired_clause}{revived_clause}
+             WHERE id=%s
+        """, (new_endpoint_status, endpoint_id))
+
+        # Event log
+        if new_endpoint_status == 'retired':
+            evt = 'endpoint_retired'
+        elif new_endpoint_status == 'revived':
+            evt = 'endpoint_revived'
+        else:
+            evt = 'endpoint_status_changed'
+        cur.execute("""
+            INSERT INTO kumori_llm_registry_events
+                (backend, event_type, reason, metadata, endpoint_id)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (backend, evt, f'{prev_status}->{new_endpoint_status}',
+              json.dumps({'from': prev_status, 'to': new_endpoint_status}),
+              endpoint_id))
+    except Exception as e:
+        logger.warning(f"endpoint dual-write skipped for {backend}: {e}")
+
+
+def _endpoint_upsert_new(cur, backend: str, route: str, model_id_at_route: str,
+                         legacy_status: str, daily_limit=None, rpm_spacing_sec=None,
+                         notes=None):
+    """Insert a newly-discovered endpoint. Parses the model_id to derive
+    (model_slug, family). Idempotent ON CONFLICT (backend) DO NOTHING so this
+    is safe to call from catalog-audit even if backfill already ran."""
+    try:
+        parsed = _parse_endpoint(route, model_id_at_route)
+        slug = parsed['model_slug']
+        family = parsed['family']
+        new_status = _map_status(legacy_status)
+
+        # Ensure model exists.
+        cur.execute("""
+            INSERT INTO kumori_models (slug, family, display_name, modality)
+            VALUES (%s, %s, %s, 'chat')
+            ON CONFLICT (slug) DO NOTHING
+        """, (slug, family, parsed['display_name']))
+
+        # Insert endpoint.
+        cur.execute("""
+            INSERT INTO kumori_llm_endpoints
+                (route, model, model_id_at_route, backend, status, enabled,
+                 daily_limit, rpm_spacing_sec, notes)
+            VALUES (%s, %s, %s, %s, %s, true, %s, %s, %s)
+            ON CONFLICT (backend) DO NOTHING
+            RETURNING id
+        """, (route, slug, model_id_at_route, backend, new_status,
+              daily_limit, rpm_spacing_sec, notes))
+        r = cur.fetchone()
+        if not r:
+            return  # Already existed; ON CONFLICT DO NOTHING.
+        endpoint_id = r['id'] if isinstance(r, dict) else r[0]
+        cur.execute("""
+            INSERT INTO kumori_llm_registry_events
+                (backend, provider, model_id, event_type, reason, endpoint_id)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (backend, route, model_id_at_route, 'endpoint_discovered',
+              f'auto-discovered as {new_status}', endpoint_id))
+    except Exception as e:
+        logger.warning(f"endpoint dual-write (new) skipped for {backend}: {e}")
+
+
 def run_catalog_audit() -> dict:
     """One end-to-end audit pass. Returns summary dict for the cron route."""
     summary = {
@@ -280,6 +380,7 @@ def run_catalog_audit() -> dict:
                 if in_cat:
                     cur.execute("UPDATE kumori_llm_provider_limits SET last_seen_at=%s WHERE backend=%s",
                                 (now, row['backend']))
+                    _endpoint_set_status(cur, row['backend'], 'active')
                     summary['confirmed_count'] += 1
                 else:
                     reason = f'not in {provider} catalog as of {now.date()}'
@@ -290,6 +391,7 @@ def run_catalog_audit() -> dict:
                          WHERE backend=%s
                     """, (now, reason, row['backend']))
                     _log_event(cur, row['backend'], provider, row['model_id'], 'retired', reason)
+                    _endpoint_set_status(cur, row['backend'], 'retired')
                     summary['newly_retired'].append({
                         'backend': row['backend'], 'provider': provider, 'model_id': row['model_id']
                     })
@@ -308,6 +410,7 @@ def run_catalog_audit() -> dict:
                     _log_event(cur, row['backend'], provider, row['model_id'], 'activated',
                                reason=f'smoke passed on attempt {attempts}: {detail}',
                                metadata=sm)
+                    _endpoint_set_status(cur, row['backend'], 'active')
                     summary['newly_activated'].append({
                         'backend': row['backend'], 'provider': provider, 'model_id': row['model_id'],
                         **sm,
@@ -322,6 +425,7 @@ def run_catalog_audit() -> dict:
                           row['backend']))
                     _log_event(cur, row['backend'], provider, row['model_id'], 'retired_failed_smoke',
                                reason=detail[:300])
+                    _endpoint_set_status(cur, row['backend'], 'retired')
                     summary['gave_up'].append({
                         'backend': row['backend'], 'provider': provider, 'model_id': row['model_id'],
                         'last_error': detail[:200],
@@ -396,6 +500,11 @@ def run_catalog_audit() -> dict:
                           f'auto-discovered by catalog audit (provider canonical_status={provider_canonical_status.get(provider, "missing")})'))
                     _log_event(cur, new_backend, provider, model_id, 'discovered',
                                reason=f'auto-inserted as {initial_status}')
+                    _endpoint_upsert_new(cur, new_backend, provider, model_id,
+                                         initial_status,
+                                         daily_limit=defaults['daily_limit'],
+                                         rpm_spacing_sec=defaults['rpm_spacing_sec'],
+                                         notes=f'auto-discovered (provider canonical_status={provider_canonical_status.get(provider, "missing")})')
                 except Exception as e:
                     logger.warning(f"failed to insert discovered {new_backend}: {e}")
                     continue
@@ -411,6 +520,7 @@ def run_catalog_audit() -> dict:
                     """, (now, new_backend))
                     _log_event(cur, new_backend, provider, model_id, 'activated',
                                reason=f'smoke passed: {detail}', metadata=sm)
+                    _endpoint_set_status(cur, new_backend, 'active')
                     summary['newly_activated'].append({
                         'backend': new_backend, 'provider': provider, 'model_id': model_id,
                         **sm,

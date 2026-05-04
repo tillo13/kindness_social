@@ -212,13 +212,21 @@ def _is_in_cooldown(backend_name):
         if backend_name in _provider_limits:
             _provider_limits[backend_name]['cooldown_until_ts'] = 0
             _provider_limits[backend_name]['consecutive_failures'] = 0
-    # Best-effort persist to DB
+    # Best-effort persist to DB. Dual-write to kumori_llm_endpoints
+    # (post migration 004 — endpoints is the new source of truth, but we keep
+    # writing to provider_limits during the verification window).
     if _db_cursor_fn:
         try:
             with _db_cursor_fn(dict_cursor=False, commit=True) as cur:
                 cur.execute("""
                     UPDATE kumori_llm_provider_limits
                     SET cooldown_until = NULL, consecutive_failures = 0
+                    WHERE backend = %s
+                """, (backend_name,))
+                cur.execute("""
+                    UPDATE kumori_llm_endpoints
+                    SET cooldown_until = NULL, consecutive_failures = 0,
+                        updated_at = NOW()
                     WHERE backend = %s
                 """, (backend_name,))
         except Exception:
@@ -239,6 +247,12 @@ def _record_breaker_success(backend_name):
                         cur.execute("""
                             UPDATE kumori_llm_provider_limits
                             SET consecutive_failures = 0, cooldown_until = NULL
+                            WHERE backend = %s
+                        """, (backend_name,))
+                        cur.execute("""
+                            UPDATE kumori_llm_endpoints
+                            SET consecutive_failures = 0, cooldown_until = NULL,
+                                last_active_at = NOW(), updated_at = NOW()
                             WHERE backend = %s
                         """, (backend_name,))
                 except Exception:
@@ -268,6 +282,13 @@ def _record_breaker_failure(backend_name):
                             UPDATE kumori_llm_provider_limits
                             SET cooldown_until = NOW() + (%s || ' seconds')::interval,
                                 consecutive_failures = %s
+                            WHERE backend = %s
+                        """, (cooldown_secs, s['consecutive_failures'], backend_name))
+                        cur.execute("""
+                            UPDATE kumori_llm_endpoints
+                            SET cooldown_until = NOW() + (%s || ' seconds')::interval,
+                                consecutive_failures = %s,
+                                updated_at = NOW()
                             WHERE backend = %s
                         """, (cooldown_secs, s['consecutive_failures'], backend_name))
                 except Exception:
@@ -316,6 +337,11 @@ def _safe_lifetime_increment(backend_name):
         with _db_cursor_fn(dict_cursor=False, commit=True) as cur:
             cur.execute("""
                 UPDATE kumori_llm_provider_limits
+                SET lifetime_used = lifetime_used + 1, updated_at = NOW()
+                WHERE backend = %s
+            """, (backend_name,))
+            cur.execute("""
+                UPDATE kumori_llm_endpoints
                 SET lifetime_used = lifetime_used + 1, updated_at = NOW()
                 WHERE backend = %s
             """, (backend_name,))
