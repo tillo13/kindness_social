@@ -41,8 +41,22 @@
   <details class="lc-card" open>
     <summary class="lc-h">🌐 Modality Lanes <span class="lc-pill">{{ ec.totals.endpoints }} endpoints · {{ ec.totals.modalities }} modalities</span>
       <span class="muted">— catalog inclusion across all free-AI shapes we witness, by lifecycle status</span></summary>
-    <table class="lc">
-      <tr><th>modality</th><th>total</th><th style="color:#059669">active</th><th style="color:#a16207">probationary</th><th>revived</th><th>discovered</th><th style="color:#d97706">flaky</th><th>paused</th><th>retired</th></tr>
+    <div style="margin-bottom:8px;font-size:11px;">
+      <label style="cursor:pointer;user-select:none;color:#6b7280;">
+        <input type="checkbox" id="show-retired-toggle" style="vertical-align:middle;margin-right:4px;">
+        show retired column
+      </label>
+    </div>
+    <table class="lc" id="modality-grid">
+      <tr>
+        <th>modality</th><th>total</th>
+        <th style="color:#059669">active</th>
+        <th style="color:#a16207">probationary</th>
+        <th>revived</th><th>discovered</th>
+        <th style="color:#d97706">flaky</th>
+        <th>paused</th>
+        <th class="retired-col" style="display:none;">retired</th>
+      </tr>
       {% for r in ec.modality_grid %}
       <tr>
         <td><b>{{ r.emoji }} {{ r.modality }}</b></td>
@@ -53,11 +67,22 @@
         <td>{{ r.discovered }}</td>
         <td style="color:#d97706">{{ r.flaky }}</td>
         <td>{{ r.paused }}</td>
-        <td>{{ r.retired }}</td>
+        <td class="retired-col" style="display:none;">{{ r.retired }}</td>
       </tr>
       {% endfor %}
     </table>
-    <div class="muted" style="margin-top:8px;">paused / flaky = not routing right now, NOT given up. retired = upstream-confirmed dead (human-only, never auto).</div>
+    <div class="muted" style="margin-top:8px;">paused / flaky = not routing right now, NOT given up. retired = upstream-confirmed dead (human-only, never auto). Total retired across catalog: <b>{{ ec.modality_grid|sum(attribute='retired') }}</b> (hidden by default).</div>
+    <script>
+      (function() {
+        var t = document.getElementById('show-retired-toggle');
+        if (!t) return;
+        t.addEventListener('change', function() {
+          document.querySelectorAll('.retired-col').forEach(function(el) {
+            el.style.display = t.checked ? '' : 'none';
+          });
+        });
+      })();
+    </script>
   </details>
   {% endif %}
 
