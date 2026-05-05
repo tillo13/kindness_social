@@ -873,17 +873,22 @@ def init_tables():
     return jsonify({'status': 'tables created'})
 
 
-@bp.route('/llm-lifecycle')          # public canonical URL
+@bp.route('/llm-lifecycle')          # public canonical URL — intentional open surface
 @bp.route('/admin/llm-lifecycle')    # legacy URL kept so old links don't 404
 def admin_llm_lifecycle():
     """Read-only dashboard of LLM + image-gen service lifecycle.
 
-    Shows current state (active / probationary / retired / failed-smoke),
-    a monthly chart of activations vs retirements from the events log, and
-    live image-gen provider health probes.
+    Shows the new endpoint-lifecycle ladder (discovered → probationary →
+    active → flaky → paused → retired/revived) backed by kumori_llm_endpoints,
+    plus the legacy provider_limits view for backward compat, plus the
+    multi-modality lanes (chat / embedding / rerank / ocr / etc), the
+    investigation queue (graduation candidates + scout finds), and a
+    monthly chart of activations vs retirements.
 
-    Public — no auth. Pure DB read + cached HTTP probes; no secrets shown,
-    no money spent loading the page.
+    Public — pure DB read + cached HTTP probes; no secrets shown, no money
+    spent loading the page. kindness_social is the canary in the open;
+    showing the world what's free + what just graduated is part of the
+    project's openness story (per Andy 2026-05-05).
     """
 
     from utilities.postgres_utils import db_cursor
@@ -955,6 +960,12 @@ def admin_llm_lifecycle():
     # they go down, get rate-limited, get deprecated. We just have many fewer.
     imggen_services = _imggen_health_snapshot()
 
+    # Endpoint-lifecycle ladder data (kumori_llm_endpoints — the new source
+    # of truth post 2026-05-05 lifecycle plan). Modality lanes, investigation
+    # queue, scout candidates, trajectory — all the data the daily digest
+    # has, surfaced live.
+    endpoint_lifecycle = _endpoint_lifecycle_snapshot()
+
     return render_template(
         'llm_lifecycle.html',
         admin_key=request.headers.get('X-Admin-Key') or request.args.get('key', ''),
@@ -962,7 +973,194 @@ def admin_llm_lifecycle():
         chart_buckets=chart_buckets,
         recent_events=recent_events,
         imggen_services=imggen_services,
+        endpoint_lifecycle=endpoint_lifecycle,
     )
+
+
+def _endpoint_lifecycle_snapshot():
+    """Pull live lifecycle ladder data from kumori_llm_endpoints + joined
+    catalog tables. Cached 60s via module-level dict. Returns a dict with:
+      - modality_grid: [{modality, total, active, probationary, ...}]
+      - graduation_candidates: probationary endpoints close to active
+      - scout_candidates: route_candidate/model_candidate events from last 7d
+      - trajectory: per-provider net change over 30d
+      - recent_promotions: endpoint_status_changed events from last 7d
+    """
+    import time
+    if (time.time() - _endpoint_lc_cache['when'] < 60
+            and _endpoint_lc_cache['data']):
+        return _endpoint_lc_cache['data']
+
+    from utilities.postgres_utils import db_cursor
+    out = {'modality_grid': [], 'graduation_candidates': [],
+           'scout_candidates': [], 'trajectory': [], 'recent_promotions': [],
+           'totals': {}}
+
+    EMOJI = {'chat': '🤖', 'embedding': '🔢', 'rerank': '🔍',
+             'image-gen': '🎨', 'image-edit': '✏️', 'image-describe': '📷',
+             'ocr': '📄', 'transcribe': '🎙', 'tts': '🔊', 'audio-gen': '🎵',
+             'audio': '🎵', 'video-gen': '🎬', 'video-describe': '📹',
+             'agent': '🤝', 'multimodal': '🧬', 'unknown': '❓'}
+
+    try:
+        with db_cursor(dict_cursor=True) as cur:
+            # ── Modality × status grid ──────────────────────────────────
+            cur.execute("""
+                SELECT COALESCE(m.modality, 'chat') AS modality,
+                       e.status, COUNT(*) AS n
+                  FROM kumori_llm_endpoints e
+                  LEFT JOIN kumori_models m ON m.slug = e.model
+                 WHERE e.enabled = true
+                 GROUP BY COALESCE(m.modality, 'chat'), e.status
+            """)
+            grid = {}
+            totals = {}
+            for r in cur.fetchall():
+                grid.setdefault(r['modality'], {})[r['status']] = r['n']
+                totals[r['modality']] = totals.get(r['modality'], 0) + r['n']
+            ordered = ['chat'] + [m for m, _ in sorted(totals.items(),
+                                                         key=lambda kv: -kv[1])
+                                  if m != 'chat']
+            for mod in ordered:
+                if mod not in totals:
+                    continue
+                g = grid.get(mod, {})
+                out['modality_grid'].append({
+                    'modality': mod, 'emoji': EMOJI.get(mod, '·'),
+                    'total': totals[mod],
+                    'active': g.get('active', 0),
+                    'probationary': g.get('probationary', 0),
+                    'discovered': g.get('discovered', 0),
+                    'revived': g.get('revived', 0),
+                    'flaky': g.get('flaky', 0),
+                    'paused': g.get('paused', 0),
+                    'retired': g.get('retired', 0),
+                })
+            out['totals'] = {
+                'endpoints': sum(totals.values()),
+                'modalities': len(totals),
+            }
+
+            # ── Graduation candidates ───────────────────────────────────
+            cur.execute("""
+                SELECT e.backend, e.route, e.model, e.status,
+                       e.consecutive_probe_passes, e.consecutive_failures,
+                       COALESCE(m.modality, 'chat') AS modality,
+                       e.last_validated_at, e.last_real_traffic_at,
+                       e.last_validation_error,
+                       EXTRACT(EPOCH FROM (NOW() - e.discovered_at))/86400
+                         AS age_days
+                  FROM kumori_llm_endpoints e
+                  LEFT JOIN kumori_models m ON m.slug = e.model
+                 WHERE e.enabled = true
+                   AND (
+                     (e.status = 'probationary'
+                       AND COALESCE(e.consecutive_probe_passes,0) >= 3)
+                     OR e.status = 'discovered'
+                     OR (e.status = 'active'
+                          AND COALESCE(e.consecutive_failures,0) >= 5)
+                   )
+                 ORDER BY e.consecutive_probe_passes DESC NULLS LAST,
+                          e.discovered_at DESC
+                 LIMIT 50
+            """)
+            for r in cur.fetchall():
+                row = dict(r)
+                row['emoji'] = EMOJI.get(row['modality'], '·')
+                cp = row.get('consecutive_probe_passes') or 0
+                if row['status'] == 'probationary' and cp >= 3:
+                    row['note'] = f"{max(0, 5 - cp)} more pass(es) → active"
+                elif row['status'] == 'discovered':
+                    row['note'] = "awaiting first canary probe"
+                elif (row.get('consecutive_failures') or 0) >= 5:
+                    row['note'] = (f"{row['consecutive_failures']} consecutive "
+                                    f"fails — close to flaky")
+                else:
+                    row['note'] = ''
+                out['graduation_candidates'].append(row)
+
+            # ── Scout candidates from last 7 days ───────────────────────
+            cur.execute("""
+                SELECT backend, provider, reason, metadata, occurred_at
+                  FROM kumori_llm_registry_events
+                 WHERE event_type IN ('route_candidate', 'model_candidate')
+                   AND occurred_at > NOW() - INTERVAL '7 days'
+                 ORDER BY occurred_at DESC
+                 LIMIT 30
+            """)
+            for r in cur.fetchall():
+                md = r['metadata'] or {}
+                out['scout_candidates'].append({
+                    'backend': r['backend'],
+                    'provider': r['provider'],
+                    'name': md.get('name', ''),
+                    'context_length': md.get('context_length'),
+                    'occurred_at': r['occurred_at'],
+                })
+
+            # ── Recent promotions/demotions (last 7d) ───────────────────
+            cur.execute("""
+                SELECT backend, provider, reason, metadata, occurred_at
+                  FROM kumori_llm_registry_events
+                 WHERE event_type = 'endpoint_status_changed'
+                   AND occurred_at > NOW() - INTERVAL '7 days'
+                 ORDER BY occurred_at DESC
+                 LIMIT 30
+            """)
+            for r in cur.fetchall():
+                md = r['metadata'] or {}
+                out['recent_promotions'].append({
+                    'backend': r['backend'],
+                    'route': r['provider'],
+                    'from': md.get('from', ''),
+                    'to': md.get('to', ''),
+                    'reason': r['reason'],
+                    'occurred_at': r['occurred_at'],
+                })
+
+            # ── Trajectory (per-route net change over 30d) ──────────────
+            cur.execute("""
+                SELECT e.route,
+                       COUNT(*) FILTER (
+                         WHERE e.discovered_at > NOW() - INTERVAL '30 days') AS added_30d,
+                       COUNT(*) FILTER (
+                         WHERE e.current_status_since > NOW() - INTERVAL '30 days'
+                           AND e.status IN ('paused','retired')) AS lost_30d,
+                       COUNT(*) AS total_now
+                  FROM kumori_llm_endpoints e
+                 WHERE e.enabled = true OR e.status IN ('paused','retired')
+                 GROUP BY e.route
+                HAVING COUNT(*) FILTER (
+                         WHERE e.discovered_at > NOW() - INTERVAL '30 days') > 0
+                    OR COUNT(*) FILTER (
+                         WHERE e.current_status_since > NOW() - INTERVAL '30 days'
+                           AND e.status IN ('paused','retired')) > 0
+                 ORDER BY (
+                   COUNT(*) FILTER (WHERE e.discovered_at > NOW() - INTERVAL '30 days')
+                   - COUNT(*) FILTER (WHERE e.current_status_since > NOW() - INTERVAL '30 days'
+                                         AND e.status IN ('paused','retired'))
+                 ) DESC
+            """)
+            for r in cur.fetchall():
+                added = int(r['added_30d'] or 0)
+                lost = int(r['lost_30d'] or 0)
+                net = added - lost
+                out['trajectory'].append({
+                    'route': r['route'],
+                    'added_30d': added,
+                    'lost_30d': lost,
+                    'net': net,
+                    'total_now': int(r['total_now']),
+                    'arrow': '🟢 ↑' if net > 0 else ('🔴 ↓' if net < 0 else '⚪ →'),
+                })
+    except Exception as e:
+        logger.warning(f"endpoint_lifecycle_snapshot failed: {e}")
+
+    _endpoint_lc_cache.update({'when': time.time(), 'data': out})
+    return out
+
+
+_endpoint_lc_cache = {'when': 0, 'data': None}
 
 
 # Module-level caches so repeated dashboard loads don't re-query/re-probe

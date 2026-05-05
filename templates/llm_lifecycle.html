@@ -36,6 +36,110 @@
     <span class="lc-pill">LLMs: {{ state.active|length }} active · {{ state.probationary|length }} probationary · {{ state.retired|length + state.retired_failed_smoke|length }} retired · ImgGen: {{ imggen_services|length }}</span>
   </div>
 
+  {% set ec = endpoint_lifecycle %}
+  {% if ec and ec.modality_grid %}
+  <details class="lc-card" open>
+    <summary class="lc-h">🌐 Modality Lanes <span class="lc-pill">{{ ec.totals.endpoints }} endpoints · {{ ec.totals.modalities }} modalities</span>
+      <span class="muted">— catalog inclusion across all free-AI shapes we witness, by lifecycle status</span></summary>
+    <table class="lc">
+      <tr><th>modality</th><th>total</th><th style="color:#059669">active</th><th style="color:#a16207">probationary</th><th>revived</th><th>discovered</th><th style="color:#d97706">flaky</th><th>paused</th><th>retired</th></tr>
+      {% for r in ec.modality_grid %}
+      <tr>
+        <td><b>{{ r.emoji }} {{ r.modality }}</b></td>
+        <td>{{ r.total }}</td>
+        <td style="color:#059669">{{ r.active }}</td>
+        <td style="color:#a16207">{{ r.probationary }}</td>
+        <td>{{ r.revived }}</td>
+        <td>{{ r.discovered }}</td>
+        <td style="color:#d97706">{{ r.flaky }}</td>
+        <td>{{ r.paused }}</td>
+        <td>{{ r.retired }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    <div class="muted" style="margin-top:8px;">paused / flaky = not routing right now, NOT given up. retired = upstream-confirmed dead (human-only, never auto).</div>
+  </details>
+  {% endif %}
+
+  {% if ec and ec.graduation_candidates %}
+  <details class="lc-card" open>
+    <summary class="lc-h">🔬 Investigation Queue <span class="lc-pill">{{ ec.graduation_candidates|length }}</span>
+      <span class="muted">— probationary close to graduation, freshly discovered, drifting toward flaky</span></summary>
+    <table class="lc">
+      <tr><th>backend</th><th>modality</th><th>status</th><th>pass streak</th><th>fail streak</th><th>age</th><th>note</th></tr>
+      {% for r in ec.graduation_candidates %}
+      <tr>
+        <td><code>{{ r.backend }}</code></td>
+        <td>{{ r.emoji }} {{ r.modality }}</td>
+        <td>{{ r.status }}</td>
+        <td>{{ r.consecutive_probe_passes or 0 }}</td>
+        <td>{{ r.consecutive_failures or 0 }}</td>
+        <td>{{ (r.age_days or 0)|int }}d</td>
+        <td class="muted">{{ r.note }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </details>
+  {% endif %}
+
+  {% if ec and ec.recent_promotions %}
+  <details class="lc-card" open>
+    <summary class="lc-h">🎓 Recent Lifecycle Transitions <span class="lc-pill">{{ ec.recent_promotions|length }} in 7d</span>
+      <span class="muted">— autonomous status flips by the lifecycle ladder (no human in the loop)</span></summary>
+    <table class="lc">
+      <tr><th>when</th><th>backend</th><th>route</th><th>from → to</th><th>reason</th></tr>
+      {% for r in ec.recent_promotions %}
+      <tr>
+        <td class="muted">{{ r.occurred_at.strftime('%m-%d %H:%M') }}</td>
+        <td><code>{{ r.backend }}</code></td>
+        <td>{{ r.route }}</td>
+        <td><b>{{ r['from'] }}</b> → <span style="color:#059669;">{{ r['to'] }}</span></td>
+        <td class="muted">{{ r.reason }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </details>
+  {% endif %}
+
+  {% if ec and ec.scout_candidates %}
+  <details class="lc-card" open>
+    <summary class="lc-h">🔭 Discovery Scout Finds <span class="lc-pill">{{ ec.scout_candidates|length }} in 7d</span>
+      <span class="muted">— free-tier endpoints found in the wild that aren't in the catalog yet (human review required to add)</span></summary>
+    <table class="lc">
+      <tr><th>candidate</th><th>via</th><th>name</th><th>context</th><th>found</th></tr>
+      {% for r in ec.scout_candidates %}
+      <tr>
+        <td><code>{{ r.backend }}</code></td>
+        <td>{{ r.provider }}</td>
+        <td>{{ r.name }}</td>
+        <td>{% if r.context_length %}{{ '{:,}'.format(r.context_length|int) }}{% else %}—{% endif %}</td>
+        <td class="muted">{{ r.occurred_at.strftime('%m-%d %H:%M') }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </details>
+  {% endif %}
+
+  {% if ec and ec.trajectory %}
+  <details class="lc-card" open>
+    <summary class="lc-h">📈 Free-Tier Trajectory (30d) <span class="lc-pill">{{ ec.trajectory|length }} routes moving</span>
+      <span class="muted">— per-provider expansion / contraction. Cohere gutted their free tier; mistral keeps adding. The story.</span></summary>
+    <table class="lc">
+      <tr><th>provider</th><th style="color:#059669">+ added 30d</th><th style="color:#dc2626">− paused/retired 30d</th><th>net</th><th>now</th><th>direction</th></tr>
+      {% for r in ec.trajectory %}
+      <tr>
+        <td><b>{{ r.route }}</b></td>
+        <td style="color:#059669">+{{ r.added_30d }}</td>
+        <td style="color:#dc2626">−{{ r.lost_30d }}</td>
+        <td>{{ '%+d'|format(r.net) }}</td>
+        <td>{{ r.total_now }}</td>
+        <td>{{ r.arrow }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </details>
+  {% endif %}
+
   <details class="lc-card" open>
     <summary class="lc-h">🖼️  Image Generation Services <span class="lc-pill">{{ imggen_services|length }}</span>
       <span class="muted">— live-probed on dashboard load (cached 5 min). When a free service breaks or rate-limits us, it shows up here so we know to swap it out.</span></summary>
