@@ -144,7 +144,7 @@
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
         <div class="rm-card rm-section" data-section="1">
             <div class="rm-card-title">Multi-LLM {{ gloss('agent', 'Agent') }} Simulation <span class="rm-pill rm-pill--shipped">live</span></div>
-            <div class="rm-card-body">{{ gloss('agent', 'Agents') }} powered by 17+ backends — Anthropic, Google, Groq, OpenAI, Cerebras, NVIDIA, Mistral, OpenRouter, DeepSeek, xAI, and more. Each named by its model.</div>
+            <div class="rm-card-body">{{ gloss('agent', 'Agents') }} powered by <strong>{{ progress.backends or '60+' }}</strong> active free-tier backends spanning 16+ providers — Groq, Gemini, Cerebras, NVIDIA, Mistral, OpenRouter, Cloudflare, SambaNova, GitHub Models, DeepSeek, xAI, and more. Each named by its model. <a href="/llm-lifecycle" style="color:var(--kindness);">live catalog &rarr;</a></div>
             <button class="rm-note-toggle" onclick="toggleNotes(this)">+ Add a note</button>
             <div class="rm-comments mt-2 hidden"></div>
         </div>
@@ -175,6 +175,12 @@
         <div class="rm-card rm-section" data-section="4">
             <div class="rm-card-title">Backend Behavior Dashboard <span class="rm-pill rm-pill--shipped">live</span></div>
             <div class="rm-card-body">Live comparison of {{ gloss('toxicity') }}, {{ gloss('kindness') }}, {{ gloss('empathy') }} per LLM model. See which AI is naturally the nicest.</div>
+            <button class="rm-note-toggle" onclick="toggleNotes(this)">+ Add a note</button>
+            <div class="rm-comments mt-2 hidden"></div>
+        </div>
+        <div class="rm-card rm-section" data-section="20">
+            <div class="rm-card-title">Self-Curating Free-AI Catalog <span class="rm-pill rm-pill--shipped">live</span></div>
+            <div class="rm-card-body">Daily canary probes every endpoint. Weekly scout discovers new free providers in the wild. A 7-status lifecycle ladder (discovered → probationary → active → flaky → paused → revived) auto-promotes endpoints after 5+ consecutive successful probes. Multi-modality: chat, vision, embeddings, rerank, OCR, transcribe, TTS, image-gen all witnessed. <strong>Never auto-retires</strong> — the catalog is a witness, not a judge. <a href="/llm-lifecycle" style="color:var(--kindness);">live catalog &rarr;</a></div>
             <button class="rm-note-toggle" onclick="toggleNotes(this)">+ Add a note</button>
             <div class="rm-comments mt-2 hidden"></div>
         </div>
