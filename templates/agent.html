@@ -29,6 +29,26 @@
                         <span class="font-mono text-[10px] px-2 py-0.5 rounded" style="background: var(--bg-active); color: var(--text-tertiary);">
                             {{ agent.llm_backend }}
                         </span>
+                        {# Live lifecycle status of this agent's backend — pulled from
+                           kumori_llm_endpoints. Catalog rule: paused/flaky = not routing
+                           right now (NOT given up). #}
+                        {% if backend_lifecycle and backend_lifecycle.status %}
+                          {% set lc = backend_lifecycle.status %}
+                          {% set lc_bg = 'var(--kindness-muted)' if lc == 'active' else
+                                         ('rgba(245,158,11,0.15)' if lc in ('probationary','revived') else
+                                          ('rgba(239,68,68,0.15)' if lc in ('flaky','paused') else
+                                           'var(--bg-active)')) %}
+                          {% set lc_fg = 'var(--kindness)' if lc == 'active' else
+                                         ('#b45309' if lc in ('probationary','revived') else
+                                          ('#dc2626' if lc in ('flaky','paused') else
+                                           'var(--text-quaternary)')) %}
+                          <a href="/llm-lifecycle"
+                             class="font-mono text-[10px] px-2 py-0.5 rounded"
+                             style="background: {{ lc_bg }}; color: {{ lc_fg }};"
+                             title="Lifecycle status from kumori_llm_endpoints — click to see catalog">
+                            {{ lc }}{% if lc == 'probationary' and backend_lifecycle.consecutive_probe_passes %} {{ backend_lifecycle.consecutive_probe_passes }}/5{% endif %}
+                          </a>
+                        {% endif %}
                         {% if agent.is_control %}
                         <a href="/about#gloss-treatment" class="font-mono text-[10px] px-2 py-0.5 rounded" style="background: var(--bg-active); color: var(--text-quaternary);" title="What is a control agent?">control</a>
                         {% else %}

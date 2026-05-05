@@ -43,7 +43,12 @@ def get_reaction_stats():
 
 
 def get_backend_health():
-    """Per-backend stats for dashboard. Single query."""
+    """Per-backend stats for dashboard. Single query.
+
+    Joins kumori_llm_endpoints (lifecycle status — active/probationary/flaky/
+    paused/etc) + kumori_models.modality so the dashboard surfaces "this
+    agent is on a probationary backend" in addition to real-traffic telemetry.
+    """
     with db_cursor(dict_cursor=True) as cur:
         cur.execute("""
             SELECT a.llm_backend,
@@ -51,7 +56,12 @@ def get_backend_health():
                    COUNT(CASE WHEN a.total_interactions > 0 THEN 1 END) as agents_spoken,
                    COALESCE(tel.total_calls, 0) as total_calls,
                    COALESCE(tel.success_rate, 0) as success_rate,
-                   COALESCE(tel.avg_ms, 0) as avg_ms
+                   COALESCE(tel.avg_ms, 0) as avg_ms,
+                   ep.status               as lifecycle_status,
+                   ep.consecutive_probe_passes,
+                   ep.consecutive_failures,
+                   ep.last_real_traffic_at,
+                   COALESCE(m.modality, 'chat') as modality
             FROM kindness_agents a
             LEFT JOIN LATERAL (
                 SELECT COUNT(*) as total_calls,
@@ -61,11 +71,37 @@ def get_backend_health():
                 WHERE backend = a.llm_backend
                   AND created_at > NOW() - INTERVAL '24 hours'
             ) tel ON TRUE
+            LEFT JOIN kumori_llm_endpoints ep ON ep.backend = a.llm_backend
+            LEFT JOIN kumori_models m ON m.slug = ep.model
             WHERE a.is_active = TRUE
-            GROUP BY a.llm_backend, tel.total_calls, tel.success_rate, tel.avg_ms
+            GROUP BY a.llm_backend, tel.total_calls, tel.success_rate, tel.avg_ms,
+                     ep.status, ep.consecutive_probe_passes, ep.consecutive_failures,
+                     ep.last_real_traffic_at, m.modality
             ORDER BY COUNT(*) DESC
         """)
         return [dict(r) for r in cur.fetchall()]
+
+
+def get_backend_lifecycle(backend_name):
+    """Get lifecycle status + modality for ONE backend. Used by /agent/<id>
+    pages to surface "this agent's LLM is currently active/flaky/etc."
+
+    Returns None if the backend isn't in kumori_llm_endpoints (worker-only
+    backends, etc). Caller should treat None as 'no lifecycle info'.
+    """
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("""
+            SELECT ep.status, ep.consecutive_probe_passes, ep.consecutive_failures,
+                   ep.last_real_traffic_at, ep.last_validation_pass,
+                   ep.last_validated_at, ep.cooldown_until,
+                   COALESCE(m.modality, 'chat') AS modality
+              FROM kumori_llm_endpoints ep
+              LEFT JOIN kumori_models m ON m.slug = ep.model
+             WHERE ep.backend = %s
+             LIMIT 1
+        """, (backend_name,))
+        row = cur.fetchone()
+        return dict(row) if row else None
 
 
 def get_roadmap_comments():

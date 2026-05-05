@@ -768,8 +768,18 @@ def view_agent(agent_id):
     from core.reflector import get_agent_reflections
     reflections = get_agent_reflections(agent['id'], limit=10)
     family = db_ops.get_agent_family(agent['id'])
+    # Live lifecycle status of the agent's backend — surfaces "this agent's
+    # LLM is currently flaky / paused / probationary" so users see whether
+    # their favorite agent is on a degraded backend right now.
+    backend_lifecycle = None
+    if agent.get('llm_backend'):
+        try:
+            backend_lifecycle = db_ops.get_backend_lifecycle(agent['llm_backend'])
+        except Exception:
+            pass  # never let a missing lifecycle row break the agent page
     return render_template('agent.html', agent=agent, activity=activity,
-                           evolution=evolution, reflections=reflections, family=family)
+                           evolution=evolution, reflections=reflections, family=family,
+                           backend_lifecycle=backend_lifecycle)
 
 
 # ============================================================================

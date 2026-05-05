@@ -14,6 +14,71 @@
         <div id="status-content" class="text-sm" style="color: var(--text-secondary);">Loading...</div>
     </div>
 
+    {# Backend Lifecycle table — server-rendered from kumori_llm_endpoints +
+       kumori_models. Shows the new 7-status world (active/probationary/flaky/
+       paused/etc) + modality + canary signal so admin sees the live ladder
+       state without bouncing to /llm-lifecycle. #}
+    {% if backends_enriched %}
+    <details class="k-card-flat p-5 mb-6" open>
+        <summary class="k-section-title" style="cursor:pointer;list-style:none;">Backends · Lifecycle &amp; Modality
+            <span class="font-mono text-[10px] ml-2" style="color: var(--text-quaternary);">{{ backends_enriched|length }} backends · live from kumori_llm_endpoints</span>
+        </summary>
+        <div style="overflow-x:auto;margin-top:10px;">
+        <table class="w-full text-xs font-mono" style="border-collapse:collapse;">
+            <thead>
+                <tr style="border-bottom:1px solid var(--border-subtle);color:var(--text-quaternary);text-align:left;">
+                    <th class="py-2 px-2">backend</th>
+                    <th class="py-2 px-2">status</th>
+                    <th class="py-2 px-2">modality</th>
+                    <th class="py-2 px-2">last canary</th>
+                    <th class="py-2 px-2">pass streak</th>
+                    <th class="py-2 px-2">fail streak</th>
+                    <th class="py-2 px-2">last real traffic</th>
+                    <th class="py-2 px-2">test</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for b in backends_enriched %}
+                {% set lc = b.status or 'unknown' %}
+                {% set lc_color = '#059669' if lc == 'active' else
+                                 ('#b45309' if lc in ('probationary','revived','discovered') else
+                                  ('#dc2626' if lc in ('flaky','paused','retired') else
+                                   'var(--text-quaternary)')) %}
+                <tr style="border-bottom:1px solid var(--border-subtle);">
+                    <td class="py-2 px-2" style="color:var(--text-secondary);">{{ b.name }}</td>
+                    <td class="py-2 px-2" style="color:{{ lc_color }};font-weight:600;text-transform:uppercase;font-size:10px;">{{ lc }}</td>
+                    <td class="py-2 px-2" style="color:var(--text-tertiary);">{{ b.modality }}</td>
+                    <td class="py-2 px-2" style="color:{% if b.last_validation_pass %}#059669{% elif b.last_validation_pass == False %}#dc2626{% else %}var(--text-quaternary){% endif %};">
+                        {% if b.last_validation_pass == True %}✓{% elif b.last_validation_pass == False %}✗{% else %}—{% endif %}
+                    </td>
+                    <td class="py-2 px-2" style="color:{% if b.passes >= 5 %}#059669{% elif b.passes >= 3 %}#b45309{% else %}var(--text-quaternary){% endif %};">
+                        {{ b.passes }}{% if b.status == 'probationary' %}/5{% endif %}
+                    </td>
+                    <td class="py-2 px-2" style="color:{% if b.failures >= 3 %}#dc2626{% elif b.failures > 0 %}#b45309{% else %}var(--text-quaternary){% endif %};">
+                        {{ b.failures or '—' }}
+                    </td>
+                    <td class="py-2 px-2" style="color:var(--text-tertiary);font-size:10px;">
+                        {% if b.last_real_traffic_at %}{{ b.last_real_traffic_at.strftime('%m-%d %H:%M') }}{% else %}—{% endif %}
+                    </td>
+                    <td class="py-2 px-2">
+                        <button onclick="apiCall('/api/admin/test-backend', 'POST', 'inline-test-result', {backend: '{{ b.name }}'})"
+                                class="px-2 py-0.5 rounded text-[10px]"
+                                style="background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border-subtle);">test</button>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        <pre id="inline-test-result" class="mt-3 p-3 rounded text-[11px] font-mono overflow-x-auto max-h-48 overflow-y-auto hidden"
+             style="background: var(--bg-root); color: var(--text-secondary); border: 1px solid var(--border-subtle);"></pre>
+        <div class="text-[10px] mt-2" style="color:var(--text-quaternary);">
+            Reminder: paused/flaky = NOT routing right now (not given up). retired = upstream-confirmed dead.
+            <a href="/llm-lifecycle" style="color:var(--kindness);">Full lifecycle dashboard &rarr;</a>
+        </div>
+    </details>
+    {% endif %}
+
     <!-- Actions Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
 

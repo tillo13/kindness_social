@@ -483,13 +483,55 @@ def api_create_agent():
 
 @bp.route('/admin')
 def admin_page():
-    """Admin dashboard — test backends, trigger crons, view health."""
+    """Admin dashboard — test backends, trigger crons, view health.
+
+    Shows live lifecycle status (active/probationary/flaky/paused/etc) +
+    modality alongside each backend so admin can spot 'this one's flaky'
+    without bouncing to /llm-lifecycle. Pulled from kumori_llm_endpoints
+    JOIN kumori_models — the new 7-status world."""
     if not is_admin_request():
         return "Forbidden — pass ?key=YOUR_KEY", 403
     key = request.headers.get('X-Admin-Key') or request.args.get('key', '')
     from utilities.backend_registry import BACKENDS, LITELLM_BACKENDS
     all_backends = [b['name'] for b in BACKENDS + LITELLM_BACKENDS]
-    return render_template('admin.html', admin_key=key, backends=all_backends)
+
+    # Fetch lifecycle status for each backend in one query (vs N+1).
+    backend_status = {}
+    try:
+        from utilities.postgres_utils import db_cursor
+        with db_cursor(dict_cursor=True) as cur:
+            cur.execute("""
+                SELECT ep.backend, ep.status, ep.consecutive_probe_passes,
+                       ep.consecutive_failures, ep.last_validated_at,
+                       ep.last_validation_pass, ep.last_real_traffic_at,
+                       COALESCE(m.modality, 'chat') AS modality
+                  FROM kumori_llm_endpoints ep
+                  LEFT JOIN kumori_models m ON m.slug = ep.model
+                 WHERE ep.backend = ANY(%s)
+            """, (all_backends,))
+            for r in cur.fetchall():
+                backend_status[r['backend']] = dict(r)
+    except Exception as e:
+        logger.warning(f"admin_page: lifecycle lookup failed: {e}")
+
+    # Enrich the backend list with status data so the template can render
+    # a status pill per row (admin sees "groq=active 18ms · gemini=paused" etc).
+    enriched = []
+    for name in all_backends:
+        s = backend_status.get(name) or {}
+        enriched.append({
+            'name': name,
+            'status': s.get('status'),
+            'modality': s.get('modality') or 'chat',
+            'passes': s.get('consecutive_probe_passes') or 0,
+            'failures': s.get('consecutive_failures') or 0,
+            'last_validation_pass': s.get('last_validation_pass'),
+            'last_validated_at': s.get('last_validated_at'),
+            'last_real_traffic_at': s.get('last_real_traffic_at'),
+        })
+
+    return render_template('admin.html', admin_key=key, backends=all_backends,
+                           backends_enriched=enriched)
 
 
 @bp.route('/api/admin/test-backend', methods=['POST'])
