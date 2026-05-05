@@ -83,18 +83,36 @@ def _ensure_image_stats_wired():
 
 
 def _async_describe(img_bytes: bytes, agent_id: str, mime: str = 'image/jpeg'):
-    """Fire-and-forget describe in a background thread. Never blocks caller."""
+    """Fire-and-forget describe in a background thread. Never blocks caller.
+
+    Persists the description + backend used to kindness_agents so the agent
+    profile page can show "Avatar described by X as 'foo'" — turns each new
+    agent birth into a real-workload validation chain across modalities
+    (chat → image-gen → image-describe), per the 2026-05-05 lifecycle plan.
+    """
     import threading
 
     def _run():
         try:
             from utilities import kumori_free_describe
+            from utilities.postgres_utils import db_cursor
             r = kumori_free_describe.describe_image(
                 img_bytes, mime=mime,
                 prompt='Describe this avatar in one short sentence.',
             )
             logger.info(f'avatar describe[{agent_id}]: '
                         f'{r["backend"]}={r["text"][:80]}')
+            try:
+                with db_cursor(commit=True) as cur:
+                    cur.execute("""
+                        UPDATE kindness_agents
+                           SET avatar_description = %s,
+                               avatar_describe_backend = %s,
+                               avatar_described_at = NOW()
+                         WHERE agent_id = %s
+                    """, (r.get('text', '')[:600], r.get('backend'), agent_id))
+            except Exception as db_e:
+                logger.warning(f'avatar describe[{agent_id}] db write failed: {db_e}')
         except Exception as e:
             logger.warning(f'avatar describe[{agent_id}] failed: {e}')
 

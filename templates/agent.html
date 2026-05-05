@@ -537,6 +537,18 @@
                     {{ (agent.age_bracket or 'middle_aged')|replace('_', ' ') }} &middot;
                     {{ agent.authority_level or 'medium' }} authority
                 </div>
+                {# Multi-modality lineage: how an LLM sees this avatar.
+                   Validates the image-describe pipeline as a side-effect of
+                   showing users something genuinely fun. Per 2026-05-05 plan. #}
+                {% if agent.avatar_description %}
+                <div class="text-xs mt-3 italic px-4" style="color: var(--text-secondary); max-width: 320px;">
+                    "{{ agent.avatar_description }}"
+                </div>
+                <div class="text-[10px] mt-1" style="color: var(--text-quaternary);">
+                    described by <code>{{ agent.avatar_describe_backend or 'unknown' }}</code>
+                    {% if agent.avatar_described_at %}&middot; {{ agent.avatar_described_at.strftime('%b %-d') }}{% endif %}
+                </div>
+                {% endif %}
             </div>
             <button onclick="document.getElementById('avatar-modal').style.display='none'"
                     class="absolute -top-2 -right-2 w-8 h-8 rounded-full flex items-center justify-center text-sm"
