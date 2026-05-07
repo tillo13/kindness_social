@@ -286,10 +286,19 @@ def probe_provider(name: str, image, mime=None,
         return {'provider': name, 'ok': False, 'latency_ms': ms,
                 'response_chars': 0, 'error': 'empty response'}
     except Exception as e:
-        return {'provider': name, 'ok': False,
-                'latency_ms': int((time.monotonic() - t0) * 1000),
-                'response_chars': None,
-                'error': type(e).__name__ + ': ' + str(e)[:180]}
+        ms = int((time.monotonic() - t0) * 1000)
+        err_text = type(e).__name__ + ': ' + str(e)[:180]
+        # alive_proven: HTTP 429 means the upstream model server returned a
+        # real response — endpoint is alive and reachable, just throttled.
+        # Same semantic as kumori canary's HTTP-429-is-pass rule (see memory
+        # feedback_429_is_alive_proven). Marks ok=True so health rates and
+        # sample-table aggregations don't false-fail throttled providers
+        # during normal free-tier cap usage.
+        is_throttled = 'HTTP 429' in str(e)
+        return {'provider': name, 'ok': is_throttled,
+                'latency_ms': ms,
+                'response_chars': 0 if is_throttled else None,
+                'error': err_text}
 
 
 if __name__ == "__main__":

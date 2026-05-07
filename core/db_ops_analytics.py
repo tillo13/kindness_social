@@ -434,9 +434,22 @@ def get_cron_summary():
 # ============================================================================
 
 def get_control_vs_treatment():
-    """Compare control group vs treatment group metrics."""
+    """Compare control group vs treatment group metrics.
+
+    Was a LATERAL subquery that re-scanned kindness_comments once per agent
+    (~700 times) — 7.5s local, hitting 30s statement_timeout in prod under
+    load. Rewritten as a CTE with a single GROUP BY over the comments table,
+    then joined per-agent. Plan changes from N×SeqScan to 1×SeqScan + 1×Join.
+    """
     with db_cursor(dict_cursor=True) as cur:
         cur.execute("""
+            WITH agent_comments AS (
+                SELECT agent_id,
+                       AVG(kindness_score) AS avg_k,
+                       AVG(toxicity_score) AS avg_t
+                  FROM kindness_comments
+                 GROUP BY agent_id
+            )
             SELECT
                 CASE WHEN a.is_control THEN 'control' ELSE 'treatment' END as group_name,
                 COUNT(DISTINCT a.id) as agent_count,
@@ -450,10 +463,7 @@ def get_control_vs_treatment():
                 AVG(c.avg_k) as avg_kindness_score,
                 AVG(c.avg_t) as avg_toxicity_score
             FROM kindness_agents a
-            LEFT JOIN LATERAL (
-                SELECT AVG(kindness_score) as avg_k, AVG(toxicity_score) as avg_t
-                FROM kindness_comments WHERE agent_id = a.id
-            ) c ON TRUE
+            LEFT JOIN agent_comments c ON c.agent_id = a.id
             WHERE a.is_active = TRUE
             GROUP BY a.is_control
             ORDER BY a.is_control
@@ -465,9 +475,18 @@ def get_control_vs_treatment():
 
 
 def get_experiment_raw_data():
-    """Get per-agent metrics for statistical analysis (treatment vs control)."""
+    """Get per-agent metrics for statistical analysis (treatment vs control).
+    Same LATERAL→CTE rewrite as get_control_vs_treatment for the same reason."""
     with db_cursor(dict_cursor=True) as cur:
         cur.execute("""
+            WITH agent_comments AS (
+                SELECT agent_id,
+                       AVG(kindness_score) AS avg_k,
+                       AVG(toxicity_score) AS avg_t,
+                       COUNT(*)             AS comment_count
+                  FROM kindness_comments
+                 GROUP BY agent_id
+            )
             SELECT
                 a.id, a.agent_id, a.is_control,
                 a.toxicity_baseline, a.current_toxicity,
@@ -479,11 +498,7 @@ def get_experiment_raw_data():
                 COALESCE(c.avg_t, 0) as avg_toxicity_score,
                 COALESCE(c.comment_count, 0) as comment_count
             FROM kindness_agents a
-            LEFT JOIN LATERAL (
-                SELECT AVG(kindness_score) as avg_k, AVG(toxicity_score) as avg_t,
-                       COUNT(*) as comment_count
-                FROM kindness_comments WHERE agent_id = a.id
-            ) c ON TRUE
+            LEFT JOIN agent_comments c ON c.agent_id = a.id
             WHERE a.is_active = TRUE AND a.total_interactions > 0
             ORDER BY a.is_control, a.id
         """)
