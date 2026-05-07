@@ -339,29 +339,14 @@ def get_telemetry_summary():
         """)
         by_backend = [dict(row) for row in cur.fetchall()]
 
-        # Free vs paid split — kindness only assigns free backends, but we
-        # surface the split anyway so the panel can prove it.
-        from utilities.model_registry import FREE_BACKENDS
-        free_list = ', '.join(f"'{b}'" for b in FREE_BACKENDS)
-        cur.execute(f"""
-            SELECT
-                CASE WHEN backend IN ({free_list}) THEN 'free' ELSE 'paid' END as tier,
-                SUM(call_count) as calls,
-                SUM(call_count) - COALESCE(SUM(fail_count), 0) as successes,
-                SUM(tokens_in) as input_tokens,
-                SUM(tokens_out) as output_tokens
-            FROM kumori_llm_daily_caps
-            WHERE app_name = 'kindness_social'
-            GROUP BY tier
-            ORDER BY tier
-        """)
-        by_tier = [dict(row) for row in cur.fetchall()]
-
         return {
             'overall': overall,
             'by_backend': by_backend,
-            'by_tier': by_tier,
             # by_type + recent retired with per-call telemetry on 2026-04-12.
+            # by_tier dropped 2026-05-07 — kindness is free-only by policy
+            # (CLAUDE.md), and the FREE_BACKENDS set was incomplete vs the
+            # 60+ backend variants now in caps, mis-tagging 14k free calls
+            # as 'paid'. The panel was also unrendered in metrics.html.
             'by_type': [],
             'recent': [],
         }

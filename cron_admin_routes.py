@@ -155,7 +155,11 @@ def cron_agent_reflect():
     try:
         result = run_reflection_cycle(batch_size=8)
         ms = int((time.time() - start) * 1000)
-        db_ops.log_cron_end(log_id, 'ok', ms,
+        # Match the agent-responses convention: log no-work cycles as 'skipped'
+        # so the /admin cron summary doesn't conflate quiet/no-due-agents
+        # with real reflect runs.
+        status = 'skipped' if result.get('skipped') or result['reflected'] == 0 else 'ok'
+        db_ops.log_cron_end(log_id, status, ms,
                             f'{result["reflected"]} reflected, {result["changed"]} changed',
                             result)
         return jsonify(result)
