@@ -43,8 +43,11 @@ logger = logging.getLogger("anthropic_logger")
 # Update here when rates change or new models ship. Single source.
 
 MODEL_PRICING = {
-    # Claude 4.6 flagship
-    'claude-opus-4-6':         {'input': 0.000015,    'output': 0.000075},    # $15 / $75 per 1M
+    # Claude 4.7 / 4.6 flagship Opus — $5/$25 per 1M (verified 2026-05-07
+    # against LiteLLM upstream; was incorrectly $15/$75 prior to that, which
+    # is what caused the kumori_api_usage drift on opus-4-7 traffic).
+    'claude-opus-4-7':         {'input': 0.000005,    'output': 0.000025},
+    'claude-opus-4-6':         {'input': 0.000005,    'output': 0.000025},
     'claude-sonnet-4-6':       {'input': 0.000003,    'output': 0.000015},    # $3  / $15
 
     # Claude 4.5
@@ -71,8 +74,79 @@ CACHE_READ_MULT  = 0.10  # cache read costs 0.10x input rate
 WEB_SEARCH_COST  = 0.01  # flat per web search request
 
 
+# ─── DB-backed pricing (auto-refreshed daily from LiteLLM upstream JSON) ──────
+# kumori_model_pricing table is populated by kumori's /cron/anthropic-pricing-refresh.
+# We read with a 5-min in-process TTL cache. Any DB miss/error → static dict above.
+
+_DB_PRICING_CACHE: dict | None = None
+_DB_PRICING_FETCHED_AT: float = 0.0
+_DB_PRICING_TTL_SEC = 300
+
+
+def _load_db_pricing() -> dict:
+    """Return {model_id: {input, output, cache_write_abs, cache_read_abs}}.
+    Empty dict on any error — caller falls back to MODEL_PRICING."""
+    global _DB_PRICING_CACHE, _DB_PRICING_FETCHED_AT
+    now = time.time()
+    if _DB_PRICING_CACHE is not None and (now - _DB_PRICING_FETCHED_AT) < _DB_PRICING_TTL_SEC:
+        return _DB_PRICING_CACHE
+    try:
+        import psycopg2
+        creds = _get_db_creds()
+        is_gcp = os.environ.get('GAE_ENV', '').startswith('standard') or os.path.exists('/cloudsql')
+        if is_gcp:
+            socket_dir = os.environ.get('DB_SOCKET_DIR', '/cloudsql')
+            host = f"{socket_dir}/{creds['connection_name']}"
+        else:
+            host = creds['host']
+        conn = psycopg2.connect(
+            host=host, dbname=creds['dbname'], user=creds['user'],
+            password=creds['password'], connect_timeout=5,
+            options='-c statement_timeout=5000',
+        )
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT model_id,
+                       input_cost_per_token::float,
+                       output_cost_per_token::float,
+                       cache_write_cost_per_token::float,
+                       cache_read_cost_per_token::float
+                FROM kumori_model_pricing
+            """)
+            out = {}
+            for mid, inp, outp, cw, cr in cur.fetchall():
+                d = {'input': float(inp or 0), 'output': float(outp or 0)}
+                if cw is not None:
+                    d['cache_write_abs'] = float(cw)
+                if cr is not None:
+                    d['cache_read_abs'] = float(cr)
+                out[mid.lower()] = d
+            _DB_PRICING_CACHE = out
+            _DB_PRICING_FETCHED_AT = now
+            return out
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.warning(f"anthropic_logger: DB pricing fetch failed, using static fallback: {e}")
+        # Cache the empty dict for the TTL so we don't hammer the DB on every call.
+        _DB_PRICING_CACHE = {}
+        _DB_PRICING_FETCHED_AT = now
+        return {}
+
+
 def _pricing_for(model: str) -> dict:
     m = (model or '').lower()
+
+    # 1. Try DB first — exact match wins, then substring containment.
+    db = _load_db_pricing()
+    if m in db:
+        return db[m]
+    for mid, p in db.items():
+        if mid in m or m in mid:
+            return p
+
+    # 2. Static dict fallback (substring match preserves legacy behavior).
     for key, p in MODEL_PRICING.items():
         if key in m:
             return p
@@ -183,11 +257,14 @@ def _compute_cost(model: str, usage: Any) -> float:
     ) or {}
     ws = _usage_field(server, 'web_search_requests')
 
+    cache_write_rate = p.get('cache_write_abs', p['input'] * CACHE_WRITE_MULT)
+    cache_read_rate  = p.get('cache_read_abs',  p['input'] * CACHE_READ_MULT)
+
     return (
         i * p['input']
         + o * p['output']
-        + cc * p['input'] * CACHE_WRITE_MULT
-        + cr * p['input'] * CACHE_READ_MULT
+        + cc * cache_write_rate
+        + cr * cache_read_rate
         + th * p['output']
         + ws * WEB_SEARCH_COST
     )

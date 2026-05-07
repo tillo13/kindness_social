@@ -418,19 +418,23 @@ def _check_lifetime(backend_name):
     return used < limit
 
 
-def _record_call(backend_name):
+def _record_call(backend_name, usage=None):
+    """Record a successful call. `usage` is optional {'in': N, 'out': N} from
+    the provider response — added 2026-05-07 so kumori_llm_daily_caps.tokens_in/
+    tokens_out actually populate. Pre-2026-05-07 the columns existed but were
+    never written; consumer-app dashboards showed 0 tokens forever."""
     _reset_if_new_day()
     _daily_counts[backend_name] = _daily_counts.get(backend_name, 0) + 1
     # Async DB writes — daily caps + lifetime
     if _caps_db_write_fn and _app_name:
-        threading.Thread(target=_safe_caps_write, args=(backend_name,), daemon=True).start()
+        threading.Thread(target=_safe_caps_write, args=(backend_name, usage), daemon=True).start()
     if _get_limit(backend_name, 'lifetime_limit') is not None and _db_cursor_fn:
         threading.Thread(target=_safe_lifetime_increment, args=(backend_name,), daemon=True).start()
 
 
-def _safe_caps_write(backend_name):
+def _safe_caps_write(backend_name, usage=None):
     try:
-        _caps_db_write_fn(backend_name, _app_name)
+        _caps_db_write_fn(backend_name, _app_name, usage)
     except Exception:
         pass
 
@@ -499,13 +503,27 @@ def _get_key(secret_name):
 # Backend implementations
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+def _usage_from_openai(data):
+    """Extract {in,out} from a standard OpenAI-shaped usage dict. Returns None
+    if absent (some providers omit usage; caller treats None as "skip token write")."""
+    u = data.get('usage')
+    if not isinstance(u, dict):
+        return None
+    pin = u.get('prompt_tokens') or u.get('input_tokens')
+    pout = u.get('completion_tokens') or u.get('output_tokens')
+    if pin is None and pout is None:
+        return None
+    return {'in': int(pin or 0), 'out': int(pout or 0)}
+
+
 def _try_openai_compatible(backend, prompt, max_tokens, temperature):
-    """Standard OpenAI-compatible API call (Groq, Cerebras, NVIDIA, Mistral, etc.)."""
+    """Standard OpenAI-compatible API call (Groq, Cerebras, NVIDIA, Mistral, etc.).
+    Returns (text_or_None, usage_or_None)."""
     headers = {'Content-Type': 'application/json'}
     if backend.get('secret'):
         key = _get_key(backend['secret'])
         if not key:
-            return None
+            return None, None
         headers['Authorization'] = f'Bearer {key}'
     if 'openrouter' in backend['name']:
         headers['HTTP-Referer'] = f'https://{_app_name or "kumori"}.app'
@@ -523,14 +541,16 @@ def _try_openai_compatible(backend, prompt, max_tokens, temperature):
         data = json.loads(resp.read())
         msg = data['choices'][0]['message']
         content = msg.get('content') or msg.get('reasoning') or ''
-        return content.strip() if content.strip() else None
+        text = content.strip() if content.strip() else None
+        return text, (_usage_from_openai(data) if text else None)
 
 
 def _try_gemini(prompt, max_tokens, temperature, model_name='gemini-2.5-flash'):
-    """Google Gemini via the google-generativeai SDK."""
+    """Google Gemini via the google-generativeai SDK.
+    Returns (text_or_None, usage_or_None)."""
     key = _get_key('KINDNESS_GEMINI_API_KEY')
     if not key:
-        return None
+        return None, None
     import google.generativeai as genai
     genai.configure(api_key=key)
     model = genai.GenerativeModel(
@@ -542,14 +562,22 @@ def _try_gemini(prompt, max_tokens, temperature, model_name='gemini-2.5-flash'):
     except Exception as e:
         if '429' in str(e):
             raise  # Let caller handle 429 for backoff
-        return None
+        return None, None
     if not response.candidates or not response.candidates[0].content.parts:
-        return None  # Safety filter or empty response
-    return response.text.strip()
+        return None, None  # Safety filter or empty response
+    usage = None
+    meta = getattr(response, 'usage_metadata', None)
+    if meta is not None:
+        usage = {
+            'in': int(getattr(meta, 'prompt_token_count', 0) or 0),
+            'out': int(getattr(meta, 'candidates_token_count', 0) or 0),
+        }
+    return response.text.strip(), usage
 
 
 def _try_worker(worker_type, prompt, max_tokens, temperature):
-    """Route through kindness-worker Cloud Run (grok, grok_fast, grok4, deepseek)."""
+    """Route through kindness-worker Cloud Run (grok, grok_fast, grok4, deepseek).
+    Returns (text_or_None, usage_or_None)."""
     url = 'https://kindness-worker-243380010344.us-central1.run.app/chat'
     payload = json.dumps({
         'backend': worker_type,
@@ -560,14 +588,16 @@ def _try_worker(worker_type, prompt, max_tokens, temperature):
     with urllib.request.urlopen(req, timeout=120) as resp:
         data = json.loads(resp.read())
         text = data.get('text', '')
-        return text if text else None
+        text = text if text else None
+        return text, (_usage_from_openai(data) if text else None)
 
 
 def _try_cloudflare(backend, prompt, max_tokens, temperature):
-    """Cloudflare Workers AI — non-OpenAI response format (result.response)."""
+    """Cloudflare Workers AI — non-OpenAI response format (result.response).
+    Returns (text_or_None, usage_or_None)."""
     key = _get_key(backend['secret'])
     if not key:
-        return None
+        return None, None
     payload = json.dumps({
         'messages': [{'role': 'user', 'content': prompt}],
         'max_tokens': max_tokens,
@@ -579,15 +609,20 @@ def _try_cloudflare(backend, prompt, max_tokens, temperature):
     )
     with urllib.request.urlopen(req, timeout=30) as resp:
         data = json.loads(resp.read())
-        text = data.get('result', {}).get('response', '')
-        return text.strip() if text.strip() else None
+        result = data.get('result', {}) or {}
+        text = result.get('response', '')
+        text = text.strip() if text.strip() else None
+        # Cloudflare puts usage at result.usage with prompt_tokens/completion_tokens
+        usage = _usage_from_openai(result) if text else None
+        return text, usage
 
 
 def _try_cohere(backend, prompt, max_tokens, temperature):
-    """Cohere v2 chat — non-OpenAI response format (message.content[0].text)."""
+    """Cohere v2 chat — non-OpenAI response format (message.content[0].text).
+    Returns (text_or_None, usage_or_None)."""
     key = _get_key(backend['secret'])
     if not key:
-        return None
+        return None, None
     payload = json.dumps({
         'model': backend['model'],
         'messages': [{'role': 'user', 'content': prompt}],
@@ -602,14 +637,25 @@ def _try_cohere(backend, prompt, max_tokens, temperature):
         data = json.loads(resp.read())
         content = data.get('message', {}).get('content', [{}])
         text = content[0].get('text', '') if content else ''
-        return text.strip() if text.strip() else None
+        text = text.strip() if text.strip() else None
+        # Cohere v2 returns usage.tokens.{input_tokens,output_tokens}
+        usage = None
+        if text:
+            tok = (data.get('usage') or {}).get('tokens') or {}
+            if tok:
+                usage = {
+                    'in': int(tok.get('input_tokens') or 0),
+                    'out': int(tok.get('output_tokens') or 0),
+                }
+        return text, usage
 
 
 def _try_litellm_gateway(backend, prompt, max_tokens, temperature):
-    """Route through the LiteLLM Cloud Run gateway. Gateway has its own fallback chain."""
+    """Route through the LiteLLM Cloud Run gateway. Gateway has its own fallback chain.
+    Returns (text_or_None, usage_or_None)."""
     if not _litellm_url or not _litellm_key:
         logger.debug("LiteLLM gateway not configured — skipping")
-        return None
+        return None, None
 
     payload = json.dumps({
         'model': backend.get('litellm_model', 'groq-llama-70b'),
@@ -638,11 +684,12 @@ def _try_litellm_gateway(backend, prompt, max_tokens, temperature):
                 f"BLOCKED paid Anthropic response from LiteLLM gateway: model={actual_model!r}. "
                 f"Fix the gateway router to remove Anthropic fallback. Returning None."
             )
-            return None
+            return None, None
         msg = data['choices'][0]['message']
         # Some reasoning models (gptoss, qwen3) put output in 'reasoning' not 'content'
         content = msg.get('content') or msg.get('reasoning') or ''
-        return content.strip() if content.strip() else None
+        text = content.strip() if content.strip() else None
+        return text, (_usage_from_openai(data) if text else None)
 
 
 # Worker backend types — dispatched to _try_worker
@@ -679,23 +726,23 @@ def _try_backend(backend, prompt, max_tokens, temperature, caller):
     try:
         btype = backend.get('type')
         if btype == 'gemini':
-            text = _try_gemini(prompt, max_tokens, temperature, backend.get('gemini_model', 'gemini-2.5-flash'))
+            text, usage = _try_gemini(prompt, max_tokens, temperature, backend.get('gemini_model', 'gemini-2.5-flash'))
         elif btype in _WORKER_TYPES:
-            text = _try_worker(btype, prompt, max_tokens, temperature)
+            text, usage = _try_worker(btype, prompt, max_tokens, temperature)
         elif btype == 'cloudflare':
-            text = _try_cloudflare(backend, prompt, max_tokens, temperature)
+            text, usage = _try_cloudflare(backend, prompt, max_tokens, temperature)
         elif btype == 'cohere':
-            text = _try_cohere(backend, prompt, max_tokens, temperature)
+            text, usage = _try_cohere(backend, prompt, max_tokens, temperature)
         elif btype == 'litellm':
-            text = _try_litellm_gateway(backend, prompt, max_tokens, temperature)
+            text, usage = _try_litellm_gateway(backend, prompt, max_tokens, temperature)
         else:
-            text = _try_openai_compatible(backend, prompt, max_tokens, temperature)
+            text, usage = _try_openai_compatible(backend, prompt, max_tokens, temperature)
 
         ms = int((time.time() - start) * 1000)
         _rpm_record(name)
 
         if text:
-            _record_call(name)
+            _record_call(name, usage)
             _record_breaker_success(name)
             logger.info(f"{'🌐' if btype == 'litellm' else '🆓'} {name} responded ({len(text)} chars, {ms}ms) caller={caller}")
             return text
@@ -733,10 +780,10 @@ def _try_backend(backend, prompt, max_tokens, temperature, caller):
         logger.info(f"Retrying {name} via gateway ({gw_model})...")
         gw_start = time.time()
         try:
-            text = _try_litellm_gateway({'litellm_model': gw_model}, prompt, max_tokens, temperature)
+            text, usage = _try_litellm_gateway({'litellm_model': gw_model}, prompt, max_tokens, temperature)
             gw_ms = int((time.time() - gw_start) * 1000)
             if text:
-                _record_call(name)
+                _record_call(name, usage)
                 _record_breaker_success(name)
                 logger.info(f"🌐 {name} responded VIA GATEWAY ({len(text)} chars, {gw_ms}ms) caller={caller}")
                 return text
@@ -904,14 +951,20 @@ def init(app_name, get_secret_fn=None, db_cursor_fn=None,
 
     # Wire up cross-app daily caps if DB cursor is available
     if db_cursor_fn:
-        def _db_write(backend, app):
+        def _db_write(backend, app, usage=None):
+            tin = int((usage or {}).get('in') or 0)
+            tout = int((usage or {}).get('out') or 0)
             with db_cursor_fn(dict_cursor=False, commit=True) as cur:
                 cur.execute("""
-                    INSERT INTO kumori_llm_daily_caps (usage_date, backend, app_name, call_count)
-                    VALUES (CURRENT_DATE, %s, %s, 1)
+                    INSERT INTO kumori_llm_daily_caps
+                        (usage_date, backend, app_name, call_count, tokens_in, tokens_out)
+                    VALUES (CURRENT_DATE, %s, %s, 1, %s, %s)
                     ON CONFLICT (usage_date, backend, app_name)
-                    DO UPDATE SET call_count = kumori_llm_daily_caps.call_count + 1
-                """, (backend, app))
+                    DO UPDATE SET
+                        call_count = kumori_llm_daily_caps.call_count + 1,
+                        tokens_in  = COALESCE(kumori_llm_daily_caps.tokens_in, 0)  + EXCLUDED.tokens_in,
+                        tokens_out = COALESCE(kumori_llm_daily_caps.tokens_out, 0) + EXCLUDED.tokens_out
+                """, (backend, app, tin, tout))
 
         def _db_read():
             with db_cursor_fn(dict_cursor=False) as cur:
