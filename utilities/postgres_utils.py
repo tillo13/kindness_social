@@ -102,8 +102,28 @@ class PooledConnection:
 
 
 def get_db_connection():
+    """Acquire a connection. Retries on PoolError with short backoff —
+    psycopg2's ThreadedConnectionPool fails fast (no internal wait) when
+    all maxconn slots are busy, but in practice most contention windows
+    are sub-second since queries are short. Blocking up to ~2s lets cron
+    + web traffic coexist on a tight maxconn=3 pool without spurious
+    'connection pool exhausted' errors. Beyond 2s the underlying problem
+    is real and deserves to surface.
+    """
+    import time as _time
     pool = _get_connection_pool()
-    conn = pool.getconn()
+    conn = None
+    deadline = _time.time() + 2.0
+    backoff = 0.05
+    while True:
+        try:
+            conn = pool.getconn()
+            break
+        except psycopg2.pool.PoolError:
+            if _time.time() >= deadline:
+                raise
+            _time.sleep(backoff)
+            backoff = min(backoff * 1.7, 0.4)
     # Test if connection is alive — Cloud SQL kills idle connections
     try:
         conn.cursor().execute("SELECT 1")
