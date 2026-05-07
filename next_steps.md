@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-05-05 04:10*
+*Last refreshed: 2026-05-07 04:00*
 
 ## 🎯 Pending
 
@@ -15,6 +15,12 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
+- `c3ddcec` · 2026-05-05 13:02 — multi-modality validation chain (Phase 9 minimum slice): persist avatar description + backend on ...
+- `0a47fb3` · 2026-05-05 10:28 — lifecycle awareness across kindness_social: (1) get_backend_health() now JOINs kumori_llm_endpoin...
+- `0e876ac` · 2026-05-05 10:19 — narrative refresh: /about now describes self-curating catalog (lifecycle ladder + scout + multi-m...
+- `96f44b2` · 2026-05-05 10:12 — lifecycle dashboard: hide retired column behind toggle (348 retired endpoints was visually noisy)
+- `f1ae695` · 2026-05-05 09:48 — lifecycle dashboard upgrade: 5 new sections from kumori_llm_endpoints (Modality Lanes, Investigat...
+- `17d6591` · 2026-05-05 09:10 — sync kumori_free_llms: DB-driven BACKENDS with 5min refresh + bandit exploration (10% under-valid...
 - `fd73c2e` · 2026-05-04 18:00 — sync runtime: bulletproof canary + DB-driven shared_pool caps + probe accounting fixes from kumor...
 - `5901cb4` · 2026-05-04 15:53 — sync kumori_free_llms: cluster-wide cap enforcement (DB-backed counter, shared_pool checks, probe...
 - `f329a3b` · 2026-05-04 14:06 — audit dual-write to kumori_llm_endpoints: catalog audit cron now mirrors status transitions + new...
@@ -22,11 +28,12 @@
 - `736d2f2` · 2026-05-04 11:10 — catalog audit: filter openrouter to :free model_ids only. /v1/models returns both free and paid S...
 - `0d85174` · 2026-05-04 08:39 — wire avatar_generator to kumori image stats: persist real-traffic gen attempts to kumori_image_da...
 - `ea3cb40` · 2026-05-01 13:35 — sync kumori_free_llms.py from canonical infra — picks up circuit breaker (cooldown_until / consec...
-- `3f7cd6c` · 2026-04-29 23:18 — fix: db_cursor accepts commit kwarg so kumori_free_llms gating loads provider_limits
 <!-- shipped:end -->
 
 ## ⚠️ Unfinished / WIP
 
 <!-- wip:start -->
-_(clean working tree, no TODO markers in recent files)_
+**1 file(s) with uncommitted changes:**
+- ` M next_steps.md`
+
 <!-- wip:end -->

@@ -50,13 +50,16 @@ def get_backend_health():
     agent is on a probationary backend" in addition to real-traffic telemetry.
     """
     with db_cursor(dict_cursor=True) as cur:
+        # Per-backend traffic comes from kumori_llm_daily_caps (kindness-only,
+        # today's row), latency from the most recent kumori_llm_health_samples
+        # probe. Per-call telemetry was retired in the Apr 12 refactor.
         cur.execute("""
             SELECT a.llm_backend,
                    COUNT(*) as agent_count,
                    COUNT(CASE WHEN a.total_interactions > 0 THEN 1 END) as agents_spoken,
-                   COALESCE(tel.total_calls, 0) as total_calls,
-                   COALESCE(tel.success_rate, 0) as success_rate,
-                   COALESCE(tel.avg_ms, 0) as avg_ms,
+                   COALESCE(caps.total_calls, 0) as total_calls,
+                   COALESCE(caps.success_rate, 0) as success_rate,
+                   COALESCE(probe.avg_ms, 0) as avg_ms,
                    ep.status               as lifecycle_status,
                    ep.consecutive_probe_passes,
                    ep.consecutive_failures,
@@ -64,17 +67,26 @@ def get_backend_health():
                    COALESCE(m.modality, 'chat') as modality
             FROM kindness_agents a
             LEFT JOIN LATERAL (
-                SELECT COUNT(*) as total_calls,
-                       ROUND(COUNT(CASE WHEN success THEN 1 END)::numeric / NULLIF(COUNT(*), 0) * 100) as success_rate,
-                       AVG(duration_ms) as avg_ms
-                FROM kindness_llm_telemetry
+                SELECT SUM(call_count) as total_calls,
+                       CASE WHEN SUM(call_count) > 0
+                            THEN ROUND(100.0 * (SUM(call_count) - COALESCE(SUM(fail_count),0))::numeric / SUM(call_count))
+                            ELSE NULL END as success_rate
+                FROM kumori_llm_daily_caps
                 WHERE backend = a.llm_backend
-                  AND created_at > NOW() - INTERVAL '24 hours'
-            ) tel ON TRUE
+                  AND app_name = 'kindness_social'
+                  AND usage_date >= CURRENT_DATE - INTERVAL '1 day'
+            ) caps ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT AVG(latency_ms) as avg_ms
+                FROM kumori_llm_health_samples
+                WHERE backend = a.llm_backend
+                  AND status = 'ok'
+                  AND checked_at > NOW() - INTERVAL '24 hours'
+            ) probe ON TRUE
             LEFT JOIN kumori_llm_endpoints ep ON ep.backend = a.llm_backend
             LEFT JOIN kumori_models m ON m.slug = ep.model
             WHERE a.is_active = TRUE
-            GROUP BY a.llm_backend, tel.total_calls, tel.success_rate, tel.avg_ms,
+            GROUP BY a.llm_backend, caps.total_calls, caps.success_rate, probe.avg_ms,
                      ep.status, ep.consecutive_probe_passes, ep.consecutive_failures,
                      ep.last_real_traffic_at, m.modality
             ORDER BY COUNT(*) DESC
@@ -266,97 +278,80 @@ def get_agent_full_activity(agent_id, limit=50):
 
 
 def get_telemetry_summary():
-    """Get aggregate telemetry stats for the metrics dashboard."""
+    """Aggregate telemetry for the /metrics dashboard.
+
+    Per-call telemetry (kindness_llm_telemetry) was retired on 2026-04-12 in
+    favor of the shared kumori_free_llms router. Volume + token + fail counts
+    now come from kumori_llm_daily_caps (one row per usage_date × backend ×
+    app_name); latency comes from kumori_llm_health_samples (cron probes).
+
+    Per-call rows ("recent calls") and call_type breakdown are gone forever —
+    the new pipeline is aggregate-only. The dashboard reflects that honestly
+    rather than rendering empty tables.
+    """
     with db_cursor(dict_cursor=True) as cur:
-        # Overall stats
+        # Overall stats — all-time, kindness_social only.
         cur.execute("""
             SELECT
-                COUNT(*) as total_calls,
-                COUNT(CASE WHEN success THEN 1 END) as successful,
-                COUNT(CASE WHEN NOT success THEN 1 END) as failed,
-                COUNT(CASE WHEN fallback_used THEN 1 END) as fallbacks,
-                AVG(duration_ms) as avg_duration_ms,
-                MIN(duration_ms) as min_duration_ms,
-                MAX(duration_ms) as max_duration_ms,
-                SUM(input_tokens) as total_input_tokens,
-                SUM(output_tokens) as total_output_tokens,
-                SUM(estimated_cost_usd) as total_cost
-            FROM kindness_llm_telemetry
+                COALESCE(SUM(call_count), 0) as total_calls,
+                COALESCE(SUM(call_count) - SUM(fail_count), 0) as successful,
+                COALESCE(SUM(fail_count), 0) as failed,
+                COALESCE(SUM(tokens_in), 0) as total_input_tokens,
+                COALESCE(SUM(tokens_out), 0) as total_output_tokens
+            FROM kumori_llm_daily_caps
+            WHERE app_name = 'kindness_social'
         """)
         overall = dict(cur.fetchone())
 
-        # Per-backend stats
+        # Avg latency across all backends (probe-based, last 7d) so the
+        # "Avg Response Time" tile still has a number.
         cur.execute("""
-            SELECT
-                actual_backend as backend,
-                COUNT(*) as calls,
-                COUNT(CASE WHEN success THEN 1 END) as successes,
-                AVG(duration_ms) as avg_ms,
-                MIN(duration_ms) as min_ms,
-                MAX(duration_ms) as max_ms,
-                SUM(input_tokens) as input_tokens,
-                SUM(output_tokens) as output_tokens
-            FROM kindness_llm_telemetry
-            WHERE actual_backend IS NOT NULL
-            GROUP BY actual_backend
+            SELECT AVG(latency_ms) as avg_duration_ms
+            FROM kumori_llm_health_samples
+            WHERE status = 'ok' AND checked_at > NOW() - INTERVAL '7 days'
+        """)
+        overall.update(dict(cur.fetchone()))
+
+        # Per-backend rollup — all-time call/token volume from caps,
+        # latency from probe samples.
+        cur.execute("""
+            SELECT c.backend,
+                   SUM(c.call_count) as calls,
+                   SUM(c.call_count) - COALESCE(SUM(c.fail_count), 0) as successes,
+                   COALESCE(SUM(c.tokens_in), 0) as input_tokens,
+                   COALESCE(SUM(c.tokens_out), 0) as output_tokens,
+                   probe.avg_ms,
+                   probe.min_ms,
+                   probe.max_ms
+            FROM kumori_llm_daily_caps c
+            LEFT JOIN LATERAL (
+                SELECT AVG(latency_ms) as avg_ms,
+                       MIN(latency_ms) as min_ms,
+                       MAX(latency_ms) as max_ms
+                FROM kumori_llm_health_samples
+                WHERE backend = c.backend
+                  AND status = 'ok'
+                  AND checked_at > NOW() - INTERVAL '7 days'
+            ) probe ON TRUE
+            WHERE c.app_name = 'kindness_social'
+            GROUP BY c.backend, probe.avg_ms, probe.min_ms, probe.max_ms
             ORDER BY calls DESC
         """)
         by_backend = [dict(row) for row in cur.fetchall()]
 
-        # Per call-type stats
-        cur.execute("""
-            SELECT
-                call_type,
-                COUNT(*) as calls,
-                AVG(duration_ms) as avg_ms,
-                COUNT(CASE WHEN success THEN 1 END) as successes
-            FROM kindness_llm_telemetry
-            GROUP BY call_type
-            ORDER BY calls DESC
-        """)
-        by_type = [dict(row) for row in cur.fetchall()]
-
-        # Recent calls (last 50)
-        cur.execute("""
-            SELECT
-                id, backend, actual_backend, model_id, provider, call_type,
-                agent_id, thread_id, prompt_length, response_length,
-                response_preview, duration_ms, success, error_message,
-                fallback_used, created_at
-            FROM kindness_llm_telemetry
-            ORDER BY created_at DESC
-            LIMIT 50
-        """)
-        recent = [dict(row) for row in cur.fetchall()]
-
-        # Calls per hour (last 24h)
-        cur.execute("""
-            SELECT
-                date_trunc('hour', created_at) as hour,
-                COUNT(*) as calls,
-                AVG(duration_ms) as avg_ms,
-                COUNT(CASE WHEN success THEN 1 END) as successes
-            FROM kindness_llm_telemetry
-            WHERE created_at > NOW() - INTERVAL '24 hours'
-            GROUP BY hour
-            ORDER BY hour
-        """)
-        hourly = [dict(row) for row in cur.fetchall()]
-
-        # Free vs paid split — mirrors kumori api-costs view
+        # Free vs paid split — kindness only assigns free backends, but we
+        # surface the split anyway so the panel can prove it.
         from utilities.model_registry import FREE_BACKENDS
         free_list = ', '.join(f"'{b}'" for b in FREE_BACKENDS)
         cur.execute(f"""
             SELECT
-                CASE WHEN actual_backend IN ({free_list}) THEN 'free' ELSE 'paid' END as tier,
-                COUNT(*) as calls,
-                COUNT(CASE WHEN success THEN 1 END) as successes,
-                AVG(duration_ms) as avg_ms,
-                SUM(input_tokens) as input_tokens,
-                SUM(output_tokens) as output_tokens,
-                SUM(estimated_cost_usd) as estimated_cost
-            FROM kindness_llm_telemetry
-            WHERE actual_backend IS NOT NULL
+                CASE WHEN backend IN ({free_list}) THEN 'free' ELSE 'paid' END as tier,
+                SUM(call_count) as calls,
+                SUM(call_count) - COALESCE(SUM(fail_count), 0) as successes,
+                SUM(tokens_in) as input_tokens,
+                SUM(tokens_out) as output_tokens
+            FROM kumori_llm_daily_caps
+            WHERE app_name = 'kindness_social'
             GROUP BY tier
             ORDER BY tier
         """)
@@ -365,10 +360,10 @@ def get_telemetry_summary():
         return {
             'overall': overall,
             'by_backend': by_backend,
-            'by_type': by_type,
             'by_tier': by_tier,
-            'recent': recent,
-            'hourly': hourly,
+            # by_type + recent retired with per-call telemetry on 2026-04-12.
+            'by_type': [],
+            'recent': [],
         }
 
 

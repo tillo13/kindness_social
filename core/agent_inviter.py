@@ -66,11 +66,15 @@ def pick_least_used_backend():
     Goal: spread invites across providers so no one backend dominates token usage.
     Backends with no telemetry at all (brand new / never called) win immediately."""
     with db_cursor(dict_cursor=True) as cur:
+        # Pull per-backend token totals from the shared kumori_llm_daily_caps
+        # table — kindness-only, last 7 days. Per-call telemetry was retired in
+        # the Apr 12 shared-router refactor; tokens_in/out replace it.
         cur.execute("""
-            SELECT actual_backend as backend, COALESCE(SUM(input_tokens), 0) as tokens
-            FROM kindness_llm_telemetry
-            WHERE created_at > NOW() - INTERVAL '7 days'
-            GROUP BY actual_backend
+            SELECT backend, COALESCE(SUM(tokens_in), 0) as tokens
+            FROM kumori_llm_daily_caps
+            WHERE app_name = 'kindness_social'
+              AND usage_date > CURRENT_DATE - INTERVAL '7 days'
+            GROUP BY backend
         """)
         usage = {r['backend']: int(r['tokens'] or 0) for r in cur.fetchall()}
 

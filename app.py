@@ -534,7 +534,9 @@ def api_health():
             agents = cur.fetchone()['n']
             cur.execute("SELECT COUNT(*) AS n FROM kindness_comments WHERE created_at > NOW() - INTERVAL '1 hour'")
             recent_comments = cur.fetchone()['n']
-            cur.execute("SELECT COUNT(*) AS n FROM kindness_llm_telemetry WHERE created_at > NOW() - INTERVAL '15 minutes' AND success = FALSE")
+            # Per-call telemetry was retired in the Apr 12 shared-router refactor.
+            # Backend up/down signal now comes from kumori_llm_health_samples (cron probes).
+            cur.execute("SELECT COUNT(*) AS n FROM kumori_llm_health_samples WHERE checked_at > NOW() - INTERVAL '15 minutes' AND status != 'ok'")
             recent_failures = cur.fetchone()['n']
         ok = agents > 0
         return jsonify({

@@ -78,3 +78,7 @@ cron:
   retry_parameters:
     min_backoff_seconds: 60
     max_doublings: 2
+
+- description: "Sweep orphaned 'running' rows in kindness_cron_log (instance-died-mid-run cleanup)"
+  url: /api/cron/cron-log-janitor
+  schedule: every 6 hours

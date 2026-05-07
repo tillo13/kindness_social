@@ -166,6 +166,38 @@ def cron_agent_reflect():
         return jsonify({'error': str(e)[:200]}), 500
 
 
+@bp.route('/api/cron/cron-log-janitor')
+def cron_log_janitor():
+    """Sweep orphaned 'running' rows in kindness_cron_log.
+
+    A row gets stuck in 'running' when a cron worker dies/timeouts before
+    log_cron_end fires (App Engine instance recycled mid-run, OOM, etc.).
+    The longest healthy run on record is ~20 min, so anything in 'running'
+    for more than 1 hour is definitively orphaned. Mark them as 'error'
+    with a clear note so /admin's per-job stats stop being skewed by
+    perpetually-running ghost rows (2,225 of them as of 2026-05-07).
+    """
+    if not is_cron_request():
+        return "Forbidden", 403
+
+    from utilities.postgres_utils import db_cursor
+    with db_cursor(dict_cursor=True) as cur:
+        cur.execute("""
+            UPDATE kindness_cron_log
+               SET status = 'error',
+                   error_text = COALESCE(error_text, '') ||
+                                'orphaned: no log_cron_end recorded within 1h (instance died mid-run)'
+             WHERE status = 'running'
+               AND created_at < NOW() - INTERVAL '1 hour'
+            RETURNING job_name
+        """)
+        flipped = cur.fetchall()
+    by_job = {}
+    for r in flipped:
+        by_job[r['job_name']] = by_job.get(r['job_name'], 0) + 1
+    return jsonify({'orphaned_flipped': len(flipped), 'by_job': by_job})
+
+
 @bp.route('/api/cron/scrape-topics')
 def cron_scrape_topics():
     """Cron: Scrape trending headlines and convert to discussion topics via Grok."""
@@ -950,17 +982,26 @@ def admin_llm_lifecycle():
         """)
         agent_counts = {r['llm_backend']: r['cnt'] for r in cur.fetchall()}
 
-        # Per-backend telemetry rollup — folds the unique signal from /metrics
-        # into the lifecycle table so users see "is this backend healthy AND
-        # is it actually being used well" in one place.
+        # Per-backend rollup — calls + fail rate from kumori_llm_daily_caps
+        # (kindness only), latency from kumori_llm_health_samples (probes).
+        # Per-call telemetry was retired in the Apr 12 shared-router refactor.
         cur.execute("""
-            SELECT actual_backend AS backend,
-                   COUNT(*) AS calls,
-                   ROUND(100.0 * COUNT(*) FILTER (WHERE success) / COUNT(*), 1) AS success_pct,
-                   ROUND(AVG(duration_ms))::INT AS avg_ms
-              FROM kindness_llm_telemetry
-             WHERE actual_backend IS NOT NULL
-             GROUP BY actual_backend
+            SELECT c.backend,
+                   SUM(c.call_count) AS calls,
+                   CASE WHEN SUM(c.call_count) > 0
+                        THEN ROUND(100.0 * (SUM(c.call_count) - COALESCE(SUM(c.fail_count),0))::numeric / SUM(c.call_count), 1)
+                        ELSE NULL END AS success_pct,
+                   probe.avg_ms
+              FROM kumori_llm_daily_caps c
+              LEFT JOIN LATERAL (
+                  SELECT ROUND(AVG(latency_ms))::INT AS avg_ms
+                  FROM kumori_llm_health_samples
+                  WHERE backend = c.backend
+                    AND status = 'ok'
+                    AND checked_at > NOW() - INTERVAL '7 days'
+              ) probe ON TRUE
+             WHERE c.app_name = 'kindness_social'
+             GROUP BY c.backend, probe.avg_ms
         """)
         telemetry = {r['backend']: r for r in cur.fetchall()}
 

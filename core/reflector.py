@@ -85,48 +85,35 @@ def get_agent_recent_comments(agent_db_id, limit=8):
 
 
 def get_agent_social_standing(agent_db_id):
-    """How does this agent rank socially? Reactions, kudos, visibility."""
+    """How does this agent rank socially? Reactions, kudos, visibility.
+
+    Single query — was 4 separate cursor opens per agent, which under cron
+    load multiplied to dozens of pool acquires per cycle and was a major
+    contributor to "connection pool exhausted" errors on agent-reflect
+    (maxconn=3 is intentionally tight for the shared db-f1-micro).
+    """
     with db_cursor(dict_cursor=True) as cur:
-        # Total reactions received on their comments
         cur.execute("""
-            SELECT COUNT(r.id) as total_reactions,
-                   COUNT(CASE WHEN r.reaction_type = 'heart' THEN 1 END) as total_hearts
-            FROM kindness_reactions r
-            JOIN kindness_comments c ON r.comment_id = c.id
-            WHERE c.agent_id = %s
-        """, (agent_db_id,))
-        reactions = dict(cur.fetchone())
-
-        # Kudos received
-        cur.execute("""
-            SELECT COUNT(*) as kudos_count,
-                   COALESCE(SUM(receiver_bonus), 0) as kudos_points
-            FROM kindness_peer_kudos WHERE receiver_id = %s
-        """, (agent_db_id,))
-        kudos = dict(cur.fetchone())
-
-        # Their rank by dopamine
-        cur.execute("""
-            SELECT COUNT(*) + 1 as rank
-            FROM kindness_agents
-            WHERE is_active = TRUE AND total_dopamine > (
-                SELECT total_dopamine FROM kindness_agents WHERE id = %s
-            )
-        """, (agent_db_id,))
-        rank = cur.fetchone()['rank']
-
-        # Total active agents (for context)
-        cur.execute("SELECT COUNT(*) as total FROM kindness_agents WHERE is_active = TRUE")
-        total = cur.fetchone()['total']
-
-        return {
-            'total_reactions': reactions['total_reactions'],
-            'total_hearts': reactions['total_hearts'],
-            'kudos_received': kudos['kudos_count'],
-            'kudos_points': kudos['kudos_points'],
-            'rank': rank,
-            'total_agents': total,
-        }
+            WITH me AS (SELECT total_dopamine FROM kindness_agents WHERE id = %s)
+            SELECT
+                (SELECT COUNT(r.id)
+                   FROM kindness_reactions r
+                   JOIN kindness_comments c ON r.comment_id = c.id
+                  WHERE c.agent_id = %s)                                  AS total_reactions,
+                (SELECT COUNT(*) FROM kindness_reactions r
+                   JOIN kindness_comments c ON r.comment_id = c.id
+                  WHERE c.agent_id = %s AND r.reaction_type = 'heart')    AS total_hearts,
+                (SELECT COUNT(*)            FROM kindness_peer_kudos
+                  WHERE receiver_id = %s)                                 AS kudos_received,
+                (SELECT COALESCE(SUM(receiver_bonus), 0)
+                   FROM kindness_peer_kudos WHERE receiver_id = %s)       AS kudos_points,
+                (SELECT COUNT(*) + 1 FROM kindness_agents
+                  WHERE is_active = TRUE
+                    AND total_dopamine > (SELECT total_dopamine FROM me)) AS rank,
+                (SELECT COUNT(*) FROM kindness_agents
+                  WHERE is_active = TRUE)                                 AS total_agents
+        """, (agent_db_id, agent_db_id, agent_db_id, agent_db_id, agent_db_id))
+        return dict(cur.fetchone())
 
 
 def get_platform_context():
@@ -324,11 +311,14 @@ def reflect_agent(agent, platform_ctx):
             if adj != 0:
                 any_changed = True
 
-        # Save reflection to history (skip if no internal thought content)
+        # Save reflection + apply changes + bump openness — one cursor for
+        # all writes. Was three separate cursor opens per agent which under
+        # cron load was a significant contributor to pool exhaustion.
         thought_text = (result.get('internal_thought') or '').strip()
         interactions_since = agent['total_interactions'] - (agent.get('interactions_at_last_reflection') or 0)
-        if thought_text:
-            with db_cursor() as cur:
+        new_openness = min(1.0, openness + 0.003)
+        with db_cursor() as cur:
+            if thought_text:
                 cur.execute("""
                     INSERT INTO kindness_reflections
                         (agent_id, reflection_text, decided_to_change, change_reason,
@@ -345,9 +335,7 @@ def reflect_agent(agent, platform_ctx):
                     interactions_since,
                 ))
 
-        # Apply changes to agent
-        if any_changed:
-            with db_cursor() as cur:
+            if any_changed:
                 cur.execute("""
                     UPDATE kindness_agents SET
                         current_toxicity = %s,
@@ -361,6 +349,7 @@ def reflect_agent(agent, platform_ctx):
                         stubbornness = %s,
                         cynicism = %s,
                         conformity = %s,
+                        openness_to_change = %s,
                         last_reflected_at = NOW(),
                         interactions_at_last_reflection = total_interactions,
                         updated_at = NOW()
@@ -377,25 +366,17 @@ def reflect_agent(agent, platform_ctx):
                     new_values.get('stubbornness', agent.get('stubbornness', 5.0)),
                     new_values.get('cynicism', agent.get('cynicism', 5.0)),
                     new_values.get('conformity', agent.get('conformity', 5.0)),
+                    new_openness,
                     agent['id'],
                 ))
-        else:
-            with db_cursor() as cur:
+            else:
                 cur.execute("""
                     UPDATE kindness_agents SET
+                        openness_to_change = %s,
                         last_reflected_at = NOW(),
                         interactions_at_last_reflection = total_interactions
                     WHERE id = %s
-                """, (agent['id'],))
-
-        # Openness increases very slightly with each reflection
-        # (the act of reflecting makes you marginally more open)
-        new_openness = min(1.0, openness + 0.003)
-        with db_cursor() as cur:
-            cur.execute(
-                "UPDATE kindness_agents SET openness_to_change = %s WHERE id = %s",
-                (new_openness, agent['id']),
-            )
+                """, (new_openness, agent['id']))
 
         # Log summary
         changes = [f"{k}:{v:+.3f}" for k, v in applied_adjustments.items() if v != 0]

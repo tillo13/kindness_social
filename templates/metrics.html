@@ -85,70 +85,12 @@
     </div>
     {% endif %}
 
-    <!-- Per Call Type -->
-    {% if t.by_type %}
-    <div class="k-section-title">Performance by Call Type</div>
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
-        {% for ct in t.by_type %}
-        <div class="k-card-flat p-3 text-center">
-            <div class="font-mono text-xs mb-1" style="color: var(--text-tertiary);">{{ ct.call_type }}</div>
-            <div class="font-mono text-lg font-bold" style="color: var(--text-primary);">{{ ct.calls }}</div>
-            <div class="text-[10px]" style="color: var(--text-quaternary);">avg {{ "%.0f"|format(ct.avg_ms|float) if ct.avg_ms else '?' }}ms</div>
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
-
-    <!-- Recent Calls Log -->
-    <div class="k-section-title">Recent Calls (last 50)</div>
-    {% if t.recent %}
-    <div class="overflow-x-auto mb-8">
-        <table class="w-full text-xs" style="color: var(--text-secondary);">
-            <thead>
-                <tr style="border-bottom: 1px solid var(--border-subtle);">
-                    <th class="text-left py-1.5 font-mono" style="color: var(--text-quaternary);">Time</th>
-                    <th class="text-left py-1.5 font-mono" style="color: var(--text-quaternary);">Type</th>
-                    <th class="text-left py-1.5 font-mono" style="color: var(--text-quaternary);">Backend</th>
-                    <th class="text-left py-1.5 font-mono" style="color: var(--text-quaternary);">Agent</th>
-                    <th class="text-right py-1.5 font-mono" style="color: var(--text-quaternary);">ms</th>
-                    <th class="text-left py-1.5 font-mono" style="color: var(--text-quaternary);">Status</th>
-                    <th class="text-left py-1.5 font-mono" style="color: var(--text-quaternary);">Preview</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for c in t.recent %}
-                <tr style="border-bottom: 1px solid var(--border-subtle);">
-                    <td class="py-1.5 font-mono" style="color: var(--text-quaternary);">{{ c.created_at.strftime('%H:%M:%S') if c.created_at else '' }}</td>
-                    <td class="py-1.5 font-mono">
-                        <span class="k-pill" style="background: var(--neutral-muted); color: var(--neutral);">{{ c.call_type }}</span>
-                    </td>
-                    <td class="py-1.5 font-mono" style="color: var(--text-primary);">
-                        {{ c.actual_backend or c.backend }}
-                        {% if c.fallback_used %}<span style="color: var(--dopamine);" title="Fallback used">*</span>{% endif %}
-                    </td>
-                    <td class="py-1.5 font-mono" style="color: var(--text-tertiary);">
-                        {% if c.agent_id %}<a href="/agent/{{ c.agent_id }}" style="color: var(--text-tertiary);">{{ c.agent_id[:25] }}</a>{% endif %}
-                    </td>
-                    <td class="py-1.5 text-right font-mono" style="color: {{ 'var(--kindness)' if c.duration_ms and c.duration_ms < 1000 else ('var(--dopamine)' if c.duration_ms and c.duration_ms < 3000 else 'var(--toxicity)') }};">
-                        {{ "{:,}".format(c.duration_ms) if c.duration_ms else '—' }}
-                    </td>
-                    <td class="py-1.5">
-                        {% if c.success %}
-                        <span style="color: var(--kindness);">ok</span>
-                        {% else %}
-                        <span style="color: var(--toxicity);" title="{{ c.error_message or '' }}">fail</span>
-                        {% endif %}
-                    </td>
-                    <td class="py-1.5 truncate max-w-[200px]" style="color: var(--text-quaternary);">{{ c.response_preview or c.error_message or '' }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <div class="p-8 text-center mb-8" style="color: var(--text-quaternary); background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);">
-        No calls logged yet.
-    </div>
-    {% endif %}
+    <p class="text-xs mt-4 mb-8" style="color: var(--text-quaternary);">
+        Per-call telemetry retired 2026-04-12 with the move to the shared
+        <code>kumori_free_llms</code> router. Volume + tokens + fail rate now
+        come from <code>kumori_llm_daily_caps</code>; latency from cron probes
+        in <code>kumori_llm_health_samples</code>. Per-call type breakdowns and
+        a per-call recent-log are no longer collected.
+    </p>
 </div>
 {% endblock %}
