@@ -201,8 +201,9 @@ app.register_blueprint(cron_admin_bp)
 @app.route('/robots.txt')
 def robots_txt():
     """Serve robots.txt for search engine crawlers."""
+    from utilities.visitor_logging import append_bot_block
     content = "User-agent: *\nAllow: /\n\nSitemap: https://kindness.social/sitemap.xml\nFeed: https://kindness.social/feed.xml\n"
-    return Response(content, mimetype='text/plain')
+    return Response(append_bot_block(content), mimetype='text/plain')
 
 
 @app.route('/b4c9ebbc8faa4d7b8b2b8104b6511fee.txt')

@@ -57,7 +57,8 @@ def _get_db_creds() -> dict:
 
 
 def _connect():
-    import psycopg2
+    """Connect to kumori-404602 Postgres. Works with either psycopg2 (v2) or
+    psycopg (v3) installed — Andy's projects mix the two."""
     creds = _get_db_creds()
     is_gcp = os.environ.get('GAE_ENV', '').startswith('standard') or os.path.exists('/cloudsql')
     if is_gcp:
@@ -65,11 +66,20 @@ def _connect():
         host = f"{socket_dir}/{creds['connection_name']}"
     else:
         host = creds['host']
-    return psycopg2.connect(
-        host=host, dbname=creds['dbname'], user=creds['user'],
-        password=creds['password'], connect_timeout=5,
-        options='-c statement_timeout=5000',
-    )
+    try:
+        import psycopg2
+        return psycopg2.connect(
+            host=host, dbname=creds['dbname'], user=creds['user'],
+            password=creds['password'], connect_timeout=5,
+            options='-c statement_timeout=5000',
+        )
+    except ImportError:
+        import psycopg
+        return psycopg.connect(
+            host=host, dbname=creds['dbname'], user=creds['user'],
+            password=creds['password'], connect_timeout=5,
+            options='-c statement_timeout=5000',
+        )
 
 
 # ─── Bot detection / source classification ───────────────────────────────────
@@ -132,6 +142,114 @@ def classify_user_agent(user_agent: Optional[str]) -> str:
     if 'mozilla' in ua and 'bot' not in ua and 'crawler' not in ua:
         return 'Browser'
     return 'Other'
+
+
+# ─── robots.txt bot-block stanza (ship with every site) ──────────────────────
+#
+# Andy's universal bot-block policy — append this stanza to every site's
+# existing robots.txt content. Keeps real search engines (Googlebot, Bingbot,
+# Applebot, DuckDuckBot) and live-citation engines (OAI-SearchBot,
+# ChatGPT-User, PerplexityBot, Claude-SearchBot) UNBLOCKED so the site stays
+# discoverable + cited. Blocks training crawlers and SEO scrapers that pay
+# nothing back. Decision data: kumori_ops.visitor_log shows GPTBot alone
+# accounts for ~94% of all bot traffic across the portfolio (May 2026).
+
+BOT_BLOCK_STANZA = """
+# ─── AI training crawlers (block — they pay nothing back) ───
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: Applebot-Extended
+Disallow: /
+
+User-agent: meta-externalagent
+Disallow: /
+
+User-agent: Meta-ExternalFetcher
+Disallow: /
+
+User-agent: Amazonbot
+Disallow: /
+
+User-agent: Diffbot
+Disallow: /
+
+User-agent: omgili
+Disallow: /
+
+User-agent: FacebookBot
+Disallow: /
+
+User-agent: cohere-ai
+Disallow: /
+
+User-agent: ImagesiftBot
+Disallow: /
+
+User-agent: PetalBot
+Disallow: /
+
+User-agent: Timpibot
+Disallow: /
+
+User-agent: VelenPublicWebCrawler
+Disallow: /
+
+User-agent: Webzio-Extended
+Disallow: /
+
+User-agent: YouBot
+Disallow: /
+
+# ─── SEO scrapers (block — they sell competitor research, no traffic to you) ───
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DataForSeoBot
+Disallow: /
+
+User-agent: BLEXBot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+User-agent: SeekportBot
+Disallow: /
+
+User-agent: serpstatbot
+Disallow: /
+""".strip() + "\n"
+
+
+def append_bot_block(existing_robots_txt: str) -> str:
+    """Append the canonical bot-block stanza to an existing robots.txt body.
+    Idempotent — if the stanza is already present, returns input unchanged."""
+    if 'GPTBot' in (existing_robots_txt or ''):
+        return existing_robots_txt
+    body = (existing_robots_txt or '').rstrip() + '\n\n'
+    return body + BOT_BLOCK_STANZA
 
 
 # ─── Insert (fire-and-forget, daemon thread) ──────────────────────────────────
