@@ -21,6 +21,13 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+# Cross-app visitor logging → kumori_ops.visitor_log
+try:
+    from utilities.visitor_logging import install_middleware as _install_visitor_logging
+    _install_visitor_logging(app, 'kindness_social')
+except Exception as _vl_e:
+    pass
 app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev-kindness-key')
 
 
