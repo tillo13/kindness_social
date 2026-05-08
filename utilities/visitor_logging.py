@@ -22,11 +22,31 @@ from __future__ import annotations
 
 import logging
 import os
+import random
 import threading
 import time
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+# ─── Volume control (per r/webdev community consensus 2026-05-08) ─────────────
+# Logging every page view individually is anti-pattern at portfolio scale.
+# Three levers, all on by default:
+#
+#   Lever 1 — bot sampling: log only BOT_SAMPLE_RATE of bot hits (default 2%).
+#             Cuts ~98% of bot row volume while preserving trend visibility.
+#             get_stats() multiplies bot counts by 1/BOT_SAMPLE_RATE so
+#             dashboards still show accurate (extrapolated) numbers.
+#
+#   Lever 2 — skip noise paths: internal cron + polling + API endpoints that
+#             aren't real eyeball traffic (see _SKIP_PATH_PREFIXES below).
+#
+#   Lever 3 — 90-day TTL: flusher periodically purges rows older than
+#             VISITOR_LOG_TTL_DAYS. No external cron needed.
+
+BOT_SAMPLE_RATE = 0.02
+VISITOR_LOG_TTL_DAYS = 90
+TTL_PURGE_INTERVAL_SEC = 3600  # purge at most once per hour from any process
 
 _KUMORI_PROJECT = 'kumori-404602'
 
@@ -252,49 +272,213 @@ def append_bot_block(existing_robots_txt: str) -> str:
     return body + BOT_BLOCK_STANZA
 
 
-# ─── Insert (fire-and-forget, daemon thread) ──────────────────────────────────
+# ─── Insert: queue + batched flusher ──────────────────────────────────────────
+#
+# Why batched: per-request `psycopg2.connect()` hammers Cloud SQL
+# (max_connections=50 on the shared kumori instance, ~9k page views/hour during
+# peak GPTBot crawl = ~9k connect/close per hour from this module alone). On
+# 2026-05-08 that pattern combined with a deploy-time 2× instance overlap on
+# kicksaw saturated the pool and slowed sites portfolio-wide. This was a direct
+# violation of db-speed-first/SKILL.md ("NEVER use direct psycopg2.connect()
+# without pooling").
+#
+# Now: log_view() only enqueues. A daemon thread holds ONE persistent
+# connection per process and flushes the queue every FLUSH_INTERVAL_SEC, OR
+# when the queue hits FLUSH_BATCH_MAX, whichever comes first. Connection
+# count from this module drops from O(requests) to O(processes).
+#
+# ─── kumori-shared connection budget (per db-speed-first/SKILL.md) ───────────
+# Allocation: 1 connection per App Engine process per site (held by the
+# flusher daemon). At auto-scale of 1-3 instances per site × 11 sites, the
+# steady-state cap from visitor_logging is ~33 connections in the worst case,
+# typically ~11. The budget table in db-speed-first should be amended to add:
+#     visitor_logging: 1/process across all sites
+# Stale-connection probe (SELECT 1) is mandatory before reuse — same fix that
+# resolved the kicksaw.io 2026-04-04 prod outage.
 
-def _insert_view(app_name: str, path: str, ip: str, user_agent: str,
-                 referrer: str, is_bot: bool, is_authed: bool):
-    try:
-        conn = _connect()
+import queue as _q
+
+FLUSH_INTERVAL_SEC = 5.0
+FLUSH_BATCH_MAX    = 200       # also flush when queue reaches this size
+QUEUE_HARD_CAP     = 5000      # drop oldest if we exceed (backpressure)
+
+_log_queue: _q.Queue = _q.Queue(maxsize=QUEUE_HARD_CAP)
+_flusher_started = False
+_flusher_lock = threading.Lock()
+_persistent_conn = None  # module-level reusable connection
+
+
+def _get_persistent_conn():
+    """Return the module-level Postgres connection, reconnecting if dropped.
+
+    Cloud SQL drops idle connections after ~10 min and App Engine scales to 0,
+    so we MUST do a SELECT 1 liveness probe before reusing — pattern from
+    db-speed-first/SKILL.md (the same fix that resolved the kicksaw.io
+    2026-04-04 prod outage). `.closed` alone isn't enough: a TCP-half-open
+    socket can read 0 from .closed yet fail on first execute()."""
+    global _persistent_conn
+    if _persistent_conn is not None:
         try:
-            cur = conn.cursor()
-            cur.execute("""
-                INSERT INTO kumori_ops.visitor_log
-                    (app, path, ip, user_agent, referrer, is_bot, is_authed)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """, (
-                (app_name or '')[:64], (path or '')[:1000], (ip or '')[:64],
-                (user_agent or '')[:1000], (referrer or '')[:1000],
-                bool(is_bot), bool(is_authed),
-            ))
-            conn.commit()
-        finally:
-            conn.close()
+            if getattr(_persistent_conn, 'closed', 1) == 0:
+                cur = _persistent_conn.cursor()
+                cur.execute("SELECT 1")
+                cur.fetchone()
+                cur.close()
+                return _persistent_conn
+        except Exception:
+            try:
+                _persistent_conn.close()
+            except Exception:
+                pass
+            _persistent_conn = None
+    _persistent_conn = _connect()
+    return _persistent_conn
+
+
+def _flush_batch(rows):
+    """Insert a batch of rows via the persistent connection. On failure,
+    drop the connection so the next flush retries fresh."""
+    global _persistent_conn
+    if not rows:
+        return
+    try:
+        conn = _get_persistent_conn()
+        cur = conn.cursor()
+        # executemany works for both psycopg2 and psycopg v3
+        cur.executemany("""
+            INSERT INTO kumori_ops.visitor_log
+                (app, path, ip, user_agent, referrer, is_bot, is_authed)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, rows)
+        conn.commit()
     except Exception as e:
-        logger.warning(f"visitor_logging: insert failed: {e}")
+        logger.warning(f"visitor_logging: batch flush failed ({len(rows)} rows): {e}")
+        # Drop the connection so the next flush retries fresh.
+        try:
+            if _persistent_conn is not None:
+                _persistent_conn.close()
+        except Exception:
+            pass
+        _persistent_conn = None
+
+
+_last_ttl_purge_at = 0.0
+
+
+def _maybe_ttl_purge():
+    """Run a 90-day TTL purge at most once per TTL_PURGE_INTERVAL_SEC per
+    process. Cheap if there's nothing to delete (indexed on viewed_at).
+    Doesn't block the queue — purge runs after a flush, on the same conn."""
+    global _last_ttl_purge_at, _persistent_conn
+    now = time.time()
+    if now - _last_ttl_purge_at < TTL_PURGE_INTERVAL_SEC:
+        return
+    _last_ttl_purge_at = now
+    try:
+        conn = _get_persistent_conn()
+        cur = conn.cursor()
+        cur.execute(
+            "DELETE FROM kumori_ops.visitor_log "
+            "WHERE viewed_at < NOW() - (%s || ' days')::interval",
+            (VISITOR_LOG_TTL_DAYS,),
+        )
+        deleted = cur.rowcount
+        conn.commit()
+        if deleted:
+            logger.info(f"visitor_logging: TTL purged {deleted} rows older than {VISITOR_LOG_TTL_DAYS}d")
+    except Exception as e:
+        logger.warning(f"visitor_logging: TTL purge failed: {e}")
+        try:
+            if _persistent_conn is not None:
+                _persistent_conn.close()
+        except Exception:
+            pass
+        _persistent_conn = None
+
+
+def _flusher_loop():
+    """Daemon loop: drain queue every FLUSH_INTERVAL_SEC (or when full)."""
+    while True:
+        # Block-with-timeout for the first item so we don't busy-loop empty.
+        try:
+            first = _log_queue.get(timeout=FLUSH_INTERVAL_SEC)
+        except _q.Empty:
+            _maybe_ttl_purge()  # opportunistic — empty cycle is a fine time
+            continue
+        batch = [first]
+        # Drain whatever else is already queued, up to FLUSH_BATCH_MAX.
+        while len(batch) < FLUSH_BATCH_MAX:
+            try:
+                batch.append(_log_queue.get_nowait())
+            except _q.Empty:
+                break
+        try:
+            _flush_batch(batch)
+        except Exception as e:
+            logger.warning(f"visitor_logging: flusher swallowed: {e}")
+        _maybe_ttl_purge()
+
+
+def _ensure_flusher_started():
+    global _flusher_started
+    if _flusher_started:
+        return
+    with _flusher_lock:
+        if _flusher_started:
+            return
+        t = threading.Thread(target=_flusher_loop, daemon=True,
+                             name='visitor_logging.flusher')
+        t.start()
+        _flusher_started = True
 
 
 def log_view(app_name: str, path: str, ip: str = '', user_agent: str = '',
              referrer: str = '', is_authed: bool = False) -> None:
-    """Async-fire one row. Caller must NOT await — returns immediately."""
+    """Enqueue one row. Returns immediately; insert happens in a batched
+    flush on a daemon thread. Drops silently if the queue is at hard cap
+    (acceptable for telemetry — never block a request on logging).
+
+    Bot rows are sampled at BOT_SAMPLE_RATE (default 2%) — get_stats()
+    extrapolates back to true counts. Human rows always 100%."""
     is_bot = _looks_like_bot(user_agent)
-    t = threading.Thread(
-        target=_insert_view,
-        args=(app_name, path, ip, user_agent, referrer, is_bot, is_authed),
-        daemon=True,
+    if is_bot and random.random() >= BOT_SAMPLE_RATE:
+        return  # sampled out
+    _ensure_flusher_started()
+    row = (
+        (app_name or '')[:64],
+        (path or '')[:1000],
+        (ip or '')[:64],
+        (user_agent or '')[:1000],
+        (referrer or '')[:1000],
+        is_bot,
+        bool(is_authed),
     )
-    t.start()
+    try:
+        _log_queue.put_nowait(row)
+    except _q.Full:
+        # Backpressure: drop and warn. Better than blocking the request.
+        logger.warning("visitor_logging: queue at hard cap, dropping row")
 
 
 # ─── Flask middleware install ────────────────────────────────────────────────
 
 # Paths whose hits we don't care about (cuts noise + avoids logging the
-# dashboard itself, which would create a feedback loop).
+# dashboard itself, which would create a feedback loop). Expanded 2026-05-08
+# after seeing internal cron / polling endpoints dominate "humans" stats —
+# galactica's /api/crew/mission/*, dandy's /cron/check-email, wattson's
+# /api/cron/poll, kicksaw's /api/time-pulse/* etc. were all logged as
+# "humans" because they pass UA-based bot detection.
 _SKIP_PATH_PREFIXES = (
-    '/static/', '/admin/', '/api/admin/', '/health', '/healthz',
-    '/favicon.ico', '/robots.txt', '/sitemap.xml',
+    '/static/',
+    '/admin/', '/api/admin/',
+    '/health', '/healthz',
+    '/favicon.ico', '/robots.txt', '/sitemap.xml', '/feed.xml',
+    # Server-to-server cron + polling
+    '/cron/', '/api/cron/', '/_ah/', '/tasks/',
+    # App-internal API patterns surfaced by visitor_logging itself —
+    # safe to skip on EVERY site since they're low-cardinality internal traffic
+    '/api/crew/', '/api/time-pulse/', '/api/seen', '/api/track',
+    '/api/random', '/api/stats', '/api/robot/',
 )
 
 
@@ -382,12 +566,19 @@ def get_recent_views(app_name: Optional[str] = None, limit: int = 300,
 
 def get_stats(app_name: Optional[str] = None, hours: int = 24) -> dict:
     """Counts of humans / LinkedIn-referred / bots in the last N hours, plus
-    a top-source breakdown for the bot side, and per-app totals if no filter."""
+    a top-source breakdown for the bot side, and per-app totals if no filter.
+
+    Bot row counts are EXTRAPOLATED back to true volume using BOT_SAMPLE_RATE
+    (rows divided by 0.02 → ~50× the literal table count). The dashboard
+    surfaces the extrapolated numbers; raw table counts are available via
+    get_recent_views(human_only=False)."""
     out = {
         'humans': 0, 'from_linkedin': 0, 'bots': 0, 'total': 0,
         'bot_breakdown': [], 'app_breakdown': [],
         'window_hours': hours, 'app_filter': app_name,
+        'bot_sample_rate': BOT_SAMPLE_RATE,
     }
+    bot_mult = (1.0 / BOT_SAMPLE_RATE) if BOT_SAMPLE_RATE > 0 else 1.0
     try:
         conn = _connect()
         try:
@@ -405,7 +596,12 @@ def get_stats(app_name: Optional[str] = None, hours: int = 24) -> dict:
                   AND (%s::text IS NULL OR app = %s)
             """, ('%linkedin.com%', '%lnkd.in%', hours, app_name, app_name))
             row = cur.fetchone()
-            out['humans'], out['from_linkedin'], out['bots'], out['total'] = row
+            humans, from_li, bots_raw, total_raw = row
+            # Extrapolate bot rows back to true volume. Humans aren't sampled.
+            out['humans'] = humans
+            out['from_linkedin'] = from_li
+            out['bots'] = int(round(bots_raw * bot_mult))
+            out['total'] = humans + out['bots']
 
             cur.execute("""
                 SELECT user_agent, COUNT(*) AS n
@@ -418,7 +614,7 @@ def get_stats(app_name: Optional[str] = None, hours: int = 24) -> dict:
                 LIMIT 8
             """, (hours, app_name, app_name))
             out['bot_breakdown'] = [
-                {'source': classify_user_agent(ua), 'count': n}
+                {'source': classify_user_agent(ua), 'count': int(round(n * bot_mult))}
                 for ua, n in cur.fetchall()
             ]
 
@@ -434,7 +630,11 @@ def get_stats(app_name: Optional[str] = None, hours: int = 24) -> dict:
                     ORDER BY total DESC
                 """, (hours,))
                 out['app_breakdown'] = [
-                    {'app': a, 'humans': h, 'bots': b, 'total': t}
+                    {
+                        'app': a, 'humans': h,
+                        'bots': int(round(b * bot_mult)),
+                        'total': h + int(round(b * bot_mult)),
+                    }
                     for a, h, b, t in cur.fetchall()
                 ]
         finally:
