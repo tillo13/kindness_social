@@ -50,6 +50,10 @@
     {
       "src": "visitor_logging/visitor_logging.py",
       "dst": "utilities/visitor_logging.py"
+    },
+    {
+      "src": "gtag/gtag.py",
+      "dst": "utilities/gtag.py"
     }
   ],
   "custom_domain": "https://kindness.social",
