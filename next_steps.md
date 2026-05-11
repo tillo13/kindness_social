@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-05-08 04:05*
+*Last refreshed: 2026-05-10 04:00*
 
 ## 🎯 Pending
 
@@ -15,6 +15,10 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
+- `f088668` · 2026-05-08 17:17 — GA4 tag injection via shared utilities/gtag + new kumori /admin/audience dashboard (where applica...
+- `338fabf` · 2026-05-08 16:15 — visitor_logging: 2% bot sample + skip noise paths + 90d TTL + SELECT 1 liveness probe (per db-spe...
+- `819c260` · 2026-05-08 14:25 — robots.txt: append AI-training + SEO-scraper bot-block (allow Googlebot/Bingbot/citation engines)
+- `c6942d8` · 2026-05-08 12:20 — add visitor_logging middleware → kumori_ops.visitor_log
 - `3223134` · 2026-05-07 10:44 — fix /about page 30s statement_timeout: get_control_vs_treatment + get_experiment_raw_data both us...
 - `e84385a` · 2026-05-07 10:31 — fix lingering pool exhaustion: get_db_connection now retries with exponential backoff (50ms→400ms...
 - `6658ae6` · 2026-05-07 09:50 — fix tokens_in/tokens_out write path in kumori_free_llms (was dead since columns added — 0 of 947 ...
@@ -26,14 +30,12 @@
 - `96f44b2` · 2026-05-05 10:12 — lifecycle dashboard: hide retired column behind toggle (348 retired endpoints was visually noisy)
 - `f1ae695` · 2026-05-05 09:48 — lifecycle dashboard upgrade: 5 new sections from kumori_llm_endpoints (Modality Lanes, Investigat...
 - `17d6591` · 2026-05-05 09:10 — sync kumori_free_llms: DB-driven BACKENDS with 5min refresh + bandit exploration (10% under-valid...
-- `fd73c2e` · 2026-05-04 18:00 — sync runtime: bulletproof canary + DB-driven shared_pool caps + probe accounting fixes from kumor...
-- `5901cb4` · 2026-05-04 15:53 — sync kumori_free_llms: cluster-wide cap enforcement (DB-backed counter, shared_pool checks, probe...
-- `f329a3b` · 2026-05-04 14:06 — audit dual-write to kumori_llm_endpoints: catalog audit cron now mirrors status transitions + new...
-- `cf230bb` · 2026-05-04 12:52 — catalog audit gate: new backends from providers without canonical_status=active land in status=pe...
 <!-- shipped:end -->
 
 ## ⚠️ Unfinished / WIP
 
 <!-- wip:start -->
-_(clean working tree, no TODO markers in recent files)_
+**1 file(s) with uncommitted changes:**
+- ` M next_steps.md`
+
 <!-- wip:end -->

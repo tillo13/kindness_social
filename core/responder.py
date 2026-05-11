@@ -265,7 +265,7 @@ def run_agent_responses(config=None):
     - Reactions happen ~50% of the time, from 2-3 random browsers
     """
     config = config or DEFAULT_CONFIG
-    from utilities.kumori_free_llms import _is_backed_off as is_backend_in_backoff
+    from utilities.kumori_api_client import llm_is_backed_off as is_backend_in_backoff
 
     # Check open threads — grab up to 8
     open_threads = get_open_threads(limit=8)

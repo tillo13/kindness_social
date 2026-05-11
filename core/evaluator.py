@@ -7,16 +7,16 @@ import os
 import time
 import logging
 
-from utilities.kumori_free_llms import chat as _kf_chat, chat_eval as _kf_chat_eval
+from utilities.kumori_api_client import llm_chat as _kf_chat, llm_chat_eval as _kf_chat_eval
 
 
 def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
     return _kf_chat(backend, messages, max_tokens=max_tokens,
-                    temperature=temperature, system=system, caller='kindness_social')
+                    temperature=temperature, system=system)
 
 
 def chat_eval(backend, prompt, system="Return ONLY a number 1-10."):
-    return _kf_chat_eval(prompt, system=system, caller='kindness_social')
+    return _kf_chat_eval(prompt, system=system)
 
 logger = logging.getLogger(__name__)
 

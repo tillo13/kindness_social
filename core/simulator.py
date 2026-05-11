@@ -283,9 +283,8 @@ def run_peer_recognition(thread_history, thread_db_id, config):
             + "\n".join(comments_summary)
         )
 
-        from utilities.kumori_free_llms import chat_eval as _kf_chat_eval
-        response, _ = _kf_chat_eval(prompt, system="Reply with ONLY a single number.",
-                                    caller='kindness_social')
+        from utilities.kumori_api_client import llm_chat_eval as _kf_chat_eval
+        response, _ = _kf_chat_eval(prompt, system="Reply with ONLY a single number.")
 
         # Parse which comment they voted for (response can be None if eval backend is down)
         try:

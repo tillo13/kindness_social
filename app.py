@@ -10,7 +10,7 @@ import yaml
 from flask import Flask, render_template, jsonify, request, redirect, Response
 
 from core import db_ops
-from utilities.kumori_free_llms import get_usage_summary
+from utilities.kumori_api_client import llm_usage as get_usage_summary
 from cron_admin_routes import bp as cron_admin_bp, init_auth
 
 # ============================================================================
@@ -54,21 +54,20 @@ try:
 except Exception as _e:
     logger.exception(f"Startup schema migration failed: {_e}")
 
-# Init the LLM router on startup (loads API keys + provider limits from DB)
+# Init the kumori_api_client (HTTP path to kumori.ai/api/v1/*) on startup.
+# Post 2026-05-10 migration: kindness no longer vendors kumori_free_llms; it
+# calls kumori as a service. Internal-state helpers (_is_backed_off,
+# backend_registry, etc.) now resolve via /api/v1/llm/{backoff-state,registry}.
 try:
     from utilities.google_secret_utils import get_secret
-    from utilities.postgres_utils import db_cursor, log_api_usage
-    from utilities import kumori_free_llms
-    kumori_free_llms.init(
-        app_name='kindness_social',
+    from utilities import kumori_api_client
+    kumori_api_client.init(
         get_secret_fn=get_secret,
-        db_cursor_fn=db_cursor,
-        log_api_usage_fn=log_api_usage,
-        policy='silent',
+        api_key_name='KINDNESS_KUMORI_API_KEY',
     )
-    logger.info("kumori_free_llms initialized on startup")
+    logger.info("kumori_api_client initialized on startup")
 except Exception as _e:
-    logger.exception(f"kumori_free_llms init failed: {_e}")
+    logger.exception(f"kumori_api_client init failed: {_e}")
 
 # Jinja helper: pick the right avatar URL up front (local for committed
 # seed agents, GCS for everything created at runtime). Avoids 404 noise from
@@ -159,7 +158,11 @@ app.jinja_env.filters['clean_thought'] = _clean_thought
 GCP_PROJECT_ID = 'kumori-404602'
 
 
-from utilities.backend_registry import CLOUD_RUN_WORKER_URL
+# CLOUD_RUN_WORKER_URL was previously imported from vendored backend_registry;
+# now hardcoded since it's a stable production URL (the kindness-worker Cloud
+# Run service kindness itself runs). If this ever needs to be discovered
+# dynamically, fetch via kumori_api_client.llm_registry()['cloud_run_worker_url'].
+CLOUD_RUN_WORKER_URL = 'https://kindness-worker-243380010344.us-central1.run.app'
 
 _admin_api_key = None
 
@@ -584,11 +587,16 @@ def about():
     experiment = db_ops.get_control_vs_treatment()
     treatment_count = (experiment.get('treatment') or {}).get('agent_count', 0)
     control_count = (experiment.get('control') or {}).get('agent_count', 0)
-    # Live model + provider counts — registry is now DB-driven and auto-updates
-    # daily via /api/cron/llm-catalog-audit, so the marketing copy reflects reality.
-    from utilities.backend_registry import MODELS
-    model_count = len(MODELS)
-    provider_count = len({m['provider'] for m in MODELS if m.get('provider')})
+    # Live model + provider counts via kumori HTTP API (registry is DB-driven).
+    try:
+        from utilities.kumori_api_client import llm_registry
+        _reg = llm_registry()
+        _models = _reg.get('models') or []
+        model_count = len(_models)
+        provider_count = len({m['provider'] for m in _models if m.get('provider')})
+    except Exception:
+        model_count = 0
+        provider_count = 0
     return render_template('about.html',
                            treatment_count=treatment_count,
                            control_count=control_count,

@@ -13,7 +13,7 @@ from flask import Blueprint, jsonify, request, render_template
 from core import db_ops
 from core.simulator import run_thread
 from core.agent_factory import create_agent
-from utilities.backend_registry import CLOUD_RUN_WORKER_URL
+CLOUD_RUN_WORKER_URL = 'https://kindness-worker-243380010344.us-central1.run.app'  # was: from utilities.backend_registry
 
 logger = logging.getLogger(__name__)
 
@@ -528,7 +528,7 @@ def admin_page():
     if not is_admin_request():
         return "Forbidden — pass ?key=YOUR_KEY", 403
     key = request.headers.get('X-Admin-Key') or request.args.get('key', '')
-    from utilities.backend_registry import BACKENDS, LITELLM_BACKENDS
+    from utilities.kumori_api_client import llm_registry as _llm_registry; _r = _llm_registry(); BACKENDS = _r.get('backends', []); LITELLM_BACKENDS = _r.get('litellm_backends', [])
     all_backends = [b['name'] for b in BACKENDS + LITELLM_BACKENDS]
 
     # Fetch lifecycle status for each backend in one query (vs N+1).
@@ -579,8 +579,8 @@ def admin_test_backend():
     data = request.get_json(silent=True) or {}
     backend = data.get('backend', 'groq')
 
-    from utilities.kumori_free_llms import chat as _kf_chat
-    from utilities.backend_registry import CLOUD_RUN_ONLY
+    from utilities.kumori_api_client import llm_chat as _kf_chat
+    from utilities.kumori_api_client import llm_registry as _llm_registry; CLOUD_RUN_ONLY = set(_llm_registry().get('cloud_run_only', []))
     import time
 
     # Cloud Run only backends — proxy to worker
@@ -607,8 +607,7 @@ def admin_test_backend():
     try:
         messages = [{'role': 'user', 'content': 'Say hello in exactly 5 words.'}]
         start = time.time()
-        text, actual = _kf_chat(backend, messages, max_tokens=30, temperature=0.1,
-                               caller='kindness_social')
+        text, actual = _kf_chat(backend, messages, max_tokens=30, temperature=0.1)
         elapsed = int((time.time() - start) * 1000)
         return jsonify({'status': 'ok', 'backend': backend, 'actual_backend': actual,
                         'response': text[:100], 'time_ms': elapsed})
@@ -622,9 +621,9 @@ def admin_test_all_backends():
     if not is_admin_request():
         return jsonify({'error': 'Forbidden'}), 403
 
-    from utilities.kumori_free_llms import chat as _kf_chat
-    from utilities.backend_registry import FALLBACK_ORDER, CLOUD_RUN_ONLY
-    from utilities.kumori_free_llms import _is_backed_off as is_backend_in_backoff
+    from utilities.kumori_api_client import llm_chat as _kf_chat
+    from utilities.kumori_api_client import llm_registry as _llm_registry; _r = _llm_registry(); FALLBACK_ORDER = _r.get('fallback_order', []); CLOUD_RUN_ONLY = set(_r.get('cloud_run_only', []))
+    from utilities.kumori_api_client import llm_is_backed_off as is_backend_in_backoff
     import time
 
     results = []
@@ -646,8 +645,7 @@ def admin_test_all_backends():
         try:
             messages = [{'role': 'user', 'content': 'Say hello in 5 words.'}]
             start = time.time()
-            text, actual = _kf_chat(backend, messages, max_tokens=30, temperature=0.1,
-                                   caller='kindness_social')
+            text, actual = _kf_chat(backend, messages, max_tokens=30, temperature=0.1)
             elapsed = int((time.time() - start) * 1000)
             entry.update({'status': 'ok', 'actual_backend': actual,
                          'response': text[:80], 'time_ms': elapsed})
@@ -870,14 +868,14 @@ def admin_system_status():
     Public — pure DB read + in-process router state. No secrets exposed.
     """
 
-    from utilities.kumori_free_llms import get_usage_summary, _backoff_until
-    from utilities.backend_registry import CLOUD_RUN_ONLY, FALLBACK_ORDER
+    from utilities.kumori_api_client import llm_usage as get_usage_summary, llm_backoff_until as _backoff_until_fn
+    from utilities.kumori_api_client import llm_registry as _llm_registry; CLOUD_RUN_ONLY = set(_llm_registry().get('cloud_run_only', [])), FALLBACK_ORDER
     import time as _time
 
     # Backoff state
     backoff = {}
     now = _time.time()
-    for b, until in _backoff_until.items():
+    for b, until in _backoff_until_fn().items():
         if until > now:
             backoff[b] = {'seconds_remaining': int(until - now)}
 
@@ -1031,10 +1029,10 @@ def admin_llm_lifecycle():
     # signal from /api/admin/system-status. {backend: seconds_remaining}
     backoff_state = {}
     try:
-        from utilities.kumori_free_llms import _backoff_until
+        from utilities.kumori_api_client import llm_backoff_until as _backoff_until_fn
         import time as _time
         _now = _time.time()
-        for b, until in _backoff_until.items():
+        for b, until in _backoff_until_fn().items():
             if until > _now:
                 backoff_state[b] = int(until - _now)
     except Exception:
@@ -1314,7 +1312,7 @@ def _imggen_health_snapshot():
         if name not in router._DISPATCH:
             continue
         last_call = router._last_call.get(name, 0)
-        backoff_until = router._backoff_until.get(name, 0)
+        backoff_until = router._backoff_until_fn().get(name, 0)
         daily_used = router._daily_count.get(name, 0)
         daily_cap = cfg.get('daily_limit')
         # Quick HEAD/GET to confirm reachable. We don't run a full image gen

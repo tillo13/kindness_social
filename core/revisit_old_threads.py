@@ -31,7 +31,7 @@ from core.responder import (
 )
 from core.evaluator import generate_comment, evaluate_comment
 from core.simulator import calculate_dopamine, update_persona, DEFAULT_CONFIG
-from utilities.kumori_free_llms import _is_backed_off as is_backend_in_backoff
+from utilities.kumori_api_client import llm_is_backed_off as is_backend_in_backoff
 
 logger = logging.getLogger(__name__)
 
