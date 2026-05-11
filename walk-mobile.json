@@ -1,0 +1,52 @@
+{
+  "name": "kindness_social",
+  "baseUrl": "https://kindness.social",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "checks": {
+    "noBrokenImages": true,
+    "noConsoleErrors": true,
+    "no5xx": true,
+    "no4xx": false
+  },
+  "routes": [
+    "/",
+    "/agents",
+    {
+      "path": "/agents?sort=created_at%20DESC"
+    },
+    {
+      "path": "/agents?sort=current_toxicity%20ASC"
+    },
+    {
+      "path": "/agents?sort=total_interactions%20DESC"
+    },
+    "/threads",
+    "/leaderboard",
+    "/topics",
+    {
+      "path": "/about",
+      "expectSelector": "#glossary",
+      "expectText": "Glossary"
+    },
+    "/stats",
+    "/dashboard",
+    "/create",
+    "/understand",
+    "/roadmap",
+    "/families",
+    "/contact",
+    "/privacy",
+    "/terms",
+    "/sitemap.xml",
+    "/api/health",
+    {
+      "path": "/agent/google.flash-2.0.819",
+      "expectText": "Internal Monologue"
+    }
+  ],
+  "outDir": "/tmp/kindness_social_mobile_validation",
+  "_mobile": "Mobile clone of walk.json (iPhone 14 Pro viewport) \u2014 generated 2026-05-10 for post-HTTP-migration smoke"
+}

@@ -35,17 +35,27 @@ import urllib.error
 from datetime import date
 
 try:
-    from utilities.backend_registry import (
+    # Preferred (post 2026-05-10 package layout): relative sibling import
+    from .backend_registry import (
         BACKENDS, LITELLM_BACKENDS,
         FALLBACK_LIMITS as _FALLBACK_LIMITS,
         EVAL_POOL_FREE,
     )
 except ImportError:
-    from backend_registry import (
-        BACKENDS, LITELLM_BACKENDS,
-        FALLBACK_LIMITS as _FALLBACK_LIMITS,
-        EVAL_POOL_FREE,
-    )
+    try:
+        # Legacy: vendored as utilities/backend_registry.py
+        from utilities.backend_registry import (
+            BACKENDS, LITELLM_BACKENDS,
+            FALLBACK_LIMITS as _FALLBACK_LIMITS,
+            EVAL_POOL_FREE,
+        )
+    except ImportError:
+        # Standalone (running from kumori_free_llm/ dir directly)
+        from backend_registry import (
+            BACKENDS, LITELLM_BACKENDS,
+            FALLBACK_LIMITS as _FALLBACK_LIMITS,
+            EVAL_POOL_FREE,
+        )
 
 # Module reference for live-refresh access — backend_registry.BACKENDS is
 # rebound when refresh_models() runs, but `from backend_registry import BACKENDS`
@@ -243,104 +253,16 @@ def _is_enabled(backend_name):
 #   open      cooldown_until > NOW() — _try_backend skips silently
 #   half-open cooldown just expired — next real call IS the test
 # Self-healing: free-tier flicker auto-recovers without operator action.
+# Implementation lives in ._breaker (extracted 2026-05-10).
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-_breaker_lock = threading.Lock()
-
-
-def _is_in_cooldown(backend_name):
-    """True if the breaker is currently OPEN for this backend."""
-    until = _get_limit(backend_name, 'cooldown_until_ts', 0)
-    if not until:
-        return False
-    if time.time() < until:
-        return True
-    # Expired — clear in-memory so next call is the half-open probe
-    with _breaker_lock:
-        if backend_name in _provider_limits:
-            _provider_limits[backend_name]['cooldown_until_ts'] = 0
-            _provider_limits[backend_name]['consecutive_failures'] = 0
-    # Best-effort persist to DB. Dual-write to kumori_llm_endpoints
-    # (post migration 004 — endpoints is the new source of truth, but we keep
-    # writing to provider_limits during the verification window).
-    if _db_cursor_fn:
-        try:
-            with _db_cursor_fn(dict_cursor=False, commit=True) as cur:
-                cur.execute("""
-                    UPDATE kumori_llm_provider_limits
-                    SET cooldown_until = NULL, consecutive_failures = 0
-                    WHERE backend = %s
-                """, (backend_name,))
-                cur.execute("""
-                    UPDATE kumori_llm_endpoints
-                    SET cooldown_until = NULL, consecutive_failures = 0,
-                        updated_at = NOW()
-                    WHERE backend = %s
-                """, (backend_name,))
-        except Exception:
-            pass
-    return False
-
-
-def _record_breaker_success(backend_name):
-    """Reset failure counter on a successful call (closed state)."""
-    with _breaker_lock:
-        s = _provider_limits.get(backend_name)
-        if s and (s.get('consecutive_failures') or s.get('cooldown_until_ts')):
-            s['consecutive_failures'] = 0
-            s['cooldown_until_ts'] = 0
-            if _db_cursor_fn:
-                try:
-                    with _db_cursor_fn(dict_cursor=False, commit=True) as cur:
-                        cur.execute("""
-                            UPDATE kumori_llm_provider_limits
-                            SET consecutive_failures = 0, cooldown_until = NULL
-                            WHERE backend = %s
-                        """, (backend_name,))
-                        cur.execute("""
-                            UPDATE kumori_llm_endpoints
-                            SET consecutive_failures = 0, cooldown_until = NULL,
-                                last_active_at = NOW(), updated_at = NOW()
-                            WHERE backend = %s
-                        """, (backend_name,))
-                except Exception:
-                    pass
-
-
-def _record_breaker_failure(backend_name):
-    """Increment failure counter; trip breaker if threshold hit."""
-    with _breaker_lock:
-        s = _provider_limits.setdefault(backend_name, {
-            'consecutive_failures': 0, 'cooldown_until_ts': 0,
-            'failure_threshold': 3, 'cooldown_seconds': 60,
-        })
-        s['consecutive_failures'] = (s.get('consecutive_failures') or 0) + 1
-        threshold = s.get('failure_threshold') or 3
-        cooldown_secs = s.get('cooldown_seconds') or 60
-        if s['consecutive_failures'] >= threshold:
-            s['cooldown_until_ts'] = time.time() + cooldown_secs
-            logger.info(
-                f"circuit breaker → OPEN: {backend_name} after "
-                f"{s['consecutive_failures']} fails, cooldown {cooldown_secs}s"
-            )
-            if _db_cursor_fn:
-                try:
-                    with _db_cursor_fn(dict_cursor=False, commit=True) as cur:
-                        cur.execute("""
-                            UPDATE kumori_llm_provider_limits
-                            SET cooldown_until = NOW() + (%s || ' seconds')::interval,
-                                consecutive_failures = %s
-                            WHERE backend = %s
-                        """, (cooldown_secs, s['consecutive_failures'], backend_name))
-                        cur.execute("""
-                            UPDATE kumori_llm_endpoints
-                            SET cooldown_until = NOW() + (%s || ' seconds')::interval,
-                                consecutive_failures = %s,
-                                updated_at = NOW()
-                            WHERE backend = %s
-                        """, (cooldown_secs, s['consecutive_failures'], backend_name))
-                except Exception:
-                    pass
+from ._breaker import (
+    _is_in_cooldown,
+    _record_breaker_success,
+    _record_breaker_failure,
+)
+# probe_backend extracted to ._probe (re-exported here for back-compat callers)
+from ._probe import probe_backend  # noqa: F401
 
 
 def _check_shared_pool(backend_name):
@@ -480,220 +402,22 @@ def _is_backed_off(backend_name):
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Secret cache
+# Secret cache + per-provider HTTP impls live in ._backends (extracted during
+# the 2026-05-10 1000-line-rule split). They reach back here for state via
+# `from . import kumori_free_llms as _r`.
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-_key_cache = {}
+from ._backends import (
+    _get_key,
+    _usage_from_openai,
+    _try_openai_compatible,
+    _try_gemini,
+    _try_worker,
+    _try_cloudflare,
+    _try_cohere,
+    _try_litellm_gateway,
+    _WORKER_TYPES,
+)
 
-
-def _get_key(secret_name):
-    if not secret_name:
-        return None
-    if secret_name not in _key_cache:
-        if not _get_secret_fn:
-            logger.warning(f"No get_secret_fn — cannot fetch {secret_name}")
-            return None
-        try:
-            _key_cache[secret_name] = _get_secret_fn(secret_name)
-        except Exception:
-            _key_cache[secret_name] = None
-    return _key_cache[secret_name]
-
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Backend implementations
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-def _usage_from_openai(data):
-    """Extract {in,out} from a standard OpenAI-shaped usage dict. Returns None
-    if absent (some providers omit usage; caller treats None as "skip token write")."""
-    u = data.get('usage')
-    if not isinstance(u, dict):
-        return None
-    pin = u.get('prompt_tokens') or u.get('input_tokens')
-    pout = u.get('completion_tokens') or u.get('output_tokens')
-    if pin is None and pout is None:
-        return None
-    return {'in': int(pin or 0), 'out': int(pout or 0)}
-
-
-def _try_openai_compatible(backend, prompt, max_tokens, temperature):
-    """Standard OpenAI-compatible API call (Groq, Cerebras, NVIDIA, Mistral, etc.).
-    Returns (text_or_None, usage_or_None)."""
-    headers = {'Content-Type': 'application/json'}
-    if backend.get('secret'):
-        key = _get_key(backend['secret'])
-        if not key:
-            return None, None
-        headers['Authorization'] = f'Bearer {key}'
-    if 'openrouter' in backend['name']:
-        headers['HTTP-Referer'] = f'https://{_app_name or "kumori"}.app'
-
-    payload = json.dumps({
-        'model': backend['model'],
-        'messages': [{'role': 'user', 'content': prompt}],
-        'max_tokens': max_tokens,
-        'temperature': temperature,
-    }).encode()
-
-    timeout = 60 if backend['name'] == 'nvidia' else 30
-    req = urllib.request.Request(backend['url'], data=payload, headers=headers, method='POST')
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        data = json.loads(resp.read())
-        msg = data['choices'][0]['message']
-        content = msg.get('content') or msg.get('reasoning') or ''
-        text = content.strip() if content.strip() else None
-        return text, (_usage_from_openai(data) if text else None)
-
-
-def _try_gemini(prompt, max_tokens, temperature, model_name='gemini-2.5-flash'):
-    """Google Gemini via the google-generativeai SDK.
-    Returns (text_or_None, usage_or_None)."""
-    key = _get_key('KINDNESS_GEMINI_API_KEY')
-    if not key:
-        return None, None
-    import google.generativeai as genai
-    genai.configure(api_key=key)
-    model = genai.GenerativeModel(
-        model_name,
-        generation_config=genai.types.GenerationConfig(max_output_tokens=max_tokens, temperature=temperature),
-    )
-    try:
-        response = model.generate_content(prompt)
-    except Exception as e:
-        if '429' in str(e):
-            raise  # Let caller handle 429 for backoff
-        return None, None
-    if not response.candidates or not response.candidates[0].content.parts:
-        return None, None  # Safety filter or empty response
-    usage = None
-    meta = getattr(response, 'usage_metadata', None)
-    if meta is not None:
-        usage = {
-            'in': int(getattr(meta, 'prompt_token_count', 0) or 0),
-            'out': int(getattr(meta, 'candidates_token_count', 0) or 0),
-        }
-    return response.text.strip(), usage
-
-
-def _try_worker(worker_type, prompt, max_tokens, temperature):
-    """Route through kindness-worker Cloud Run (grok, grok_fast, grok4, deepseek).
-    Returns (text_or_None, usage_or_None)."""
-    url = 'https://kindness-worker-243380010344.us-central1.run.app/chat'
-    payload = json.dumps({
-        'backend': worker_type,
-        'messages': [{'role': 'user', 'content': prompt}],
-        'max_tokens': max_tokens, 'temperature': temperature,
-    }).encode()
-    req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'}, method='POST')
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        data = json.loads(resp.read())
-        text = data.get('text', '')
-        text = text if text else None
-        return text, (_usage_from_openai(data) if text else None)
-
-
-def _try_cloudflare(backend, prompt, max_tokens, temperature):
-    """Cloudflare Workers AI — non-OpenAI response format (result.response).
-    Returns (text_or_None, usage_or_None)."""
-    key = _get_key(backend['secret'])
-    if not key:
-        return None, None
-    payload = json.dumps({
-        'messages': [{'role': 'user', 'content': prompt}],
-        'max_tokens': max_tokens,
-    }).encode()
-    req = urllib.request.Request(
-        backend['url'], data=payload,
-        headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {key}'},
-        method='POST',
-    )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        data = json.loads(resp.read())
-        result = data.get('result', {}) or {}
-        text = result.get('response', '')
-        text = text.strip() if text.strip() else None
-        # Cloudflare puts usage at result.usage with prompt_tokens/completion_tokens
-        usage = _usage_from_openai(result) if text else None
-        return text, usage
-
-
-def _try_cohere(backend, prompt, max_tokens, temperature):
-    """Cohere v2 chat — non-OpenAI response format (message.content[0].text).
-    Returns (text_or_None, usage_or_None)."""
-    key = _get_key(backend['secret'])
-    if not key:
-        return None, None
-    payload = json.dumps({
-        'model': backend['model'],
-        'messages': [{'role': 'user', 'content': prompt}],
-        'max_tokens': max_tokens,
-    }).encode()
-    req = urllib.request.Request(
-        backend['url'], data=payload,
-        headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {key}'},
-        method='POST',
-    )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        data = json.loads(resp.read())
-        content = data.get('message', {}).get('content', [{}])
-        text = content[0].get('text', '') if content else ''
-        text = text.strip() if text.strip() else None
-        # Cohere v2 returns usage.tokens.{input_tokens,output_tokens}
-        usage = None
-        if text:
-            tok = (data.get('usage') or {}).get('tokens') or {}
-            if tok:
-                usage = {
-                    'in': int(tok.get('input_tokens') or 0),
-                    'out': int(tok.get('output_tokens') or 0),
-                }
-        return text, usage
-
-
-def _try_litellm_gateway(backend, prompt, max_tokens, temperature):
-    """Route through the LiteLLM Cloud Run gateway. Gateway has its own fallback chain.
-    Returns (text_or_None, usage_or_None)."""
-    if not _litellm_url or not _litellm_key:
-        logger.debug("LiteLLM gateway not configured — skipping")
-        return None, None
-
-    payload = json.dumps({
-        'model': backend.get('litellm_model', 'groq-llama-70b'),
-        'messages': [{'role': 'user', 'content': prompt}],
-        'max_tokens': max_tokens,
-        'temperature': temperature,
-        'metadata': {'app_name': _app_name or 'unknown'},
-    }).encode()
-
-    req = urllib.request.Request(
-        f'{_litellm_url}/chat/completions',
-        data=payload,
-        headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {_litellm_key}'},
-        method='POST',
-    )
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        data = json.loads(resp.read())
-        # HARD GUARD: kumori_free_llms is for FREE backends only. If the LiteLLM
-        # gateway resolved to a paid Anthropic model (gateway-side fallback chain
-        # misconfig), refuse to use the result so we never silently incur cost.
-        # See: 2026-05-03 reconciliation drift incident — gateway was falling
-        # through to claude-haiku for ~1.5M input tokens/day unlogged.
-        actual_model = (data.get('model') or '').lower()
-        if any(p in actual_model for p in ('claude', 'haiku', 'sonnet', 'opus', 'anthropic')):
-            logger.error(
-                f"BLOCKED paid Anthropic response from LiteLLM gateway: model={actual_model!r}. "
-                f"Fix the gateway router to remove Anthropic fallback. Returning None."
-            )
-            return None, None
-        msg = data['choices'][0]['message']
-        # Some reasoning models (gptoss, qwen3) put output in 'reasoning' not 'content'
-        content = msg.get('content') or msg.get('reasoning') or ''
-        text = content.strip() if content.strip() else None
-        return text, (_usage_from_openai(data) if text else None)
-
-
-# Worker backend types — dispatched to _try_worker
-_WORKER_TYPES = {'grok', 'grok_fast', 'grok4', 'deepseek'}
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Core dispatch
@@ -803,110 +527,6 @@ def _try_backend(backend, prompt, max_tokens, temperature, caller):
     if direct_failed:
         _record_breaker_failure(name)
     return None
-
-
-def probe_backend(backend, prompt='say hi', max_tokens=20, temperature=0.0,
-                  force=False):
-    """Diagnostic probe — like _try_backend but RETURNS a rich result dict
-    instead of swallowing every failure as None.
-
-    Result keys:
-      ok           : bool
-      reason       : str — short tag for grouping ('ok','disabled','cooldown',
-                     'backed_off','rpm','daily_cap','lifetime','http','exception',
-                     'empty','no_key')
-      http_status  : int|None — HTTP code if known
-      latency_ms   : int
-      error        : str|None — full error excerpt if applicable
-      response     : str|None — first 120 chars of response if ok
-
-    Skip-conditions (cooldown, daily cap, etc.) return immediately with the
-    reason so /cron/llm-health-probe can show "🟠 in cooldown" instead of
-    "🔴 broken."
-
-    `force=True` BYPASSES all skip-conditions — fires the upstream call no
-    matter what. Used by /cron/llm-canary so the catalog DB has fresh
-    'is upstream alive' signal on EVERY endpoint daily, including
-    disabled / paused / cooldown ones. (Endpoint may be disabled in our
-    runtime but still alive upstream; we want the catalog to know.)
-    """
-    name = backend['name']
-    t0 = time.time()
-
-    def _result(ok, reason, **kw):
-        return {'ok': ok, 'reason': reason, 'http_status': kw.get('http_status'),
-                'latency_ms': int((time.time() - t0) * 1000),
-                'error': kw.get('error'), 'response': kw.get('response')}
-
-    if not force:
-        if not _is_enabled(name):
-            return _result(False, 'disabled', error='backend disabled in provider_limits')
-        if _is_in_cooldown(name):
-            return _result(False, 'cooldown', error='circuit breaker open — auto-recovers')
-        if _is_backed_off(name):
-            return _result(False, 'backed_off', error='in 429 backoff window')
-        if not _rpm_ok(name):
-            return _result(False, 'rpm', error='rpm spacing not satisfied')
-        if not _check_daily_cap(name):
-            return _result(False, 'daily_cap', error='daily cap reached — quota exhausted today')
-        if not _check_lifetime(name):
-            return _result(False, 'lifetime', error='lifetime credit cap reached')
-
-    btype = backend.get('type')
-    try:
-        if btype == 'gemini':
-            text = _try_gemini(prompt, max_tokens, temperature, backend.get('gemini_model', 'gemini-2.5-flash'))
-        elif btype in _WORKER_TYPES:
-            text = _try_worker(btype, prompt, max_tokens, temperature)
-        elif btype == 'cloudflare':
-            text = _try_cloudflare(backend, prompt, max_tokens, temperature)
-        elif btype == 'cohere':
-            text = _try_cohere(backend, prompt, max_tokens, temperature)
-        elif btype == 'litellm':
-            text = _try_litellm_gateway(backend, prompt, max_tokens, temperature)
-        else:
-            text = _try_openai_compatible(backend, prompt, max_tokens, temperature)
-        _rpm_record(name)
-        # Probes consume upstream provider quota whether or not we got bytes
-        # back, so they MUST count toward cluster-wide accounting (else we
-        # silently burn caps — Cohere 1000/month was exhausted this way 2026-05-04).
-        _record_call(name)
-        if text and text.strip():
-            _record_breaker_success(name)
-            return _result(True, 'ok', response=text.strip()[:120])
-        # Adapter returned None / empty without raising — usually a missing
-        # secret or safety-filter empty content
-        return _result(False, 'no_key' if 'key' in str(_get_key(backend.get('secret', ''))).lower()
-                              else 'empty',
-                       error='adapter returned None (missing API key or safety filter)')
-    except urllib.error.HTTPError as e:
-        _rpm_record(name)
-        # The HTTP request reached upstream; quota was consumed even on 4xx.
-        _record_call(name)
-        body = ''
-        try:
-            body = e.read().decode('utf-8', 'replace')[:200]
-        except Exception:
-            pass
-        _record_breaker_failure(name)
-        return _result(False, 'http', http_status=e.code,
-                       error=f'HTTP {e.code} {e.reason}: {body}'[:200])
-    except Exception as e:
-        _rpm_record(name)
-        # Conservative: if the call attempted (we made it past skip-conditions),
-        # count it. Network errors might NOT have consumed upstream quota but
-        # over-counting is safer than under-counting.
-        _record_call(name)
-        _record_breaker_failure(name)
-        msg = str(e)[:200]
-        # Try to pull HTTP status out of the exception text (Gemini SDK etc.)
-        http = None
-        for code in (400, 401, 403, 404, 408, 429, 500, 502, 503, 504):
-            if str(code) in msg:
-                http = code
-                break
-        return _result(False, 'exception', http_status=http,
-                       error=f'{type(e).__name__}: {msg}')
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

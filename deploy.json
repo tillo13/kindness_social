@@ -82,5 +82,5 @@
       ]
     }
   ],
-  "pre_deploy_test": "/Users/at/Desktop/code/_infrastructure/anthropic_logger/check_violations.sh ."
+  "pre_deploy_test": "/Users/at/Desktop/code/_local_infrastructure/anthropic_logger/check_violations.sh ."
 }
