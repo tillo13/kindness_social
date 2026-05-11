@@ -1,6 +1,6 @@
 """Shared visitor-logging module for ALL of Andy's Flask apps.
 
-Lives at: ~/Desktop/code/_infrastructure/visitor_logging/visitor_logging.py
+Lives at: ~/Desktop/code/_local_infrastructure/visitor_logging/visitor_logging.py
 Synced into each project's utilities/ via deploy.json shared_files.
 
 Purpose:

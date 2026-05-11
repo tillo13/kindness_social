@@ -135,10 +135,12 @@ def llm_chat(backend_name, messages, max_tokens=500, temperature=0.3, system=Non
     return data.get('text'), data.get('backend')
 
 
-def llm_chat_eval(backend_name, messages, max_tokens=500, temperature=0.3):
-    """Eval-pool variant of chat (used by simulator/evaluator)."""
-    body = {'backend': backend_name, 'messages': messages,
-            'max_tokens': max_tokens, 'temperature': temperature}
+def llm_chat_eval(prompt, system=None, caller=None):
+    """Eval-pool scoring call. Signature mirrors kumori_free_llms.chat_eval.
+    Returns (text, backend_name)."""
+    body = {'prompt': prompt}
+    if system:
+        body['system'] = system
     data = _request('POST', '/api/v1/llm/chat-eval', body)
     return data.get('text'), data.get('backend')
 

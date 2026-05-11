@@ -869,7 +869,7 @@ def admin_system_status():
     """
 
     from utilities.kumori_api_client import llm_usage as get_usage_summary, llm_backoff_until as _backoff_until_fn
-    from utilities.kumori_api_client import llm_registry as _llm_registry; CLOUD_RUN_ONLY = set(_llm_registry().get('cloud_run_only', [])), FALLBACK_ORDER
+    from utilities.kumori_api_client import llm_registry as _llm_registry; _r = _llm_registry(); FALLBACK_ORDER = _r.get('fallback_order', []); CLOUD_RUN_ONLY = set(_r.get('cloud_run_only', []))
     import time as _time
 
     # Backoff state

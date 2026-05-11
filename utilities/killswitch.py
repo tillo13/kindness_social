@@ -1,6 +1,6 @@
 """Central paid-API killswitch — portable across all kumori-family apps.
 
-CANONICAL LOCATION: _infrastructure/killswitch/killswitch.py
+CANONICAL LOCATION: _local_infrastructure/killswitch/killswitch.py
 Vendored to consumer apps via deploy.json `shared_files` (same pattern as
 anthropic_logger). Apps import as `from utilities.killswitch import check_killswitch`.
 
