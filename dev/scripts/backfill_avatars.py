@@ -55,8 +55,10 @@ def _init_api_client():
         sys.exit(f'ERR: could not load KINDNESS_KUMORI_API_KEY from Secret Manager: {e}')
 
 
-def find_missing_agents() -> list[dict]:
-    """Return agent rows whose agent_id is NOT a key in the GCS bucket."""
+def find_missing_agents() -> tuple[list[dict], dict]:
+    """Return (agents-needing-work, action_map). Action is 'upload_seed' if a
+    local static seed exists for that agent (cheap copy), 'generate' if not
+    (calls kumori imggen)."""
     import psycopg2, psycopg2.extras
     conn = psycopg2.connect(
         host=_gcloud_secret('KUMORI_POSTGRES_IP'),
@@ -84,15 +86,34 @@ def find_missing_agents() -> list[dict]:
     }
     print(f'  {len(all_agents)} agents in DB, {len(in_gcs)} avatars in GCS', flush=True)
 
-    # Also check local committed seed avatars
+    # Local committed seed avatars — used to fall back through the deployed
+    # code path. Goal of the backfill: get every agent's avatar into GCS so
+    # avatar storage is uniform (not split between deploy artifacts + GCS).
     seed_dir = ROOT / 'static/images/avatars'
     seed_ids = {f.stem for f in seed_dir.glob('*.jpg')} if seed_dir.exists() else set()
-    print(f'  {len(seed_ids)} local seed avatars (won\'t backfill these either)',
+    print(f'  {len(seed_ids)} local seed avatars (will upload to GCS, not regenerate)',
           flush=True)
 
-    missing = [a for a in all_agents
-               if a['agent_id'] not in in_gcs and a['agent_id'] not in seed_ids]
-    return missing
+    needs_work = [a for a in all_agents if a['agent_id'] not in in_gcs]
+    action_map = {
+        a['agent_id']: ('upload_seed' if a['agent_id'] in seed_ids else 'generate')
+        for a in needs_work
+    }
+    return needs_work, action_map
+
+
+def upload_seed_to_gcs(agent_id: str) -> tuple[bool, str, int]:
+    """Read the static seed file for this agent and upload to GCS unchanged."""
+    seed_path = ROOT / 'static/images/avatars' / f'{agent_id}.jpg'
+    if not seed_path.exists():
+        return False, 'seed file disappeared', 0
+    t0 = time.time()
+    img_bytes = seed_path.read_bytes()
+    ms = int((time.time() - t0) * 1000)
+    url = _upload_to_gcs(agent_id, img_bytes)
+    if not url:
+        return False, 'GCS upload failed', ms
+    return True, f'{len(img_bytes)}B (from seed) → {url}', ms
 
 
 def backfill_one(agent: dict) -> tuple[bool, str, int]:
@@ -144,28 +165,38 @@ def main():
 
     _init_api_client()
 
-    missing = find_missing_agents()
+    missing, action_map = find_missing_agents()
     if args.limit > 0:
         missing = missing[:args.limit]
 
-    print(f'\n{len(missing)} agents need avatars:\n')
+    n_seed = sum(1 for a in missing if action_map[a['agent_id']] == 'upload_seed')
+    n_gen = sum(1 for a in missing if action_map[a['agent_id']] == 'generate')
+    print(f'\n{len(missing)} agents need a GCS avatar:')
+    print(f'  {n_seed} via seed upload (zero cost, instant)')
+    print(f'  {n_gen} via fresh imggen (kumori, ~$0, ~3-8s each)')
+    print()
     for a in missing[:20]:
-        print(f'  {a["agent_id"]}  ({a.get("llm_backend", "?")})')
+        action = action_map[a['agent_id']]
+        print(f'  [{action:<12}] {a["agent_id"]}  ({a.get("llm_backend", "?")})')
     if len(missing) > 20:
         print(f'  ... and {len(missing) - 20} more')
 
     if not args.apply:
-        print(f'\nDRY RUN. Pass --apply to generate.')
+        print(f'\nDRY RUN. Pass --apply to backfill.')
         return
 
-    print(f'\n=== generating {len(missing)} avatars via kumori_api_client ===\n', flush=True)
+    print(f'\n=== backfilling {len(missing)} avatars ===\n', flush=True)
     t_start = time.time()
     ok_count = 0
     fail_count = 0
     for i, agent in enumerate(missing, 1):
-        ok, detail, ms = backfill_one(agent)
+        action = action_map[agent['agent_id']]
+        if action == 'upload_seed':
+            ok, detail, ms = upload_seed_to_gcs(agent['agent_id'])
+        else:
+            ok, detail, ms = backfill_one(agent)
         icon = '✅' if ok else '❌'
-        print(f'  [{i}/{len(missing)}] {icon} {agent["agent_id"]:<48} {ms:>6}ms  {detail[:80]}',
+        print(f'  [{i}/{len(missing)}] {icon} [{action:<12}] {agent["agent_id"]:<48} {ms:>6}ms  {detail[:80]}',
               flush=True)
         if ok:
             ok_count += 1
