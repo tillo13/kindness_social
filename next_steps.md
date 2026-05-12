@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-05-10 04:00*
+*Last refreshed: 2026-05-12 05:47*
 
 ## 🎯 Pending
 
@@ -15,6 +15,9 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
+- `67e2299` · 2026-05-10 20:05 — kindness: fix admin_system_status NameError on FALLBACK_ORDER — HTTP migration left a broken mult...
+- `97b67de` · 2026-05-10 19:29 — kindness: pick up updated kumori_api_client llm_chat_eval(prompt, system) signature fix from kumo...
+- `391f7fe` · 2026-05-10 17:39 — kindness_social HTTP migration: App Engine main process now calls kumori.ai/api/v1/llm/* via util...
 - `f088668` · 2026-05-08 17:17 — GA4 tag injection via shared utilities/gtag + new kumori /admin/audience dashboard (where applica...
 - `338fabf` · 2026-05-08 16:15 — visitor_logging: 2% bot sample + skip noise paths + 90d TTL + SELECT 1 liveness probe (per db-spe...
 - `819c260` · 2026-05-08 14:25 — robots.txt: append AI-training + SEO-scraper bot-block (allow Googlebot/Bingbot/citation engines)
@@ -27,15 +30,13 @@
 - `c3ddcec` · 2026-05-05 13:02 — multi-modality validation chain (Phase 9 minimum slice): persist avatar description + backend on ...
 - `0a47fb3` · 2026-05-05 10:28 — lifecycle awareness across kindness_social: (1) get_backend_health() now JOINs kumori_llm_endpoin...
 - `0e876ac` · 2026-05-05 10:19 — narrative refresh: /about now describes self-curating catalog (lifecycle ladder + scout + multi-m...
-- `96f44b2` · 2026-05-05 10:12 — lifecycle dashboard: hide retired column behind toggle (348 retired endpoints was visually noisy)
-- `f1ae695` · 2026-05-05 09:48 — lifecycle dashboard upgrade: 5 new sections from kumori_llm_endpoints (Modality Lanes, Investigat...
-- `17d6591` · 2026-05-05 09:10 — sync kumori_free_llms: DB-driven BACKENDS with 5min refresh + bandit exploration (10% under-valid...
 <!-- shipped:end -->
 
 ## ⚠️ Unfinished / WIP
 
 <!-- wip:start -->
-**1 file(s) with uncommitted changes:**
+**2 file(s) with uncommitted changes:**
+- ` M dev/scripts/backfill_avatars.py`
 - ` M next_steps.md`
 
 <!-- wip:end -->

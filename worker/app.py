@@ -153,15 +153,9 @@ def _test_model(provider, model_id):
     elif provider == 'DeepSeek':
         return _test_deepseek(model_id)
     else:
-        # Use the standard router for API-key backends — lazy init on first use
-        from utilities import kumori_free_llms
-        if not getattr(kumori_free_llms, '_initialized', False):
-            from utilities.google_secret_utils import get_secret
-            from utilities.postgres_utils import db_cursor, log_api_usage
-            kumori_free_llms.init(app_name='kindness_social',
-                                  get_secret_fn=get_secret, db_cursor_fn=db_cursor,
-                                  log_api_usage_fn=log_api_usage,
-                                  policy='silent')
+        # Use kumori_api_client HTTP — kumori is the canonical home for the
+        # backend router, kindness consumes it like every other sibling.
+        from utilities import kumori_api_client
         # Map provider to backend name
         backend_map = {
             'Google': 'gemini',
@@ -173,9 +167,10 @@ def _test_model(provider, model_id):
             'OpenRouter': 'openrouter',
         }
         backend = backend_map.get(provider, provider.lower())
-        text, actual = kumori_free_llms.chat(backend, msg, max_tokens=30,
-                                              caller='kindness_social')
-        return text
+        # llm_chat returns the response payload directly; HTTP errors raise
+        result = kumori_api_client.llm_chat(backend, msg, max_tokens=30)
+        # Response shape: {'ok': True, 'text': '...', 'backend': '...', ...}
+        return result.get('text', '') if isinstance(result, dict) else str(result)
 
 
 def _test_grok(model_id):

@@ -23,63 +23,7 @@ REPLICATE_API = "https://api.replicate.com/v1"
 _api_token = None
 _gcs_client = None
 
-_image_stats_wired = False
 APP_NAME = 'kindness_social'
-
-
-def _record_image_call(provider: str, ok: bool, latency_ms: int,
-                       error: str | None, kind: str):
-    """DI callback for kumori_free_imggen + kumori_free_describe.
-    Writes successes to kumori_image_daily_caps and every attempt to
-    kumori_image_health_samples. Catches all errors — must never break gen."""
-    try:
-        from utilities.postgres_utils import get_db_connection
-        conn = get_db_connection()
-        cur = conn.cursor()
-        if ok:
-            cur.execute("""
-                INSERT INTO kumori_image_daily_caps
-                    (usage_date, provider, app_name, kind, call_count)
-                VALUES (CURRENT_DATE, %s, %s, %s, 1)
-                ON CONFLICT (usage_date, provider, app_name, kind)
-                DO UPDATE SET call_count = kumori_image_daily_caps.call_count + 1
-            """, (provider, APP_NAME, kind))
-        cur.execute("""
-            INSERT INTO kumori_image_health_samples
-                (provider, kind, status, latency_ms, error_excerpt, probe_source)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (provider, kind, 'ok' if ok else 'fail',
-              latency_ms, error, f'real_traffic:{APP_NAME}'))
-        conn.commit()
-        cur.close(); conn.close()
-    except Exception as e:
-        logger.debug(f'_record_image_call swallowed: {e}')
-
-
-def _ensure_image_stats_wired():
-    """Idempotently inject our DI callback into both image libs."""
-    global _image_stats_wired
-    if _image_stats_wired:
-        return
-    try:
-        from utilities import kumori_free_imggen
-        from utilities.google_secret_utils import get_secret as _gs
-        kumori_free_imggen.init(
-            get_secret_fn=_gs,
-            record_call_fn=lambda p, ok, ms, err: _record_image_call(p, ok, ms, err, 'gen'),
-        )
-    except Exception as e:
-        logger.warning(f'imggen wiring skipped: {e}')
-    try:
-        from utilities import kumori_free_describe
-        from utilities.google_secret_utils import get_secret as _gs
-        kumori_free_describe.init(
-            get_secret_fn=_gs,
-            record_call_fn=lambda p, ok, ms, err: _record_image_call(p, ok, ms, err, 'describe'),
-        )
-    except Exception as e:
-        logger.warning(f'describe wiring skipped: {e}')
-    _image_stats_wired = True
 
 
 def _async_describe(img_bytes: bytes, agent_id: str, mime: str = 'image/jpeg'):
@@ -89,19 +33,25 @@ def _async_describe(img_bytes: bytes, agent_id: str, mime: str = 'image/jpeg'):
     profile page can show "Avatar described by X as 'foo'" — turns each new
     agent birth into a real-workload validation chain across modalities
     (chat → image-gen → image-describe), per the 2026-05-05 lifecycle plan.
+
+    Goes through kumori_api_client over HTTP — kumori records its own usage
+    stats (kumori_api_usage) so kindness no longer maintains a parallel
+    kumori_image_health_samples write path.
     """
     import threading
+    import base64
 
     def _run():
         try:
-            from utilities import kumori_free_describe
+            from utilities import kumori_api_client
             from utilities.postgres_utils import db_cursor
-            r = kumori_free_describe.describe_image(
-                img_bytes, mime=mime,
+            img_b64 = base64.b64encode(img_bytes).decode('ascii')
+            r = kumori_api_client.describe_image(
+                image_b64=img_b64, mime=mime,
                 prompt='Describe this avatar in one short sentence.',
             )
             logger.info(f'avatar describe[{agent_id}]: '
-                        f'{r["backend"]}={r["text"][:80]}')
+                        f'{r.get("backend")}={(r.get("text") or "")[:80]}')
             try:
                 with db_cursor(commit=True) as cur:
                     cur.execute("""
@@ -275,9 +225,9 @@ def build_prompt(agent):
 
 def generate_avatar(agent, force=False):
     """
-    Generate a cartoon avatar for an agent using the kumori_free_imggen
-    router (truly-free providers only — Pollinations + Stable Horde with
-    Cloudflare Workers AI as bearer-keyed fallback).
+    Generate a cartoon avatar for an agent via kumori_api_client over HTTP
+    (routes through kumori's /api/v1/imggen/generate — same free-provider
+    fallback chain: Pollinations + Stable Horde + Cloudflare Workers AI).
 
     Returns the local file path, or None on failure.
     Skips if avatar already exists (unless force=True).
@@ -294,19 +244,27 @@ def generate_avatar(agent, force=False):
         return path
 
     prompt = build_prompt(agent)
-    logger.info(f"avatar_generator: requesting via kumori_free_imggen for {agent_id}")
+    logger.info(f"avatar_generator: requesting via kumori_api_client for {agent_id}")
     try:
-        from utilities import kumori_free_imggen
+        from utilities import kumori_api_client
     except Exception as e:
-        logger.error(f"kumori_free_imggen import failed: {e}")
+        logger.error(f"kumori_api_client import failed: {e}")
         return None
 
-    # One-time DI: route gen + describe attempts to the shared image stats tables.
-    _ensure_image_stats_wired()
-
-    img_bytes = kumori_free_imggen.generate_image(prompt, width=512, height=512)
-    if not img_bytes:
-        logger.warning(f"avatar_generator: no provider returned an image for {agent_id}")
+    import base64
+    result = kumori_api_client.imggen_generate(
+        prompt, width=512, height=512, mode='roundrobin',
+        feature='avatar', verbiage=prompt[:500],
+        caller_user_id=agent_id,
+    )
+    if not result or not result.get('ok') or not result.get('image_b64'):
+        logger.warning(f"avatar_generator: no provider returned an image for {agent_id} "
+                       f"(err={result.get('error') if result else 'no_response'})")
+        return None
+    try:
+        img_bytes = base64.b64decode(result['image_b64'])
+    except Exception as e:
+        logger.error(f"avatar_generator: image_b64 decode failed for {agent_id}: {e}")
         return None
 
     # Normalize to 256x256 JPEG (matches the old Replicate path's storage shape)
@@ -325,8 +283,8 @@ def generate_avatar(agent, force=False):
 
     # Free QA layer: fire-and-forget describe of the avatar we just made.
     # Validates that (a) imggen returned coherent image bytes, (b) the
-    # describe pipeline still works. Results land in kumori_image_health_samples
-    # via the DI callback wired in _ensure_image_stats_wired().
+    # describe pipeline still works. Goes through kumori_api_client; kumori
+    # records its own usage row in kumori_api_usage.
     _async_describe(img_bytes, agent_id, mime='image/jpeg' if is_jpeg else 'image/png')
 
     # Save locally if writable; always upload to GCS for App Engine + cross-instance use

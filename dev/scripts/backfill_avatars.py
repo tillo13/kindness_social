@@ -27,7 +27,7 @@ sys.path.insert(0, str(ROOT / 'utilities'))   # for adapters
 
 # Use the canonical infrastructure module directly (this script runs locally,
 # not on App Engine, so we don't go through the vendored copy)
-sys.path.insert(0, str(Path.home() / 'Desktop/code/_infrastructure/kumori_free_image_generations'))
+sys.path.insert(0, str(Path.home() / 'Desktop/code/_local_infrastructure/kumori_free_image_generations'))
 import kumori_free_imggen as router  # noqa: E402
 
 # Borrow the agent-aware prompt builder from avatar_generator

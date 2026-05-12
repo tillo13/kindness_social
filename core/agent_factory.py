@@ -7,7 +7,7 @@ import json
 import logging
 import random
 from utilities.postgres_utils import db_cursor
-from utilities.backend_registry import (
+from utilities.llm_registry_remote import (
     AVAILABLE_BACKENDS,
     BACKEND_NAMING,
 )

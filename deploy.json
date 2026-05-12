@@ -12,42 +12,6 @@
       "dst": "utilities/kumori_api_client/client.py"
     },
     {
-      "src": "kumori/shared/kumori_free_llm/kumori_free_llms.py",
-      "dst": "utilities/kumori_free_llms.py"
-    },
-    {
-      "src": "kumori/shared/kumori_free_llm/backend_registry.py",
-      "dst": "utilities/backend_registry.py"
-    },
-    {
-      "src": "kumori/shared/kumori_free_image_generations/kumori_free_imggen.py",
-      "dst": "utilities/kumori_free_imggen.py"
-    },
-    {
-      "src": "kumori/shared/kumori_free_image_generations/providers.json",
-      "dst": "utilities/providers.json"
-    },
-    {
-      "src": "kumori/shared/kumori_free_image_generations/adapters/__init__.py",
-      "dst": "utilities/adapters/__init__.py"
-    },
-    {
-      "src": "kumori/shared/kumori_free_image_generations/adapters/pollinations.py",
-      "dst": "utilities/adapters/pollinations.py"
-    },
-    {
-      "src": "kumori/shared/kumori_free_image_generations/adapters/cloudflare.py",
-      "dst": "utilities/adapters/cloudflare.py"
-    },
-    {
-      "src": "kumori/shared/kumori_free_image_generations/adapters/horde.py",
-      "dst": "utilities/adapters/horde.py"
-    },
-    {
-      "src": "kumori/shared/kumori_free_image_describe/describe.py",
-      "dst": "utilities/kumori_free_describe.py"
-    },
-    {
       "src": "anthropic_logger/anthropic_logger.py",
       "dst": "utilities/anthropic_logger.py"
     },
