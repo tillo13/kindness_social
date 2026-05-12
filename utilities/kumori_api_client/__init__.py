@@ -4,6 +4,7 @@ from .client import (
     init,
     llm_generate,
     llm_chat,
+    llm_chat_resilient,
     llm_chat_eval,
     llm_backends,
     llm_usage,
@@ -12,5 +13,8 @@ from .client import (
     llm_backoff_until,
     llm_is_backed_off,
     imggen_generate,
+    imggen_edit,
+    imggen_usage,
     describe_image,
+    set_request_log,
 )

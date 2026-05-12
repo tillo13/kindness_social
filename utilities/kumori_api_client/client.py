@@ -71,6 +71,42 @@ def _api_key():
     return val
 
 
+# Optional instrumentation hook — when set to a list, every _request() call
+# appends a record with the full request body, response body, status, and
+# latency. Used by the galactica admin debug console to surface every byte
+# hitting kumori. Module-level (process-wide) — not thread-safe; intended for
+# single-user admin testing, not production multi-tenant traffic.
+_request_log = None
+
+
+def set_request_log(target_list):
+    """Begin recording every _request() call to `target_list` (or pass None to
+    stop). Base64 image fields in request/response bodies are truncated to
+    `<base64:N chars>` placeholders so the log stays human-readable."""
+    global _request_log
+    _request_log = target_list
+
+
+def _redact_b64(obj):
+    """Walk a dict and replace any *_b64 / image_b64 string fields with size
+    markers. Keeps the log readable when payloads contain ~500KB+ base64."""
+    if isinstance(obj, dict):
+        out = {}
+        for k, v in obj.items():
+            if k.endswith('_b64') and isinstance(v, str):
+                out[k] = f"<base64:{len(v)} chars>"
+            elif k == 'reference_images_b64' and isinstance(v, list):
+                out[k] = [f"<base64:{len(b)} chars>" if isinstance(b, str) else b for b in v]
+            elif isinstance(v, (dict, list)):
+                out[k] = _redact_b64(v)
+            else:
+                out[k] = v
+        return out
+    if isinstance(obj, list):
+        return [_redact_b64(x) for x in obj]
+    return obj
+
+
 def _request(method, path, body=None, timeout=(5, 60), retry_on_5xx=True):
     """Generic kumori API call. Returns parsed JSON dict on success, raises
     KumoriAPIError on failure.
@@ -87,31 +123,75 @@ def _request(method, path, body=None, timeout=(5, 60), retry_on_5xx=True):
     url = f'{KUMORI_BASE}{path}'
     headers = {'X-API-Key': key, 'Content-Type': 'application/json'}
 
+    import time as _time
     last_exc = None
     for attempt in (1, 2):
+        t0 = _time.time()
         try:
             r = requests.request(method, url, json=body, headers=headers, timeout=timeout)
         except (requests.ConnectionError, requests.Timeout) as e:
             last_exc = e
+            if _request_log is not None:
+                _request_log.append({
+                    'method': method.upper(), 'url': url, 'attempt': attempt,
+                    'request_body': _redact_b64(body) if isinstance(body, (dict, list)) else body,
+                    'error': f"{type(e).__name__}: {str(e)[:200]}",
+                    'ms': int((_time.time() - t0) * 1000),
+                    'timestamp': _time.time(),
+                })
             if attempt == 1 and retry_on_5xx:
                 logger.warning(f"kumori {path} {type(e).__name__}, retrying")
                 continue
             raise KumoriAPIError(f'Network error reaching kumori: {e}')
+        ms = int((_time.time() - t0) * 1000)
         # Got a response — parse JSON
         try:
             data = r.json()
         except ValueError:
             data = {'raw': r.text[:300]}
+        # Record this call for the admin debug console if instrumentation active
+        if _request_log is not None:
+            _request_log.append({
+                'method': method.upper(),
+                'url': url,
+                'attempt': attempt,
+                'request_body': _redact_b64(body) if isinstance(body, (dict, list)) else body,
+                'response_status': r.status_code,
+                'response_headers': dict(r.headers),
+                'response_body': _redact_b64(data) if isinstance(data, (dict, list)) else data,
+                'response_size_bytes': len(r.content) if r.content is not None else 0,
+                'ms': ms,
+                'timestamp': _time.time(),
+            })
         if r.status_code == 200:
             return data
         if 500 <= r.status_code < 600 and attempt == 1 and retry_on_5xx:
             logger.warning(f"kumori {path} HTTP {r.status_code}, retrying")
             continue
-        raise KumoriAPIError(
-            f'kumori {path} HTTP {r.status_code}: {data.get("error", "unknown")}',
-            status_code=r.status_code,
-            payload=data,
-        )
+        # Build a CLEAN error string from whatever structured fields the
+        # server returned. Imggen failures now include error_code (kumori
+        # classification: daily_cap_exhausted | cf_4006_capacity |
+        # cf_5026_timeout | other), the verbatim upstream message, the CF
+        # numeric error code, and (for daily_cap_exhausted) the UTC-midnight
+        # reset time. Prefer these structured fields over a generic
+        # "image edit failed" — consumers should never have to guess.
+        if isinstance(data, dict):
+            parts = [f'kumori {path} HTTP {r.status_code}']
+            ec = data.get('error_code')
+            if ec:
+                parts.append(f'[{ec}]')
+            cfc = data.get('cf_error_code')
+            if cfc:
+                parts.append(f'cf_code={cfc}')
+            reset = data.get('reset_in_human')
+            if reset:
+                parts.append(f'resets in {reset}')
+            verbatim = data.get('error') or data.get('detail') or 'unknown'
+            parts.append(f': {verbatim}')
+            msg = ' '.join(parts)
+        else:
+            msg = f'kumori {path} HTTP {r.status_code}: {str(data)[:200]}'
+        raise KumoriAPIError(msg, status_code=r.status_code, payload=data)
     # Should not reach
     raise KumoriAPIError(f'kumori {path} failed after retry: {last_exc}')
 
@@ -133,6 +213,28 @@ def llm_chat(backend_name, messages, max_tokens=500, temperature=0.3, system=Non
         body['system'] = system
     data = _request('POST', '/api/v1/llm/chat', body)
     return data.get('text'), data.get('backend')
+
+
+def llm_chat_resilient(backends, messages, max_tokens=500, temperature=0.3,
+                       system=None, min_chars=1, debug=False):
+    """Server-side fallback chat. Tries each backend in `backends` (list, in
+    order); rotates on empty / 5xx / transient errors. Returns
+    (text, winning_backend, attempt_log_list, debug_info). debug_info is None
+    unless debug=True, in which case it's a dict {upstream_calls:[...]} listing
+    every outbound HTTP call kumori made to LLM provider APIs.
+
+    min_chars: response-shape gate — backend response shorter than this counts
+    as a failure and rotation continues.
+    """
+    body = {'backends': list(backends), 'messages': messages,
+            'max_tokens': max_tokens, 'temperature': temperature,
+            'min_chars': min_chars}
+    if system:
+        body['system'] = system
+    if debug:
+        body['debug'] = True
+    data = _request('POST', '/api/v1/llm/chat-resilient', body, timeout=(5, 120))
+    return data.get('text'), data.get('backend'), data.get('attempts', []), data.get('_debug')
 
 
 def llm_chat_eval(prompt, system=None, caller=None):
@@ -188,14 +290,84 @@ def llm_backoff_until():
 
 # ─── Image generation ─────────────────────────────────────────────────────────
 
-def imggen_generate(prompt, width=1024, height=1024, skip=None):
-    """Generate an image via free providers. Returns the result dict
-    (typically {image_b64, provider, ms, attempts})."""
-    body = {'prompt': prompt, 'width': width, 'height': height}
-    if skip:
-        body['skip'] = skip
+def imggen_generate(prompt, width=1024, height=1024, mode='roundrobin',
+                    feature=None, verbiage=None, caller_user_id=None, tags=None):
+    """Text→image via free providers. Klein-4B size rules apply (multiples of
+    16; max 4 MP — see kumori_free_image_generations/SIZES.md). Returns
+    {ok, image_b64, provider, mode, ms, bytes}.
+
+    Attribution kwargs (post 2026-05-11 — strongly encouraged for every call):
+        feature: sub-operation like 'aria_journal.generate' or
+                 'admin.test_pixel'. Surfaces in /admin/api-costs dashboards
+                 and kumori_api_usage.feature.
+        verbiage: human-readable description (the prompt is fine if you
+                  don't have a separate label). Stored in
+                  kumori_api_usage.verbiage truncated to 500 chars.
+        caller_user_id: end-user behind the call.
+        tags: arbitrary dict; stored as kumori_api_usage.tags JSONB."""
+    body = {'prompt': prompt, 'width': width, 'height': height, 'mode': mode}
+    if feature: body['feature'] = feature
+    if verbiage: body['verbiage'] = verbiage
+    if caller_user_id: body['caller_user_id'] = caller_user_id
+    if tags: body['tags'] = tags
     data = _request('POST', '/api/v1/imggen/generate', body, timeout=(5, 90))
     return data
+
+
+def imggen_edit(prompt, target_image_b64, reference_images_b64=None,
+                width=1024, height=1024, app_name=None, character=None,
+                ref_filename=None, debug=False,
+                feature=None, verbiage=None, caller_user_id=None, tags=None):
+    """Image+text → image edit via Cloudflare flux-2-klein-4b. Up to 3 reference
+    images allowed (target + 3 refs = 4 image inputs total). Size rules same
+    as imggen_generate. Returns {ok, image_b64, provider, ms, [_debug]}.
+
+    When debug=True, response includes `_debug.upstream_calls` listing every
+    HTTP call kumori made to Cloudflare (with payloads + response details).
+
+    Attribution kwargs (post 2026-05-11 — strongly encouraged for every call,
+    see imggen_generate doc for what each one does)."""
+    if not target_image_b64:
+        raise ValueError('imggen_edit requires target_image_b64')
+    refs = reference_images_b64 or []
+    if len(refs) > 3:
+        raise ValueError(f'imggen_edit accepts at most 3 reference images (got {len(refs)})')
+    body = {'prompt': prompt, 'target_image_b64': target_image_b64,
+            'reference_images_b64': refs, 'width': width, 'height': height}
+    if app_name: body['app_name'] = app_name
+    if character: body['character'] = character
+    if ref_filename: body['ref_filename'] = ref_filename
+    if debug: body['debug'] = True
+    if feature: body['feature'] = feature
+    if verbiage: body['verbiage'] = verbiage
+    if caller_user_id: body['caller_user_id'] = caller_user_id
+    if tags: body['tags'] = tags
+    data = _request('POST', '/api/v1/imggen/edit', body, timeout=(5, 180))
+    return data
+
+
+def imggen_usage(date=None, platform=None, limit=50):
+    """Per-platform imggen usage view (primary source: kumori_api_usage with
+    rich attribution; secondary: CF GraphQL reconciliation block).
+
+    Replaces consumer-side neuron math (× 147 / × 492 constants) — kumori is
+    the single source of truth. Galactica's /admin/kumori-journal etc render
+    this directly instead of querying kumori_api_usage themselves.
+
+    Returns the same JSON shape as /api/v1/imggen/usage:
+      {ok, date, totals, per_platform, per_model, recent_calls,
+       cf_reconciliation}
+
+    Args:
+        date: 'YYYY-MM-DD' UTC date (default: today UTC).
+        platform: filter to one platform (default: all).
+        limit: number of recent calls to include (default 50, max 200)."""
+    qs = []
+    if date: qs.append(f'date={date}')
+    if platform: qs.append(f'platform={platform}')
+    if limit and limit != 50: qs.append(f'limit={limit}')
+    path = '/api/v1/imggen/usage' + (('?' + '&'.join(qs)) if qs else '')
+    return _request('GET', path)
 
 
 # ─── Image describe ───────────────────────────────────────────────────────────

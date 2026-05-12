@@ -28,6 +28,7 @@ call path. Never raises. Any DB write failure is swallowed with a log warning.
 from __future__ import annotations
 
 import os
+import re
 import time
 import logging
 import threading
@@ -270,6 +271,21 @@ def _compute_cost(model: str, usage: Any) -> float:
     )
 
 
+_DATED_MODEL_RE = re.compile(r'-(\d{8})$')
+
+
+def _canonical_model_id(model: str) -> str:
+    """Strip Anthropic dated suffix (-YYYYMMDD) so e.g.
+    claude-haiku-4-5-20251001 → claude-haiku-4-5. Anthropic's admin usage_report
+    always returns the dated form; the API accepts both. If we let the dated
+    form into kumori_api_usage, the hourly reconciler sees the same hour's
+    traffic split across two model rows and fires a false-positive leak alert.
+    Apply this at the write boundary so the column is always canonical."""
+    if not model:
+        return model
+    return _DATED_MODEL_RE.sub('', model)
+
+
 def _insert_usage_row(*, app_name: str, model: str, usage: Any,
                       feature: Optional[str], user_id: Optional[str],
                       duration_ms: Optional[int], streaming: bool,
@@ -298,6 +314,7 @@ def _insert_usage_row(*, app_name: str, model: str, usage: Any,
     wf = _usage_field(server, 'web_fetch_requests')
     ce = _usage_field(server, 'code_execution_requests')
 
+    model = _canonical_model_id(model)
     cost = _compute_cost(model, usage)
 
     conn = psycopg2.connect(

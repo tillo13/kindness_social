@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
 """backfill_avatars.py — generate missing avatars for every agent that
-doesn't already have one in GCS, using kumori_free_imggen's round-robin
-across all 4 truly-keyless image services.
+doesn't already have one in GCS, via kumori's free image-gen surface.
 
-Run locally (uses gcloud secrets + your laptop's network):
+Post-2026-05-12 migration: this script no longer imports the in-process
+router. It goes through `kumori_api_client.imggen_generate()` over HTTP,
+same path as the live `utilities/avatar_generator.py`. Kumori handles the
+round-robin across free providers (Pollinations + Stable Horde +
+Cloudflare Workers AI) and records every call in `kumori_api_usage`.
+
+Run locally:
     cd ~/Desktop/code/kindness_social
     python3 dev/scripts/backfill_avatars.py             # dry run (just lists missing)
     python3 dev/scripts/backfill_avatars.py --apply     # actually generate + upload
     python3 dev/scripts/backfill_avatars.py --apply --limit 5   # only do first 5
 
-Cost: $0 — Pollinations and Stable Horde are keyless free, Cloudflare uses
-the existing KINDNESS_CLOUDFLARE_API_KEY within its 10K-neuron-day free pool.
+Cost: $0 — all backends are free-tier; kumori manages the daily caps.
+Requires: `KUMORI_API_KEY` env var, OR `KINDNESS_KUMORI_API_KEY` accessible
+via gcloud secrets (auto-resolved by kumori_api_client at startup).
 """
 import argparse
-import json
+import base64
 import os
 import subprocess
 import sys
@@ -23,14 +29,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]   # kindness_social/
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / 'utilities'))   # for adapters
 
-# Use the canonical infrastructure module directly (this script runs locally,
-# not on App Engine, so we don't go through the vendored copy)
-sys.path.insert(0, str(Path.home() / 'Desktop/code/_local_infrastructure/kumori_free_image_generations'))
-import kumori_free_imggen as router  # noqa: E402
-
-# Borrow the agent-aware prompt builder from avatar_generator
+from utilities import kumori_api_client  # noqa: E402
 from utilities.avatar_generator import build_prompt, _upload_to_gcs, get_avatar_path  # noqa: E402
 
 
@@ -40,6 +40,19 @@ def _gcloud_secret(name: str) -> str:
          '--secret', name, '--project', 'kumori-404602'],
         text=True, stderr=subprocess.DEVNULL, timeout=10,
     ).strip()
+
+
+def _init_api_client():
+    """Resolve a kumori API key for the HTTP client. Tries env var first
+    (useful for local override), then KINDNESS_KUMORI_API_KEY in Secret
+    Manager via gcloud."""
+    if os.environ.get('KUMORI_API_KEY'):
+        return  # kumori_api_client picks this up automatically
+    try:
+        key = _gcloud_secret('KINDNESS_KUMORI_API_KEY')
+        os.environ['KUMORI_API_KEY'] = key
+    except Exception as e:
+        sys.exit(f'ERR: could not load KINDNESS_KUMORI_API_KEY from Secret Manager: {e}')
 
 
 def find_missing_agents() -> list[dict]:
@@ -83,14 +96,23 @@ def find_missing_agents() -> list[dict]:
 
 
 def backfill_one(agent: dict) -> tuple[bool, str, int]:
-    """Generate + upload one agent's avatar via the round-robin router.
+    """Generate + upload one agent's avatar via kumori's HTTP imggen surface.
     Returns (ok, detail_msg, latency_ms)."""
     prompt = build_prompt(agent)
     t0 = time.time()
-    img_bytes = router.generate_image(prompt, width=512, height=512, mode='roundrobin')
+    result = kumori_api_client.imggen_generate(
+        prompt, width=512, height=512, mode='roundrobin',
+        feature='avatar.backfill', verbiage=prompt[:500],
+        caller_user_id=agent['agent_id'],
+    )
     ms = int((time.time() - t0) * 1000)
-    if not img_bytes:
-        return False, 'no provider returned an image', ms
+    if not result or not result.get('ok') or not result.get('image_b64'):
+        err = (result or {}).get('error', 'no_response')
+        return False, f'imggen failed: {err}', ms
+    try:
+        img_bytes = base64.b64decode(result['image_b64'])
+    except Exception as e:
+        return False, f'image_b64 decode failed: {e}', ms
     # Resize to 256x256 JPEG (matches existing pipeline)
     try:
         from PIL import Image
@@ -111,7 +133,7 @@ def backfill_one(agent: dict) -> tuple[bool, str, int]:
     url = _upload_to_gcs(agent['agent_id'], img_bytes)
     if not url:
         return False, 'GCS upload failed', ms
-    return True, f'{len(img_bytes)}B → {url}', ms
+    return True, f'{len(img_bytes)}B → {url} via {result.get("provider", "?")}', ms
 
 
 def main():
@@ -119,6 +141,8 @@ def main():
     ap.add_argument('--apply', action='store_true', help='Actually generate (default: dry-run)')
     ap.add_argument('--limit', type=int, default=0, help='Only process first N (0 = all)')
     args = ap.parse_args()
+
+    _init_api_client()
 
     missing = find_missing_agents()
     if args.limit > 0:
@@ -134,7 +158,7 @@ def main():
         print(f'\nDRY RUN. Pass --apply to generate.')
         return
 
-    print(f'\n=== generating {len(missing)} avatars via round-robin ===\n', flush=True)
+    print(f'\n=== generating {len(missing)} avatars via kumori_api_client ===\n', flush=True)
     t_start = time.time()
     ok_count = 0
     fail_count = 0
@@ -150,9 +174,7 @@ def main():
 
     elapsed = int(time.time() - t_start)
     print(f'\n=== done: {ok_count} ok, {fail_count} failed in {elapsed}s ===')
-    print('Per-service usage:')
-    for name, count in router._daily_count.items():
-        print(f'  {name}: {count}')
+    print('Per-provider usage: see https://kumori.ai/admin/api-costs (filtered by feature=avatar.backfill).')
 
 
 if __name__ == '__main__':
