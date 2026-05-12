@@ -31,7 +31,7 @@ ROOT = Path(__file__).resolve().parents[2]   # kindness_social/
 sys.path.insert(0, str(ROOT))
 
 from utilities import kumori_api_client  # noqa: E402
-from utilities.avatar_generator import build_prompt, _upload_to_gcs, get_avatar_path  # noqa: E402
+from utilities.avatar_generator import build_prompt, _upload_to_gcs  # noqa: E402
 
 
 def _gcloud_secret(name: str) -> str:
@@ -144,13 +144,6 @@ def backfill_one(agent: dict) -> tuple[bool, str, int]:
         img_bytes = buf.getvalue()
     except Exception as e:
         return False, f'resize failed: {e}', ms
-    # Save locally + upload to GCS
-    path = get_avatar_path(agent['agent_id'])
-    try:
-        with open(path, 'wb') as f:
-            f.write(img_bytes)
-    except (OSError, IOError):
-        pass
     url = _upload_to_gcs(agent['agent_id'], img_bytes)
     if not url:
         return False, 'GCS upload failed', ms

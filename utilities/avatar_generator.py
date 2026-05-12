@@ -1,8 +1,8 @@
 """
-Avatar Generator - Creates cartoon profile photos for agents via Flux Schnell (Replicate).
-Local dev: saves to static/images/avatars/ (deployed with code).
-App Engine: uploads to GCS bucket (served via public URL).
-Both paths checked when resolving avatar URLs.
+Avatar Generator — generates cartoon profile photos for agents via kumori's
+free imggen surface (HTTP). Single source of truth: GCS bucket
+`kindness-io-avatars`. Post 2026-05-12 migration: no more static-file
+fallback. Every avatar lives in GCS, resolved via `get_avatar_url(agent_id)`.
 """
 
 import logging
@@ -12,9 +12,6 @@ import requests
 from utilities.google_secret_utils import get_secret
 
 logger = logging.getLogger(__name__)
-
-AVATAR_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static', 'images', 'avatars')
-os.makedirs(AVATAR_DIR, exist_ok=True)
 
 GCS_BUCKET = 'kindness-io-avatars'
 GCS_PUBLIC_URL = f'https://storage.googleapis.com/{GCS_BUCKET}'
@@ -118,15 +115,10 @@ def _upload_to_gcs(agent_id, image_bytes):
         return None
 
 
-def get_avatar_path(agent_id):
-    """Get the local file path for an agent's avatar."""
-    return os.path.join(AVATAR_DIR, f"{agent_id}.jpg")
-
-
 def avatar_exists(agent_id):
-    """True if a usable avatar exists either locally or in GCS."""
-    if os.path.exists(get_avatar_path(agent_id)):
-        return True
+    """True if a GCS avatar exists for this agent. Static-file fallback was
+    dropped 2026-05-12 after the seed-file → GCS migration; every avatar
+    now lives in GCS as the single source of truth."""
     try:
         bucket = _get_gcs_bucket()
         return bucket.blob(f'{agent_id}.jpg').exists()
@@ -135,27 +127,9 @@ def avatar_exists(agent_id):
         return False
 
 
-_LOCAL_AVATAR_IDS = None
-def _local_avatar_ids():
-    """Memoize the set of agent_ids that ship with a committed local JPG.
-    On App Engine the static dir is read-only, so this set never changes
-    after process start — safe to compute once."""
-    global _LOCAL_AVATAR_IDS
-    if _LOCAL_AVATAR_IDS is None:
-        try:
-            _LOCAL_AVATAR_IDS = {
-                f[:-4] for f in os.listdir(AVATAR_DIR) if f.endswith('.jpg')
-            }
-        except OSError:
-            _LOCAL_AVATAR_IDS = set()
-    return _LOCAL_AVATAR_IDS
-
-
 def get_avatar_url(agent_id):
-    """Get the web URL for an agent's avatar. Returns local for committed
-    seed agents, GCS for everything else. No 404 round-trips."""
-    if agent_id in _local_avatar_ids():
-        return f"/static/images/avatars/{agent_id}.jpg"
+    """Get the web URL for an agent's avatar. Always GCS post-migration —
+    no static-file fallback, no listdir cache, no 404 round-trips."""
     return f"{GCS_PUBLIC_URL}/{agent_id}.jpg"
 
 
@@ -237,11 +211,10 @@ def generate_avatar(agent, force=False):
     longer called.
     """
     agent_id = agent.get('agent_id', 'unknown')
-    path = get_avatar_path(agent_id)
 
-    if os.path.exists(path) and not force:
+    if not force and avatar_exists(agent_id):
         logger.info(f"Avatar already exists for {agent_id}, skipping")
-        return path
+        return f"{GCS_PUBLIC_URL}/{agent_id}.jpg"
 
     prompt = build_prompt(agent)
     logger.info(f"avatar_generator: requesting via kumori_api_client for {agent_id}")
@@ -287,15 +260,8 @@ def generate_avatar(agent, force=False):
     # records its own usage row in kumori_api_usage.
     _async_describe(img_bytes, agent_id, mime='image/jpeg' if is_jpeg else 'image/png')
 
-    # Save locally if writable; always upload to GCS for App Engine + cross-instance use
-    try:
-        with open(path, 'wb') as f:
-            f.write(img_bytes)
-        logger.info(f"Avatar saved locally: {path} ({len(img_bytes)} bytes)")
-    except (OSError, IOError):
-        logger.info(f"Local save failed (read-only fs), using GCS only")
-    _upload_to_gcs(agent_id, img_bytes)
-    return path
+    url = _upload_to_gcs(agent_id, img_bytes)
+    return url
 
     # ── unreachable — preserved for the day Andy re-enables ─────────────────
     prompt = build_prompt(agent)
@@ -399,10 +365,7 @@ def backfill_missing_avatars(max_per_run=10):
     for row in rows:
         agent = dict(zip(cols, row))
         aid = agent['agent_id']
-        # Check local
-        if os.path.exists(get_avatar_path(aid)):
-            continue
-        # Check GCS — quick HEAD request
+        # Single source of truth: GCS
         try:
             resp = requests.head(f"{GCS_PUBLIC_URL}/{aid}.jpg", timeout=5)
             if resp.status_code == 200:
