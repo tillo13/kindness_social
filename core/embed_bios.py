@@ -20,12 +20,10 @@ _SCHEMA_READY = False
 
 
 def ensure_schema():
-    """Idempotent: adds bio_vec column on first call. FLOAT8[] keeps it
-    portable across CloudSQL Postgres instances without pgvector."""
     global _SCHEMA_READY
     if _SCHEMA_READY:
         return
-    with db_cursor(dict_rows=False, commit=True) as cur:
+    with db_cursor(dict_cursor=False, commit=True) as cur:
         cur.execute("ALTER TABLE kindness_agents ADD COLUMN IF NOT EXISTS bio_vec FLOAT8[]")
         cur.execute("ALTER TABLE kindness_agents ADD COLUMN IF NOT EXISTS bio_vec_at TIMESTAMP")
     _SCHEMA_READY = True
@@ -33,9 +31,7 @@ def ensure_schema():
 
 def render_bio(agent):
     """Deterministic bio text from agent row. Order matters for embedding
-    stability — never reorder without a backfill rerun.
-
-    Same input → same bio → same vector. Re-embedding is safe."""
+    stability — never reorder without a backfill rerun."""
     lean = agent.get('political_lean') or 0
     lean_word = ('very left' if lean < -0.5 else 'leans left' if lean < -0.1
                  else 'centrist' if abs(lean) < 0.1
@@ -58,7 +54,6 @@ def render_bio(agent):
     else:
         phrases = phrases_raw or []
     phrase_str = ', '.join(f'"{p}"' for p in phrases[:4]) if phrases else 'no signature phrases'
-
     return (
         f"{age} {gender}, {auth} authority. "
         f"Politically {lean_word}. "
@@ -69,8 +64,7 @@ def render_bio(agent):
 
 def embed_agent(agent_row):
     """Embed one agent and persist. Returns vector or None on failure.
-    Errors are logged and swallowed — embedding failure must NOT block
-    agent creation."""
+    Failures are swallowed — bio embedding must NEVER block agent creation."""
     ensure_schema()
     agent_id = agent_row.get('agent_id') or agent_row.get('id')
     if not agent_id:
@@ -86,7 +80,7 @@ def embed_agent(agent_row):
         return None
     vec = vectors[0]
     try:
-        with db_cursor(dict_rows=False, commit=True) as cur:
+        with db_cursor(dict_cursor=False, commit=True) as cur:
             cur.execute(
                 "UPDATE kindness_agents SET bio_vec = %s, bio_vec_at = NOW() WHERE agent_id = %s",
                 (vec, agent_id),
@@ -94,18 +88,16 @@ def embed_agent(agent_row):
     except Exception as e:
         logger.warning(f"embed_agent: persist failed for {agent_id}: {e}")
         return None
-    logger.info(f"🧬 embed_agent {agent_id} via {backend} (dim={len(vec)})")
+    logger.info(f"embed_agent {agent_id} via {backend} (dim={len(vec)})")
     return vec
 
 
 def backfill_missing(limit=None):
-    """Embed every agent with bio_vec IS NULL. Returns (n_done, n_failed).
-    Designed to be safe to invoke repeatedly — already-embedded agents skip."""
+    """Embed every agent with bio_vec IS NULL. Returns (n_done, n_failed)."""
     ensure_schema()
-    with db_cursor(dict_rows=True) as cur:
-        sql = """SELECT * FROM kindness_agents
-                  WHERE bio_vec IS NULL AND is_active = TRUE
-                  ORDER BY id"""
+    with db_cursor(dict_cursor=True) as cur:
+        sql = ("SELECT * FROM kindness_agents "
+               "WHERE bio_vec IS NULL AND is_active = TRUE ORDER BY id")
         if limit:
             sql += f" LIMIT {int(limit)}"
         cur.execute(sql)
@@ -133,8 +125,8 @@ def _cosine(a, b):
 
 
 def _all_vecs():
-    """Pulls every agent with a bio_vec. Returns list of {agent_id, display_name, vec, bio}."""
-    with db_cursor(dict_rows=True) as cur:
+    """Pulls every agent with a bio_vec. Returns list of dicts with vec + bio."""
+    with db_cursor(dict_cursor=True) as cur:
         cur.execute("""
             SELECT agent_id, display_name, bio_vec,
                    political_lean, toxicity_baseline, empathy_baseline,
@@ -153,7 +145,6 @@ def _all_vecs():
 
 
 def similar_to(agent_id, k=5):
-    """Returns top-k agents most similar to `agent_id` by bio_vec cosine."""
     ensure_schema()
     rows = _all_vecs()
     target = next((r for r in rows if r['agent_id'] == agent_id), None)
@@ -169,7 +160,7 @@ def similar_to(agent_id, k=5):
 
 
 def search(query, k=10):
-    """Embed `query` (as search_query, not search_document) and rank agents."""
+    """Embed `query` (as search_query) and rank agents."""
     ensure_schema()
     try:
         qvecs, backend = _kumori_embed_text([query], input_type='search_query')

@@ -288,6 +288,55 @@ def llm_backoff_until():
     return {name: data['until_ts'] for name, data in state.items()}
 
 
+# ─── Embed / Rerank / Transcribe ──────────────────────────────────────────────
+
+def embed_text(texts, input_type='search_document'):
+    """Embed a list of strings via the shared free-LLM pool. Auto-selects
+    a backend (Cohere v3+v4, Mistral, NVIDIA, etc.). Returns
+    (vectors, backend_name). `input_type` only matters for Cohere
+    (search_document/search_query/classification/clustering)."""
+    if isinstance(texts, str):
+        texts = [texts]
+    data = _request('POST', '/api/v1/llm/embed-text',
+                    {'texts': list(texts), 'input_type': input_type})
+    return data.get('vectors'), data.get('backend')
+
+
+def embed_image(images):
+    """Embed images via Cohere v3-image variants. Accepts a list of base64
+    strings or data: URIs. Returns (vectors, backend_name)."""
+    if isinstance(images, (str, bytes)):
+        images = [images]
+    if images and isinstance(images[0], bytes):
+        import base64
+        images = [base64.b64encode(i).decode() for i in images]
+    data = _request('POST', '/api/v1/llm/embed-image', {'images': list(images)})
+    return data.get('vectors'), data.get('backend')
+
+
+def rerank(query, documents, top_n=None):
+    """Rerank documents by relevance to query (Cohere). Returns
+    (results, backend_name) where results is a list of
+    {'index': <int>, 'relevance_score': <float>} sorted descending."""
+    body = {'query': query, 'documents': list(documents)}
+    if top_n is not None:
+        body['top_n'] = int(top_n)
+    data = _request('POST', '/api/v1/llm/rerank', body)
+    return data.get('results'), data.get('backend')
+
+
+def transcribe(audio_bytes, language='en', content_type='audio/wav'):
+    """Transcribe audio bytes (≤25MB) to text via the free pool (Cohere).
+    Returns (text, backend_name)."""
+    import base64
+    audio_b64 = base64.b64encode(audio_bytes).decode()
+    data = _request('POST', '/api/v1/llm/transcribe',
+                    {'audio_b64': audio_b64, 'language': language,
+                     'content_type': content_type},
+                    timeout=(5, 120))
+    return data.get('text'), data.get('backend')
+
+
 # ─── Image generation ─────────────────────────────────────────────────────────
 
 def imggen_generate(prompt, width=1024, height=1024, mode='roundrobin',
