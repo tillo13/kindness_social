@@ -1384,7 +1384,8 @@ def admin_embed_backfill():
     if not is_admin_request():
         return jsonify({'error': 'Forbidden'}), 403
     from core import embed_bios
-    limit = request.args.get('limit') or (request.json or {}).get('limit')
+    body = request.get_json(silent=True) or {}
+    limit = request.args.get('limit') or body.get('limit')
     try:
         limit = int(limit) if limit else None
     except (TypeError, ValueError):
@@ -1407,6 +1408,15 @@ def admin_embed_similar():
     from core import embed_bios
     results = embed_bios.similar_to(agent_id, k=k)
     return jsonify({'ok': True, 'agent_id': agent_id, 'results': results})
+
+
+@bp.route('/api/admin/quality-filter')
+def admin_quality_filter_summary():
+    """Diagnostic: how many backends would be filtered by quality_filter?"""
+    if not is_admin_request():
+        return jsonify({'error': 'Forbidden'}), 403
+    from core import quality_filter
+    return jsonify({'ok': True, **quality_filter.summary()})
 
 
 @bp.route('/api/admin/embed/search')

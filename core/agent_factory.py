@@ -67,7 +67,15 @@ def create_agent(backend=None):
     Returns the created agent dict, or None if name collision after retries.
     """
     if backend is None:
-        backend = random.choice(AVAILABLE_BACKENDS)
+        # Filter known-low-quality backends via kumori /catalog/quality.json.
+        # Fail-open: any error / no signal → original pool.
+        try:
+            from core.quality_filter import filter_eligible
+            eligible = filter_eligible(AVAILABLE_BACKENDS)
+        except Exception as e:
+            logger.debug(f"quality filter skipped: {e}")
+            eligible = AVAILABLE_BACKENDS
+        backend = random.choice(eligible)
 
     # Generate structured name: provider.model.NNN
     provider, model_short = BACKEND_NAMING.get(backend, ('unknown', backend))
