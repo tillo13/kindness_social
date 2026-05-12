@@ -1363,7 +1363,7 @@ def admin_agent_similarity():
     from core import embed_bios
     embed_bios.ensure_schema()
     from utilities.postgres_utils import db_cursor
-    with db_cursor(dict_rows=True) as cur:
+    with db_cursor(dict_cursor=True) as cur:
         cur.execute("""
             SELECT agent_id, display_name,
                    (bio_vec IS NOT NULL) AS has_vec
