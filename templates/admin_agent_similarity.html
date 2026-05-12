@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Agent Similarity · Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+    <div class="flex items-baseline justify-between mb-6">
+        <h1 class="text-xl font-semibold" style="color: var(--text-primary);">Agent Similarity</h1>
+        <a href="/admin?key={{ admin_key }}" class="text-xs underline" style="color: var(--text-quaternary);">← admin</a>
+    </div>
+
+    <div class="k-card-flat p-5 mb-6">
+        <div class="k-section-title">Embedding backfill</div>
+        <div class="text-sm" style="color: var(--text-secondary);">
+            {{ agents|length }} active agents · <span id="missing-count">{{ missing_count }}</span> missing bio_vec
+        </div>
+        <button id="backfill-btn"
+                style="margin-top:8px;padding:6px 14px;border-radius:6px;border:1px solid var(--border-subtle);background:var(--kindness-muted);color:var(--kindness);font-size:13px;cursor:pointer;">
+            Backfill missing embeddings
+        </button>
+        <span id="backfill-status" class="text-xs font-mono ml-3" style="color: var(--text-quaternary);"></span>
+    </div>
+
+    <div class="k-card-flat p-5 mb-6">
+        <div class="k-section-title">Find similar agents</div>
+        <div class="text-xs mb-2" style="color: var(--text-quaternary);">Pick an agent · top-5 cosine neighbors over bio_vec</div>
+        <select id="agent-select" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border-subtle);background:var(--bg-secondary);color:var(--text-primary);font-size:13px;min-width:280px;">
+            <option value="">— pick an agent —</option>
+            {% for a in agents %}
+              <option value="{{ a.agent_id }}" {% if not a.has_vec %}disabled{% endif %}>
+                {{ a.display_name }}{% if not a.has_vec %} (no vec){% endif %}
+              </option>
+            {% endfor %}
+        </select>
+        <div id="similar-results" style="margin-top:14px;"></div>
+    </div>
+
+    <div class="k-card-flat p-5 mb-6">
+        <div class="k-section-title">Semantic search</div>
+        <div class="text-xs mb-2" style="color: var(--text-quaternary);">Type a prompt · rank agents by bio similarity (input_type=search_query)</div>
+        <input id="search-q" type="text" placeholder="find me a sarcastic optimist"
+               style="padding:8px 12px;border-radius:6px;border:1px solid var(--border-subtle);background:var(--bg-secondary);color:var(--text-primary);font-size:13px;width:100%;max-width:520px;" />
+        <button id="search-btn"
+                style="margin-left:8px;padding:8px 14px;border-radius:6px;border:1px solid var(--border-subtle);background:var(--kindness-muted);color:var(--kindness);font-size:13px;cursor:pointer;">
+            Search
+        </button>
+        <div id="search-results" style="margin-top:14px;"></div>
+    </div>
+</div>
+
+<script>
+const KEY = {{ admin_key|tojson }};
+
+function renderResults(container, items) {
+  if (!items || !items.length) {
+    container.innerHTML = '<div style="color: var(--text-quaternary); font-size:13px;">No results.</div>';
+    return;
+  }
+  container.innerHTML = items.map(r =>
+    `<div style="padding:8px 0;border-bottom:1px solid var(--border-subtle);">
+       <div style="display:flex;align-items:baseline;gap:10px;">
+         <span style="font-family:monospace;font-size:13px;color:var(--text-primary);">${r.display_name}</span>
+         <span style="font-family:monospace;font-size:11px;color:var(--kindness);">${r.score.toFixed(3)}</span>
+       </div>
+       <div style="font-size:11px;color:var(--text-quaternary);margin-top:2px;">${r.bio}</div>
+     </div>`
+  ).join('');
+}
+
+document.getElementById('backfill-btn').onclick = async () => {
+  const btn = document.getElementById('backfill-btn');
+  const status = document.getElementById('backfill-status');
+  btn.disabled = true; status.textContent = 'embedding...';
+  try {
+    const res = await fetch(`/api/admin/embed/backfill?key=${encodeURIComponent(KEY)}`, {method: 'POST'});
+    const d = await res.json();
+    status.textContent = `done · ${d.embedded} embedded · ${d.failed} failed`;
+    document.getElementById('missing-count').textContent = d.failed;
+  } catch (e) {
+    status.textContent = 'error: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+document.getElementById('agent-select').onchange = async (e) => {
+  const agent_id = e.target.value;
+  const out = document.getElementById('similar-results');
+  if (!agent_id) { out.innerHTML = ''; return; }
+  out.innerHTML = '<div style="color:var(--text-quaternary);font-size:13px;">loading...</div>';
+  const res = await fetch(`/api/admin/embed/similar?agent_id=${encodeURIComponent(agent_id)}&k=5&key=${encodeURIComponent(KEY)}`);
+  const d = await res.json();
+  renderResults(out, d.results);
+};
+
+async function runSearch() {
+  const q = document.getElementById('search-q').value.trim();
+  const out = document.getElementById('search-results');
+  if (!q) { out.innerHTML = ''; return; }
+  out.innerHTML = '<div style="color:var(--text-quaternary);font-size:13px;">embedding query...</div>';
+  const res = await fetch(`/api/admin/embed/search?q=${encodeURIComponent(q)}&k=10&key=${encodeURIComponent(KEY)}`);
+  const d = await res.json();
+  if (d.backend) {
+    out.innerHTML = `<div style="font-size:11px;color:var(--text-quaternary);margin-bottom:8px;">via ${d.backend}</div>`;
+    const tail = document.createElement('div');
+    renderResults(tail, d.results);
+    out.appendChild(tail);
+  } else {
+    out.innerHTML = '<div style="color:var(--text-quaternary);font-size:13px;">search failed.</div>';
+  }
+}
+document.getElementById('search-btn').onclick = runSearch;
+document.getElementById('search-q').addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
+</script>
+{% endblock %}

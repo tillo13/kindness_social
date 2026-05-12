@@ -1350,3 +1350,76 @@ def cron_llm_catalog_audit():
         'confirmed_count':   summary['confirmed_count'],
         'probe_errors':      summary['probe_errors'],
     })
+
+
+# ─── Agent bio embedding (kumori free-LLM embed pool prototype) ──────────────
+
+@bp.route('/admin/agent-similarity')
+def admin_agent_similarity():
+    """Two surfaces on one page: per-agent neighbors + free-text search."""
+    if not is_admin_request():
+        return "Forbidden — pass ?key=YOUR_KEY", 403
+    key = request.headers.get('X-Admin-Key') or request.args.get('key', '')
+    from core import embed_bios
+    embed_bios.ensure_schema()
+    from utilities.postgres_utils import db_cursor
+    with db_cursor(dict_rows=True) as cur:
+        cur.execute("""
+            SELECT agent_id, display_name,
+                   (bio_vec IS NOT NULL) AS has_vec
+              FROM kindness_agents
+             WHERE is_active = TRUE
+             ORDER BY agent_id
+        """)
+        agents = [dict(r) for r in cur.fetchall()]
+        cur.execute("SELECT COUNT(*) FROM kindness_agents WHERE bio_vec IS NULL AND is_active = TRUE")
+        missing_count = cur.fetchone()['count']
+    return render_template('admin_agent_similarity.html',
+                           admin_key=key, agents=agents,
+                           missing_count=missing_count)
+
+
+@bp.route('/api/admin/embed/backfill', methods=['POST'])
+def admin_embed_backfill():
+    if not is_admin_request():
+        return jsonify({'error': 'Forbidden'}), 403
+    from core import embed_bios
+    limit = request.args.get('limit') or (request.json or {}).get('limit')
+    try:
+        limit = int(limit) if limit else None
+    except (TypeError, ValueError):
+        limit = None
+    done, failed = embed_bios.backfill_missing(limit=limit)
+    return jsonify({'ok': True, 'embedded': done, 'failed': failed})
+
+
+@bp.route('/api/admin/embed/similar')
+def admin_embed_similar():
+    if not is_admin_request():
+        return jsonify({'error': 'Forbidden'}), 403
+    agent_id = request.args.get('agent_id', '').strip()
+    if not agent_id:
+        return jsonify({'error': 'agent_id required'}), 400
+    try:
+        k = int(request.args.get('k', '5'))
+    except ValueError:
+        k = 5
+    from core import embed_bios
+    results = embed_bios.similar_to(agent_id, k=k)
+    return jsonify({'ok': True, 'agent_id': agent_id, 'results': results})
+
+
+@bp.route('/api/admin/embed/search')
+def admin_embed_search():
+    if not is_admin_request():
+        return jsonify({'error': 'Forbidden'}), 403
+    q = request.args.get('q', '').strip()
+    if not q:
+        return jsonify({'error': 'q required'}), 400
+    try:
+        k = int(request.args.get('k', '10'))
+    except ValueError:
+        k = 10
+    from core import embed_bios
+    results, backend = embed_bios.search(q, k=k)
+    return jsonify({'ok': True, 'query': q, 'backend': backend, 'results': results})

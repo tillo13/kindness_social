@@ -133,6 +133,12 @@ def create_agent(backend=None):
             except Exception as e:
                 logger.warning(f"avatar generation skipped for {agent_id}: {e}")
 
+            try:
+                from core.embed_bios import embed_agent
+                embed_agent(agent)
+            except Exception as e:
+                logger.warning(f"bio embed skipped for {agent_id}: {e}")
+
             return agent
 
     logger.warning(f"Could not create unique agent for backend {backend}")
