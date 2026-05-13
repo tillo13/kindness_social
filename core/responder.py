@@ -4,6 +4,7 @@ This is what makes conversations real: agents reply to each other,
 argue, de-escalate, and build bridges over time.
 """
 
+import json
 import logging
 import random
 from datetime import datetime, timezone, timedelta
@@ -13,6 +14,74 @@ from core.evaluator import generate_comment, evaluate_comment
 from core.simulator import calculate_dopamine, update_persona, DEFAULT_CONFIG
 
 logger = logging.getLogger(__name__)
+
+# emit_quality_sample lands in the vendored kumori_api_client on next kindness
+# deploy after the kumori-side shim ships. Defensive import so an older
+# vendored copy doesn't break responder.
+try:
+    from utilities.kumori_api_client import emit_quality_sample as _emit_quality_sample
+except ImportError:
+    _emit_quality_sample = None
+
+
+def _persona_alignment_score(agent, scores):
+    """Did the backend produce a reply that matches who this agent IS?
+
+    Compares the evaluator's 1-10 toxicity/empathy scores against the agent's
+    baseline persona (not current — baseline holds the original spec; current
+    drifts with the kindness experiment). Persona-invariant: an angry agent
+    producing high-toxicity output scores HIGH here (backend successfully
+    executed the persona it was assigned), and the same backend producing
+    kind output for that angry agent scores LOW (backend went off-persona).
+
+    This is the kindness_live_v1 signal kumori's synthetic probes can't
+    capture — it isolates backend competence from agent personality.
+    """
+    tox_base = agent.get('toxicity_baseline')
+    emp_base = agent.get('empathy_baseline')
+    if tox_base is None or emp_base is None:
+        return None
+    tox_actual = scores.get('toxicity', 5)
+    emp_actual = scores.get('empathy', 5)
+    # Each dim: 1.0 at zero distance, linear decay to 0 at distance=5 on the
+    # 1-10 scale. Halfway-off scores 50, totally-off scores 0.
+    tox_dim = max(0.0, 1.0 - abs(tox_actual - tox_base) / 5.0)
+    emp_dim = max(0.0, 1.0 - abs(emp_actual - emp_base) / 5.0)
+    return int(round((tox_dim + emp_dim) / 2 * 100))
+
+
+def _emit_kindness_sample(agent, backend, ok, scores=None, response_text=None,
+                          duration_ms=None, error=None):
+    """Fire-and-forget: push one real-world judgment into kumori's catalog.
+    Persona-alignment composite as the headline score; raw observations in
+    judge_notes so future analysis can recompose smarter signals without
+    re-running. Total failure mode: log + swallow. Never blocks the reply."""
+    if _emit_quality_sample is None or not backend:
+        return
+    score = 0
+    notes_payload = {
+        'agent_id': agent.get('agent_id'),
+        'toxicity_baseline': agent.get('toxicity_baseline'),
+        'empathy_baseline': agent.get('empathy_baseline'),
+    }
+    if ok and scores:
+        notes_payload['scores'] = scores
+        alignment = _persona_alignment_score(agent, scores)
+        score = alignment if alignment is not None else 0
+        notes_payload['alignment'] = alignment
+    if response_text is not None:
+        notes_payload['response_len'] = len(response_text)
+    try:
+        _emit_quality_sample(
+            backend=backend, score=score, ok=ok,
+            judge_kind='kindness_live_v1',
+            response_excerpt=response_text[:500] if response_text else None,
+            duration_ms=duration_ms,
+            judge_notes=json.dumps(notes_payload)[:500],
+            error=error,
+        )
+    except Exception as e:
+        logger.debug(f"kindness_live_v1 emit failed for {backend}: {e}")
 
 
 def get_open_threads(limit=8):
@@ -350,11 +419,17 @@ def run_agent_responses(config=None):
                 )
                 if comment_text is None:
                     logger.info(f"    {agent['display_name']} stays silent — {agent['llm_backend']} unavailable")
+                    _emit_kindness_sample(agent, actual_backend or agent.get('llm_backend'),
+                                          ok=False, duration_ms=gen_time_ms,
+                                          error='empty/None from generate_comment')
                     continue
 
                 scores, eval_time_ms = evaluate_comment(
                     comment_text, agent, thread_history, topic, config
                 )
+                _emit_kindness_sample(agent, actual_backend, ok=True, scores=scores,
+                                      response_text=comment_text,
+                                      duration_ms=gen_time_ms)
 
                 dopamine, source, multiplier = calculate_dopamine(
                     scores, agent, position, thread_history, config

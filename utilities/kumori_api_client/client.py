@@ -337,6 +337,22 @@ def transcribe(audio_bytes, language='en', content_type='audio/wav'):
     return data.get('text'), data.get('backend')
 
 
+def quality_catalog(days=7):
+    """Read the dual-judged free-LLM quality catalog. Scoped via
+    'catalog.read' on the calling kmr_live_* key (NOT admin-gated —
+    principle of least privilege per industry consensus).
+
+    Returns the raw response dict:
+        {window_days, judge_kind, backends: [{backend, modality,
+                                              quality_when_works, error_rate,
+                                              n_ok, n_total}, ...]}
+
+    Pre-release: response includes a 'note' field flagging it's not yet
+    public. Will eventually drop auth + the gate at Phase 8.
+    """
+    return _request('GET', f'/catalog/quality.json?days={int(days)}', None)
+
+
 # ─── Image generation ─────────────────────────────────────────────────────────
 
 def imggen_generate(prompt, width=1024, height=1024, mode='roundrobin',

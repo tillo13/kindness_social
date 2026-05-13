@@ -16,6 +16,7 @@ from .client import (
     embed_image,
     rerank,
     transcribe,
+    quality_catalog,
     imggen_generate,
     imggen_edit,
     imggen_usage,
