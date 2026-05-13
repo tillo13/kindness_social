@@ -67,6 +67,15 @@ def create_agent(backend=None):
     Returns the created agent dict, or None if name collision after retries.
     """
     if backend is None:
+        # Refresh the registry from kumori before selecting — new endpoints
+        # wired into kumori become eligible here within one TTL (1h). Without
+        # this, AVAILABLE_BACKENDS is frozen at App Engine instance boot and
+        # new backends are invisible until redeploy.
+        try:
+            from utilities import llm_registry_remote
+            llm_registry_remote.refresh_if_stale()
+        except Exception as e:
+            logger.debug(f"registry refresh skipped: {e}")
         # Filter known-low-quality backends via kumori /catalog/quality.json.
         # Fail-open: any error / no signal → original pool.
         try:
