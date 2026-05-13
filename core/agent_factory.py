@@ -61,6 +61,50 @@ PERSONALITY_WEIGHTS = [0.25, 0.50, 0.25]
 # To add a new assignable backend, set assign=True in backend_registry.MODELS
 
 
+def _backend_agent_counts():
+    """Returns {backend_name: count} from kindness_agents. {} on error so the
+    caller falls back to uniform random selection."""
+    try:
+        with db_cursor(dict_cursor=False) as cur:
+            cur.execute("SELECT llm_backend, COUNT(*) FROM kindness_agents GROUP BY 1")
+            return {row[0]: int(row[1]) for row in cur.fetchall()}
+    except Exception as e:
+        logger.debug(f"_backend_agent_counts failed: {e}")
+        return {}
+
+
+# How aggressively to bias toward under-represented backends.
+# weight = 1 / (1 + n) ** _NEW_BACKEND_BIAS
+#   1.0   → aggressive — new backend gets ~78% of selections vs 5 established
+#   0.5   → moderate (current default) — ~47% to new, evens out by day 3
+#   0.3   → gentle — ~33% to new
+#   0.0   → uniform random (disables the bias entirely)
+# Sqrt picked as the default: fast enough that a new backend hits the
+# 5-sample quality_filter floor within 1-2 days, gentle enough that a bad
+# new backend doesn't dominate 3 days of new-agent traffic.
+_NEW_BACKEND_BIAS = 0.5
+
+
+def _weighted_pick(eligible):
+    """Pick a backend with weight ∝ 1/(1+existing_count)**_NEW_BACKEND_BIAS.
+    Under-represented backends (newly-wired kumori endpoints especially) win
+    more often, accelerating real-world signal accumulation. Self-balancing:
+    as the new backend fills in, its bias drops and the distribution evens.
+
+    Falls back to uniform random if the count query fails — same behavior as
+    before this function existed."""
+    if not eligible:
+        return None
+    counts = _backend_agent_counts()
+    if not counts:
+        return random.choice(eligible)
+    weights = [1.0 / (1 + counts.get(b, 0)) ** _NEW_BACKEND_BIAS for b in eligible]
+    picked = random.choices(eligible, weights=weights, k=1)[0]
+    if counts.get(picked, 0) == 0:
+        logger.info(f"agent_factory: blooding new backend {picked} (0 existing agents)")
+    return picked
+
+
 def create_agent(backend=None):
     """
     Create a new agent with a random personality and model-based name.
@@ -84,7 +128,10 @@ def create_agent(backend=None):
         except Exception as e:
             logger.debug(f"quality filter skipped: {e}")
             eligible = AVAILABLE_BACKENDS
-        backend = random.choice(eligible)
+        # Weight selection inversely by existing agent count so newly-discovered
+        # kumori endpoints accumulate real-world canary signal in hours, not
+        # days. Self-balancing — as a new backend fills in, its bias drops.
+        backend = _weighted_pick(eligible)
 
     # Generate structured name: provider.model.NNN
     provider, model_short = BACKEND_NAMING.get(backend, ('unknown', backend))
