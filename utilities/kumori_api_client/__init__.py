@@ -17,6 +17,7 @@ from .client import (
     rerank,
     transcribe,
     quality_catalog,
+    emit_quality_sample,
     imggen_generate,
     imggen_edit,
     imggen_usage,

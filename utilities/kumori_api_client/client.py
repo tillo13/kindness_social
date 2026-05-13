@@ -353,6 +353,36 @@ def quality_catalog(days=7):
     return _request('GET', f'/catalog/quality.json?days={int(days)}', None)
 
 
+def emit_quality_sample(backend, score, ok=True, judge_kind='kindness_live_v1',
+                        response_excerpt=None, duration_ms=None,
+                        judge_notes=None, error=None, modality='chat',
+                        probe_id=None):
+    """Emit a real-world quality sample to the catalog. Scoped via
+    'quality.write'. Fire-and-forget: failures are logged and swallowed —
+    never raises into the caller, never blocks the reply path.
+
+    Caller must have already produced `score` (0-100). For failed LLM calls
+    pass ok=False, score=0, and an error string. judge_kind must be one of
+    the kumori allowlist ('kindness_live_v1', 'kindness_peer_v1' at time of
+    writing); the server rejects others with 400.
+
+    Short timeout (3s connect / 8s read) because this is telemetry, not a
+    critical path.
+    """
+    body = {'backend': backend, 'modality': modality, 'judge_kind': judge_kind,
+            'score': int(score), 'ok': bool(ok)}
+    if response_excerpt: body['response_excerpt'] = response_excerpt[:2000]
+    if duration_ms is not None: body['duration_ms'] = int(duration_ms)
+    if judge_notes: body['judge_notes'] = judge_notes
+    if error: body['error'] = error
+    if probe_id: body['probe_id'] = probe_id
+    try:
+        _request('POST', '/api/v1/llm/quality-sample', body,
+                 timeout=(3, 8), retry_on_5xx=False)
+    except Exception as e:
+        logger.warning(f"emit_quality_sample failed for {backend}/{judge_kind}: {e}")
+
+
 # ─── Image generation ─────────────────────────────────────────────────────────
 
 def imggen_generate(prompt, width=1024, height=1024, mode='roundrobin',
