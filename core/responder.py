@@ -23,6 +23,19 @@ try:
 except ImportError:
     _emit_quality_sample = None
 
+# rerank: same shape — vendored from kumori. Used by _pick_reply_target to
+# choose which comment an agent should reply to, replacing weighted-random.
+try:
+    from utilities.kumori_api_client import rerank as _kumori_rerank
+except ImportError:
+    _kumori_rerank = None
+
+# Top-1 relevance below this means rerank didn't find anything meaningfully
+# relevant — fall back to the heuristic weighted-random pick. 0.30 is
+# conservative; Cohere reranks typically produce >0.5 for genuinely-relevant
+# top hits and <0.2 when the corpus is irrelevant to the query.
+_RERANK_CONFIDENCE_FLOOR = 0.30
+
 
 def _persona_alignment_score(agent, scores):
     """Did the backend produce a reply that matches who this agent IS?
@@ -154,15 +167,100 @@ def _comment_depth(comment, by_id):
     return d
 
 
+def _build_persona_query(agent):
+    """Compose a one-line description of what this agent would engage with.
+    Used as the rerank query so the backend can score thread comments by
+    'how interesting is this to a person like me.' Drawn from baseline
+    persona traits — same source the persona-alignment score uses, so it
+    stays consistent with the rest of the experiment."""
+    tox = agent.get('toxicity_baseline') or 5
+    emp = agent.get('empathy_baseline') or 5
+    pol = agent.get('political_lean') or 0
+    if tox >= 6:
+        tone = 'angry, confrontational, drawn to conflict and outrage'
+    elif emp >= 6:
+        tone = 'kind, empathetic, looking to bridge disagreements and support others'
+    else:
+        tone = 'moderate, curious about nuance, willing to consider multiple sides'
+    leaning = ('left-leaning' if pol < -0.3 else
+               'right-leaning' if pol > 0.3 else
+               'politically centrist')
+    return (f"A {tone} {leaning} commenter looking for a thread comment "
+            f"to reply to that they would naturally engage with.")
+
+
+def _rerank_pick(eligible, agent):
+    """Use kumori's rerank to choose the most-engaging comment for this
+    agent. Returns (target_comment, top_relevance) on success, (None, None)
+    if rerank isn't available, errors out, or returns nothing useful.
+
+    Emits a kindness_rerank_v1 sample to the kumori quality catalog with the
+    top relevance as the score (0-100). Fire-and-forget — never blocks the
+    pick path."""
+    if _kumori_rerank is None or len(eligible) < 2:
+        return None, None
+    query = _build_persona_query(agent)
+    docs = [(c.get('comment_text') or '')[:500] for c in eligible]
+    t0 = time.time() if 'time' in globals() else None
+    try:
+        import time as _t
+        t0 = _t.time()
+        results, backend = _kumori_rerank(query, docs, top_n=min(3, len(docs)))
+        duration_ms = int((_t.time() - t0) * 1000)
+    except Exception as e:
+        logger.debug(f"rerank failed, falling back to weighted-random: {e}")
+        if _emit_quality_sample is not None:
+            try:
+                _emit_quality_sample(
+                    backend='unknown', score=0, ok=False,
+                    judge_kind='kindness_rerank_v1',
+                    error=f"{type(e).__name__}: {str(e)[:200]}",
+                )
+            except Exception:
+                pass
+        return None, None
+    if not results:
+        return None, None
+    top = results[0]
+    top_relevance = float(top.get('relevance_score') or 0)
+    # Fire-and-forget catalog sample. Score = top relevance × 100 (the
+    # backend's own confidence that its top pick is actually relevant).
+    if _emit_quality_sample is not None:
+        try:
+            _emit_quality_sample(
+                backend=backend or 'rerank_unknown',
+                score=int(round(top_relevance * 100)),
+                ok=True,
+                judge_kind='kindness_rerank_v1',
+                duration_ms=duration_ms,
+                judge_notes=json.dumps({
+                    'n_docs': len(docs),
+                    'top_idx': top.get('index'),
+                    'top_relevance': round(top_relevance, 4),
+                    'persona_type': ('angry' if (agent.get('toxicity_baseline') or 5) >= 6
+                                     else 'kind' if (agent.get('empathy_baseline') or 5) >= 6
+                                     else 'moderate'),
+                })[:500],
+            )
+        except Exception:
+            pass
+    if top_relevance < _RERANK_CONFIDENCE_FLOOR:
+        # Rerank ran but found nothing genuinely relevant — let the caller
+        # fall back to the heuristic. The sample was still emitted so the
+        # catalog sees the low-confidence run as signal.
+        return None, top_relevance
+    return eligible[top['index']], top_relevance
+
+
 def _pick_reply_target(comments, agent):
     """Pick which comment in the thread this agent should reply to.
 
-    Weighted random pick over recent comments:
-      • Recency: most recent N comments are eligible (older ones don't get touched)
-      • Controversy: high-toxicity / low-empathy comments draw more replies
+    Layered selection:
       • Direct-reply boost: if a comment is replying to THIS agent, almost always pick it
-      • Depth cap: never extends a chain beyond MAX_REPLY_DEPTH
-      • Sometimes (20%) target NONE — top-level reply to the OP/topic
+      • 20% chance of top-level reply (skip to OP)
+      • Rerank: kumori's free-tier rerank scores eligible comments against a
+        persona-derived query; top pick used if confident (≥0.30)
+      • Fallback: weighted-random over recent comments by recency + controversy
 
     Returns the chosen comment dict, or None for a top-level reply.
     """
@@ -187,7 +285,14 @@ def _pick_reply_target(comments, agent):
     if not eligible:
         return None
 
-    # Weights: recency (later = higher) + controversy bonus
+    # Rerank-driven pick: smarter than weighted-random, also emits real-world
+    # rerank signal to the kumori quality catalog. Fails open to the original
+    # heuristic if rerank is unavailable, errors, or returns low-confidence.
+    rerank_target, _top_rel = _rerank_pick(eligible, agent)
+    if rerank_target is not None:
+        return rerank_target
+
+    # Fallback heuristic: recency + controversy weighted random
     weights = []
     n = len(eligible)
     for i, c in enumerate(eligible):

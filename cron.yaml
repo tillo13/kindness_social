@@ -82,3 +82,11 @@ cron:
 - description: "Sweep orphaned 'running' rows in kindness_cron_log (instance-died-mid-run cleanup)"
   url: /api/cron/cron-log-janitor
   schedule: every 6 hours
+
+- description: "Weekly avatar visual-diversity canary — exercises kumori embed-image, emits kindness_imgembed_v1 per describe-backend"
+  url: /api/cron/avatar-diversity
+  schedule: every monday 07:00
+  timezone: America/Los_Angeles
+  retry_parameters:
+    min_backoff_seconds: 60
+    max_doublings: 2

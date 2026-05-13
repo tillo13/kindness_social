@@ -300,6 +300,38 @@ def cron_daily_digest():
         return jsonify({'error': str(e)[:200]}), 500
 
 
+@bp.route('/api/cron/avatar-diversity')
+def cron_avatar_diversity():
+    """Weekly cron: sample N avatars, embed via kumori embed-image, emit
+    per-describe-backend visual-diversity score as a kindness_imgembed_v1
+    quality sample. Closes the embed-image real-world canary gap — the
+    cheapest substrate-credibility win after the kindness/galactica chains."""
+    if not is_cron_request():
+        return "Forbidden", 403
+
+    import time
+    from core.avatar_diversity import run_diversity_canary
+    log_id = db_ops.log_cron_start('avatar-diversity')
+    start = time.time()
+    try:
+        result = run_diversity_canary()
+        ms = int((time.time() - start) * 1000)
+        if result.get('ok'):
+            db_ops.log_cron_end(log_id, 'ok', ms,
+                                f"sampled {result.get('sampled', 0)} avatars, "
+                                f"{len(result.get('by_describe_backend', []))} backend groups",
+                                result)
+            return jsonify(result)
+        db_ops.log_cron_end(log_id, 'error', ms,
+                            error_text=result.get('error', '')[:500])
+        return jsonify(result), 500
+    except Exception as e:
+        ms = int((time.time() - start) * 1000)
+        db_ops.log_cron_end(log_id, 'error', ms, error_text=str(e)[:500])
+        logger.exception("Cron avatar-diversity failed")
+        return jsonify({'error': str(e)[:200]}), 500
+
+
 @bp.route('/api/cron/backfill-avatars')
 def cron_backfill_avatars():
     """Cron: Generate avatars for agents that are missing them."""
