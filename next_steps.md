@@ -5,16 +5,25 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-05-13 04:00*
+*Last refreshed: 2026-05-17 04:00*
 
 ## 🎯 Pending
 
 <!-- pending:start -->
+- [ ] 2026-05-13 07:36 — embed_bios.py emit kindness_embed_v1 — single-line addition, closes embed-text canary signal.
+- [ ] 2026-05-13 07:36 — validate _RERANK_CONFIDENCE_FLOOR=0.30 against a week of kindness_rerank_v1 data. If distributions are skewed (all >0.9 or all <0.1), retune.
+- [ ] 2026-05-13 07:36 — observation pass on kindness_live_v1 (after 2026-05-20). Look at per-backend score distributions, set new QUALITY_FLOOR empirically in core/quality_filter.py instead of guessing 30.
 <!-- pending:end -->
 
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
+- `fcef402` · 2026-05-13 07:19 — canary expansion: rerank in responder + weekly avatar-diversity cron.
+- `a055c45` · 2026-05-13 06:24 — README: generalize tech-stack citations — no specific provider names.
+- `8e75f63` · 2026-05-13 06:04 — agent_factory: weighted backend selection — bias toward under-represented.
+- `ba78651` · 2026-05-13 05:45 — llm_registry_remote: hourly TTL refresh — new kumori backends auto-flow in
+- `c3ebcda` · 2026-05-13 05:44 — llm_registry_remote: hourly TTL refresh — new kumori backends auto-flow in.
+- `395a37a` · 2026-05-13 05:25 — responder: emit kindness_live_v1 quality samples to kumori on every reply. Persona-alignment comp...
 - `42a26f3` · 2026-05-12 16:04 — quality-aware backend filter for new agent assignment — first kindness consumer of the kumori fre...
 - `ee65f34` · 2026-05-12 14:13 — cron_admin_routes:1366 — dict_rows=True → dict_cursor=True. Same kwarg-mismatch caught in embed_b...
 - `48d4a68` · 2026-05-12 13:57 — embed_bios.py: db_cursor kwarg fix — kindness's utilities/postgres_utils.db_cursor takes dict_cur...
@@ -24,19 +33,12 @@
 - `9d5b610` · 2026-05-12 10:41 — dev: migrate backfill_avatars.py to kumori_api_client (post-migration)
 - `8827c25` · 2026-05-12 10:29 — kindness: migrate off vendored kumori_free_llm → HTTP via kumori_api_client. Drops 9 shared_files...
 - `67e2299` · 2026-05-10 20:05 — kindness: fix admin_system_status NameError on FALLBACK_ORDER — HTTP migration left a broken mult...
-- `97b67de` · 2026-05-10 19:29 — kindness: pick up updated kumori_api_client llm_chat_eval(prompt, system) signature fix from kumo...
-- `391f7fe` · 2026-05-10 17:39 — kindness_social HTTP migration: App Engine main process now calls kumori.ai/api/v1/llm/* via util...
-- `f088668` · 2026-05-08 17:17 — GA4 tag injection via shared utilities/gtag + new kumori /admin/audience dashboard (where applica...
-- `338fabf` · 2026-05-08 16:15 — visitor_logging: 2% bot sample + skip noise paths + 90d TTL + SELECT 1 liveness probe (per db-spe...
-- `819c260` · 2026-05-08 14:25 — robots.txt: append AI-training + SEO-scraper bot-block (allow Googlebot/Bingbot/citation engines)
-- `c6942d8` · 2026-05-08 12:20 — add visitor_logging middleware → kumori_ops.visitor_log
 <!-- shipped:end -->
 
 ## ⚠️ Unfinished / WIP
 
 <!-- wip:start -->
-**2 file(s) with uncommitted changes:**
-- ` M utilities/kumori_api_client/__init__.py`
-- ` M utilities/kumori_api_client/client.py`
+**1 file(s) with uncommitted changes:**
+- ` M next_steps.md`
 
 <!-- wip:end -->

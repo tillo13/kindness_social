@@ -193,7 +193,7 @@ def get_client() -> Anthropic:
     call log_usage_async(...) afterwards."""
     global _CLIENT
     if _CLIENT is None:
-        _CLIENT = Anthropic(api_key=_get_api_key(), timeout=60.0, max_retries=1)
+        _CLIENT = _wrap_for_trace(Anthropic(api_key=_get_api_key(), timeout=60.0, max_retries=1))
     return _CLIENT
 
 
@@ -203,7 +203,190 @@ def new_client(**kwargs) -> Anthropic:
     need per-instance config that get_client()'s cached defaults don't fit.
     Caller still MUST pair messages.create() with log_usage_async() to land
     a row in kumori_api_usage."""
-    return Anthropic(api_key=_get_api_key(), **kwargs)
+    return _wrap_for_trace(Anthropic(api_key=_get_api_key(), **kwargs))
+
+
+# ─── Forensic call-tracing wrapper (2026-05-17, $0.38/hr sonnet-4-5 leak hunt)
+#
+# Wraps every Anthropic client returned by get_client()/new_client() so that
+# any messages.create() / messages.stream() call which is NOT bracketed by
+# logged_create/logged_stream gets a row in kumori_anthropic_call_trace with
+# the caller's file:line. logged_create/logged_stream set a thread-local to
+# skip tracing — only UNLOGGED calls land in trace. So:
+#     SELECT * FROM kumori_anthropic_call_trace WHERE model = '...' AND created_at >= '<leak hour>'
+# returns the exact set of calls that bypass kumori_api_usage. Independent
+# table — never affects reconciliation, only forensics.
+import inspect
+
+_skip_trace_local = threading.local()
+_THIS_FILE = os.path.abspath(__file__)
+_TRACE_TABLE_READY = False
+
+
+def _caller_site() -> tuple[str, int, str]:
+    """First stack frame outside this module."""
+    for frame in inspect.stack()[1:]:
+        try:
+            fn = os.path.abspath(frame.filename)
+        except Exception:
+            continue
+        if fn == _THIS_FILE:
+            continue
+        if fn.endswith('anthropic_logger.py'):
+            continue
+        return fn, frame.lineno, frame.function
+    return ('unknown', 0, 'unknown')
+
+
+def _infer_app_from_file(p: str) -> str:
+    parts = os.path.abspath(p).split(os.sep)
+    try:
+        i = parts.index('code')
+        return parts[i + 1]
+    except (ValueError, IndexError):
+        return os.environ.get('GAE_SERVICE') or os.environ.get('K_SERVICE') or 'unknown'
+
+
+def _ensure_trace_table():
+    global _TRACE_TABLE_READY
+    if _TRACE_TABLE_READY:
+        return
+    import psycopg2
+    creds = _get_db_creds()
+    is_gcp = os.environ.get('GAE_ENV', '').startswith('standard') or os.path.exists('/cloudsql')
+    if is_gcp:
+        host = f"{os.environ.get('DB_SOCKET_DIR', '/cloudsql')}/{creds['connection_name']}"
+    else:
+        host = creds['host']
+    conn = psycopg2.connect(
+        host=host, dbname=creds['dbname'], user=creds['user'],
+        password=creds['password'], connect_timeout=5,
+    )
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS kumori_anthropic_call_trace (
+                id BIGSERIAL PRIMARY KEY,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                host_app TEXT,
+                caller_file TEXT,
+                caller_line INT,
+                caller_func TEXT,
+                model TEXT,
+                streaming BOOLEAN DEFAULT FALSE,
+                input_tokens BIGINT,
+                output_tokens BIGINT,
+                cache_creation_tokens BIGINT,
+                cache_read_tokens BIGINT
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_trace_created ON kumori_anthropic_call_trace(created_at DESC)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_trace_model_created ON kumori_anthropic_call_trace(model, created_at DESC)")
+        conn.commit()
+        _TRACE_TABLE_READY = True
+    finally:
+        conn.close()
+
+
+def _record_trace_async(model, usage, caller_file, caller_line, caller_func, streaming):
+    """Fire-and-forget insert into kumori_anthropic_call_trace. Never raises."""
+    def _go():
+        try:
+            _ensure_trace_table()
+            import psycopg2
+            creds = _get_db_creds()
+            is_gcp = os.environ.get('GAE_ENV', '').startswith('standard') or os.path.exists('/cloudsql')
+            if is_gcp:
+                host = f"{os.environ.get('DB_SOCKET_DIR', '/cloudsql')}/{creds['connection_name']}"
+            else:
+                host = creds['host']
+            conn = psycopg2.connect(
+                host=host, dbname=creds['dbname'], user=creds['user'],
+                password=creds['password'], connect_timeout=5,
+                options='-c statement_timeout=10000',
+            )
+            try:
+                cur = conn.cursor()
+                cur.execute("""
+                    INSERT INTO kumori_anthropic_call_trace
+                    (host_app, caller_file, caller_line, caller_func, model, streaming,
+                     input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """, (
+                    _infer_app_from_file(caller_file),
+                    caller_file, caller_line, caller_func,
+                    _canonical_model_id(model or 'unknown'), streaming,
+                    _usage_field(usage, 'input_tokens'),
+                    _usage_field(usage, 'output_tokens'),
+                    _usage_field(usage, 'cache_creation_input_tokens'),
+                    _usage_field(usage, 'cache_read_input_tokens'),
+                ))
+                conn.commit()
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.warning(f"anthropic_logger: trace insert failed: {e}")
+    sync = bool(os.environ.get('K_SERVICE'))
+    if sync:
+        _go()
+    else:
+        threading.Thread(target=_go, daemon=True).start()
+
+
+class _TracingMessages:
+    def __init__(self, real):
+        self._real = real
+
+    def create(self, **kwargs):
+        if getattr(_skip_trace_local, 'skip', False):
+            return self._real.create(**kwargs)
+        cf, cl, fn = _caller_site()
+        resp = self._real.create(**kwargs)
+        try:
+            _record_trace_async(kwargs.get('model'), getattr(resp, 'usage', None), cf, cl, fn, False)
+        except Exception:
+            pass
+        return resp
+
+    def stream(self, **kwargs):
+        if getattr(_skip_trace_local, 'skip', False):
+            return self._real.stream(**kwargs)
+        cf, cl, fn = _caller_site()
+        real_cm = self._real.stream(**kwargs)
+        model = kwargs.get('model')
+
+        class _TracingStreamCM:
+            def __enter__(_self):
+                _self._stream = real_cm.__enter__()
+                return _self._stream
+
+            def __exit__(_self, *args):
+                try:
+                    final = _self._stream.get_final_message()
+                    _record_trace_async(model, final.usage, cf, cl, fn, True)
+                except Exception:
+                    pass
+                return real_cm.__exit__(*args)
+        return _TracingStreamCM()
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+
+class _TracingAnthropic:
+    """Duck-typed proxy that intercepts .messages.create / .messages.stream."""
+    def __init__(self, real):
+        self._real = real
+        self.messages = _TracingMessages(real.messages)
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+
+def _wrap_for_trace(real_client):
+    if os.environ.get('ANTHROPIC_TRACE_DISABLE', '').strip() in ('1', 'true', 'yes'):
+        return real_client
+    return _TracingAnthropic(real_client)
 
 
 # ─── DB logging (fire-and-forget) ─────────────────────────────────────────────
@@ -405,7 +588,11 @@ def logged_create(*, app_name: str, feature: Optional[str] = None,
     t0 = time.time()
     model = create_kwargs.get('model', 'unknown')
     client = get_client()
-    response = client.messages.create(**create_kwargs)
+    _skip_trace_local.skip = True
+    try:
+        response = client.messages.create(**create_kwargs)
+    finally:
+        _skip_trace_local.skip = False
     dur = int((time.time() - t0) * 1000)
     log_usage_async(
         app_name=app_name, model=model, usage=response.usage,
@@ -434,7 +621,12 @@ def logged_stream(*, app_name: str, feature: Optional[str] = None,
     t0 = time.time()
     model = stream_kwargs.get('model', 'unknown')
     client = get_client()
-    with client.messages.stream(**stream_kwargs) as stream:
+    _skip_trace_local.skip = True
+    try:
+        _stream_cm = client.messages.stream(**stream_kwargs)
+    finally:
+        _skip_trace_local.skip = False
+    with _stream_cm as stream:
         try:
             yield stream
         finally:
