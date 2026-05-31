@@ -58,10 +58,15 @@ def _get_connection_pool():
         else:
             host = db_credentials['host']
 
-        # Budget: shared db-f1-micro, keep connections low
+        # Budget: shared db-f1-micro (50 conns across all projects). app.yaml
+        # pins max_instances=1, so this pool is the ONLY kindness process — its
+        # maxconn is the hard ceiling kindness can ever hold. Bumped 3→8
+        # (2026-05-31) to give the cron fleet + web traffic headroom on the
+        # single F1 instance; the top-of-hour PoolError bursts were a maxconn=3
+        # pool starved by colliding crons (now also staggered in cron.yaml).
         pool = psycopg2.pool.ThreadedConnectionPool(
             minconn=1,
-            maxconn=3,
+            maxconn=8,
             dbname=db_credentials['dbname'],
             user=db_credentials['user'],
             password=db_credentials['password'],

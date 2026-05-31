@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-05-30 04:38*
+*Last refreshed: 2026-05-31 04:00*
 
 ## 🎯 Pending
 
@@ -18,14 +18,11 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
-_(no commits in the last 7 days)_
+- `e77ed4e` · 2026-05-30 17:57 — agent-LLM resilience: stop backend flakiness from 500-ing crons
 <!-- shipped:end -->
 
 ## ⚠️ Unfinished / WIP
 
 <!-- wip:start -->
-**2 file(s) with uncommitted changes:**
-- ` M next_steps.md`
-- ` M utilities/kumori_api_client/client.py`
-
+_(clean working tree, no TODO markers in recent files)_
 <!-- wip:end -->

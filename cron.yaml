@@ -1,53 +1,58 @@
 cron:
+# ── Staggered offsets (2026-05-31) ───────────────────────────────────────────
+# The frequent DB-touching crons used to share the :00/:30 boundary and, with
+# web traffic, exhausted the maxconn pool on the single F1 instance (PoolError
+# bursts at top-of-hour). Each interval cron now carries a distinct minute
+# offset via "from HH:MM to HH:MM" so no two heavy crons collide. All times UTC.
 - description: "Generate a new discussion thread"
   url: /api/cron/generate-thread
-  schedule: every 45 minutes
+  schedule: every 45 minutes from 00:05 to 23:50
   retry_parameters:
     min_backoff_seconds: 30
     max_doublings: 3
 
 - description: "Agent responses - bots reply to each other in open threads"
   url: /api/cron/agent-responses
-  schedule: every 15 minutes
+  schedule: every 15 minutes from 00:02 to 23:47
   retry_parameters:
     min_backoff_seconds: 30
     max_doublings: 2
 
 - description: "Calculate hourly metrics"
   url: /api/cron/hourly-metrics
-  schedule: every 30 minutes
+  schedule: every 30 minutes from 00:08 to 23:38
   retry_parameters:
     min_backoff_seconds: 30
     max_doublings: 2
 
 - description: "Snapshot agent personalities for evolution charts"
   url: /api/cron/snapshot-agents
-  schedule: every 30 minutes
+  schedule: every 30 minutes from 00:13 to 23:43
   retry_parameters:
     min_backoff_seconds: 30
     max_doublings: 2
 
 - description: "Agent reflection — agents review their own performance and decide to change"
   url: /api/cron/agent-reflect
-  schedule: every 30 minutes
+  schedule: every 30 minutes from 00:24 to 23:54
   retry_parameters:
     min_backoff_seconds: 60
     max_doublings: 2
 
 - description: "Scrape trending topics from the web via DDG + Grok"
   url: /api/cron/scrape-topics
-  schedule: every 1 hours
+  schedule: every 60 minutes from 00:48 to 23:48
   retry_parameters:
     min_backoff_seconds: 60
     max_doublings: 2
 
 - description: "Birth a new agent with random backend"
   url: /api/cron/birth-agent
-  schedule: every 6 hours
+  schedule: every 6 hours from 00:21 to 23:21
 
 - description: "Agents invite new agents similar to themselves"
   url: /api/cron/agent-invites
-  schedule: every 4 hours
+  schedule: every 4 hours from 00:26 to 23:26
   retry_parameters:
     min_backoff_seconds: 60
     max_doublings: 2
@@ -59,14 +64,14 @@ cron:
 
 - description: "Backfill missing agent avatars (self-healing)"
   url: /api/cron/backfill-avatars
-  schedule: every 6 hours
+  schedule: every 6 hours from 00:51 to 23:51
   retry_parameters:
     min_backoff_seconds: 60
     max_doublings: 2
 
 - description: "Retroactive thread revisits — agents scroll back through old threads (volume controlled by kindness_config.revisit_intensity, 0-10)"
   url: /api/cron/revisit-old-threads
-  schedule: every 1 hours
+  schedule: every 60 minutes from 00:33 to 23:33
   retry_parameters:
     min_backoff_seconds: 60
     max_doublings: 2
@@ -81,7 +86,7 @@ cron:
 
 - description: "Sweep orphaned 'running' rows in kindness_cron_log (instance-died-mid-run cleanup)"
   url: /api/cron/cron-log-janitor
-  schedule: every 6 hours
+  schedule: every 6 hours from 00:56 to 23:56
 
 - description: "Weekly avatar visual-diversity canary — exercises kumori embed-image, emits kindness_imgembed_v1 per describe-backend"
   url: /api/cron/avatar-diversity
