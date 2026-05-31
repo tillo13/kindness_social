@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-05-17 04:00*
+*Last refreshed: 2026-05-30 04:38*
 
 ## 🎯 Pending
 
@@ -18,27 +18,14 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
-- `fcef402` · 2026-05-13 07:19 — canary expansion: rerank in responder + weekly avatar-diversity cron.
-- `a055c45` · 2026-05-13 06:24 — README: generalize tech-stack citations — no specific provider names.
-- `8e75f63` · 2026-05-13 06:04 — agent_factory: weighted backend selection — bias toward under-represented.
-- `ba78651` · 2026-05-13 05:45 — llm_registry_remote: hourly TTL refresh — new kumori backends auto-flow in
-- `c3ebcda` · 2026-05-13 05:44 — llm_registry_remote: hourly TTL refresh — new kumori backends auto-flow in.
-- `395a37a` · 2026-05-13 05:25 — responder: emit kindness_live_v1 quality samples to kumori on every reply. Persona-alignment comp...
-- `42a26f3` · 2026-05-12 16:04 — quality-aware backend filter for new agent assignment — first kindness consumer of the kumori fre...
-- `ee65f34` · 2026-05-12 14:13 — cron_admin_routes:1366 — dict_rows=True → dict_cursor=True. Same kwarg-mismatch caught in embed_b...
-- `48d4a68` · 2026-05-12 13:57 — embed_bios.py: db_cursor kwarg fix — kindness's utilities/postgres_utils.db_cursor takes dict_cur...
-- `f118712` · 2026-05-12 13:50 — agent bio embeddings via kumori free-LLM pool — first real consumer of the embed_text runtime shi...
-- `e7df7cf` · 2026-05-12 10:59 — avatar: drop static-file fallback. GCS is the single source of truth. -193 seed files, simplified...
-- `31cd906` · 2026-05-12 10:47 — backfill_avatars: upload-or-generate logic (uploaded the 45 seed-only agents to GCS)
-- `9d5b610` · 2026-05-12 10:41 — dev: migrate backfill_avatars.py to kumori_api_client (post-migration)
-- `8827c25` · 2026-05-12 10:29 — kindness: migrate off vendored kumori_free_llm → HTTP via kumori_api_client. Drops 9 shared_files...
-- `67e2299` · 2026-05-10 20:05 — kindness: fix admin_system_status NameError on FALLBACK_ORDER — HTTP migration left a broken mult...
+_(no commits in the last 7 days)_
 <!-- shipped:end -->
 
 ## ⚠️ Unfinished / WIP
 
 <!-- wip:start -->
-**1 file(s) with uncommitted changes:**
+**2 file(s) with uncommitted changes:**
 - ` M next_steps.md`
+- ` M utilities/kumori_api_client/client.py`
 
 <!-- wip:end -->

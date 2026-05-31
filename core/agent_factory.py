@@ -132,6 +132,14 @@ def create_agent(backend=None):
         # kumori endpoints accumulate real-world canary signal in hours, not
         # days. Self-balancing — as a new backend fills in, its bias drops.
         backend = _weighted_pick(eligible)
+        if not backend:
+            # Registry pool was momentarily empty (refresh miss) and the quality
+            # filter / weighted pick yielded nothing. Skip creation rather than
+            # inserting an agent with a NULL llm_backend that would 400 on every
+            # future LLM call. birth/invite crons retry next tick.
+            logger.warning("agent_factory: no eligible backend available — "
+                           "skipping agent creation this cycle")
+            return None
 
     # Generate structured name: provider.model.NNN
     provider, model_short = BACKEND_NAMING.get(backend, ('unknown', backend))

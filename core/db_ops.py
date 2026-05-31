@@ -120,6 +120,30 @@ def create_tables():
                 ON kindness_agents(is_active);
             CREATE INDEX IF NOT EXISTS idx_kindness_comments_created
                 ON kindness_comments(created_at DESC);
+            -- Reflect path: get_agent_recent_comments does
+            -- WHERE agent_id = %s ORDER BY created_at DESC LIMIT 8.
+            -- Without this composite there's no serving index (created_at is
+            -- global-only), so on the shared f1-micro it seq-scanned and
+            -- tripped statement_timeout, 500-ing every agent-reflect cron.
+            CREATE INDEX IF NOT EXISTS idx_kindness_comments_agent_created
+                ON kindness_comments(agent_id, created_at DESC);
+
+            -- Reactions table: previously only ever INSERTed (db_ops_analytics
+            -- save_reaction) and JOINed — never defined in code, so it existed
+            -- in prod only via a manual/seed create. Defined here (idempotent;
+            -- no-op where it already exists) so a fresh DB boots complete.
+            CREATE TABLE IF NOT EXISTS kindness_reactions (
+                id SERIAL PRIMARY KEY,
+                comment_id INTEGER REFERENCES kindness_comments(id),
+                agent_id INTEGER REFERENCES kindness_agents(id),
+                reaction_type VARCHAR(20) NOT NULL DEFAULT 'thumbsup',
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE (comment_id, agent_id)
+            );
+            -- Serves the LATERAL reaction-count subquery in
+            -- get_agent_recent_comments / get_agent_social_standing.
+            CREATE INDEX IF NOT EXISTS idx_kindness_reactions_comment
+                ON kindness_reactions(comment_id);
 
             CREATE TABLE IF NOT EXISTS kindness_peer_kudos (
                 id SERIAL PRIMARY KEY,

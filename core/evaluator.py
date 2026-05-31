@@ -1,24 +1,58 @@
 """
 Evaluator - LLM-based comment generation and scoring.
-Evaluator - LLM-based comment generation and scoring.
+
+This module also holds the single kindness LLM seam — chat() / chat_eval().
+Every agent-facing LLM call funnels through here so the kindness contract is
+enforced in ONE place: an agent uses ONLY its assigned backend and stays
+SILENT when that backend is unavailable (it never falls back to another
+model). The shared kumori client raises KumoriAPIError on 4xx/5xx — that's
+correct for resilient consumers, but kindness translates it into silence
+here so the "if text is None: stay silent" branch in every caller actually
+fires instead of the exception 500-ing the whole cron.
 """
 
 import os
 import time
 import logging
 
-from utilities.kumori_api_client import llm_chat as _kf_chat, llm_chat_eval as _kf_chat_eval
+from utilities.kumori_api_client import (
+    llm_chat as _kf_chat,
+    llm_chat_eval as _kf_chat_eval,
+    KumoriAPIError,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
-    return _kf_chat(backend, messages, max_tokens=max_tokens,
-                    temperature=temperature, system=system)
+    """Kindness LLM seam for pinned-backend agent chat.
+
+    Returns (text, actual_backend) on success, or (None, backend) when the
+    backend is unavailable for ANY reason (5xx, 4xx, rate-limit, network).
+    The agent then stays silent — it never substitutes another model, which is
+    the whole point of the experiment (see CLAUDE.md). Callers already handle
+    the (None, ...) shape via their `if text is None` branches."""
+    try:
+        return _kf_chat(backend, messages, max_tokens=max_tokens,
+                        temperature=temperature, system=system)
+    except KumoriAPIError as e:
+        logger.info(f"agent silent — backend {backend!r} unavailable: {e}")
+        return None, backend
+    except Exception as e:
+        logger.warning(f"agent silent — unexpected error on backend {backend!r}: {e}")
+        return None, backend
 
 
 def chat_eval(backend, prompt, system="Return ONLY a number 1-10."):
-    return _kf_chat_eval(prompt, system=system)
-
-logger = logging.getLogger(__name__)
+    """Kindness eval seam — free eval pool only (never paid backends).
+    Returns (None, None) if the whole free pool is down so the caller's
+    _parse_score falls back to a neutral score instead of an exception
+    tearing down the thread."""
+    try:
+        return _kf_chat_eval(prompt, system=system)
+    except Exception as e:
+        logger.info(f"eval skipped — free eval pool unavailable: {e}")
+        return None, None
 
 # Prompt directory
 PROMPTS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'prompts')
@@ -84,11 +118,21 @@ def generate_comment(persona, topic, thread_history, position, config):
 
     prompt = prompt_template.format(**fmt)
 
-    backend = persona.get('llm_backend', 'gemini')
+    backend = persona.get('llm_backend')
     messages = [{"role": "user", "content": prompt}]
 
     # Use agent's unique system prompt if available
     system_prompt = persona.get('system_prompt')
+
+    # A misconfigured agent with no assigned backend stays silent rather than
+    # (a) silently impersonating a default model — which would corrupt the
+    # "each agent IS its backend" experiment — or (b) firing a guaranteed-400
+    # empty-backend call at kumori on every cron tick.
+    if not backend:
+        logger.warning(
+            f"agent {persona.get('display_name', '?')} has no llm_backend — staying silent"
+        )
+        return None, backend, 0
 
     start = time.time()
     text, actual_backend = chat(backend, messages, max_tokens=500, temperature=0.3,

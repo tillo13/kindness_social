@@ -81,7 +81,10 @@ def pick_least_used_backend():
     # Any AVAILABLE_BACKENDS missing from usage are at 0 — those win immediately.
     ranked = sorted(AVAILABLE_BACKENDS, key=lambda b: usage.get(b, 0))
     if not ranked:
-        return random.choice(AVAILABLE_BACKENDS)
+        # AVAILABLE_BACKENDS is populated dynamically from the kumori registry
+        # and can be momentarily empty (refresh miss). Return None so the caller
+        # skips this invite instead of crashing on random.choice([]).
+        return None
 
     # Tie-break: pick randomly among the bottom quartile so we don't always
     # hammer one underused backend in a single cron tick.
@@ -99,6 +102,11 @@ def create_invited_agent(inviter):
     Personality clusters around the inviter's values with some variation.
     Backend is chosen to balance load — least-used backend wins."""
     backend = pick_least_used_backend()
+    if not backend:
+        # Registry pool was momentarily empty — skip this invite rather than
+        # create an agent with a NULL backend that 400s on every future call.
+        logger.warning("create_invited_agent: no backend available — skipping invite")
+        return None
 
     # Generate name
     provider, model_short = BACKEND_NAMING.get(backend, ('unknown', backend))

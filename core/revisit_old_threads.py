@@ -22,6 +22,7 @@ respond differently than its past self would have? That's measurable now.
 """
 import logging
 import random
+import time
 
 from utilities.postgres_utils import db_cursor
 from core import db_ops
@@ -34,6 +35,16 @@ from core.simulator import calculate_dopamine, update_persona, DEFAULT_CONFIG
 from utilities.kumori_api_client import llm_is_backed_off as is_backend_in_backoff
 
 logger = logging.getLogger(__name__)
+
+# Wall-clock budget for the whole cycle. app.yaml runs gunicorn --timeout 120;
+# this cron fans out to many LLM calls (per thread: replies_per_thread × ~5
+# calls — 1 generate + up to 4 eval). At default intensity=5 that's ~150 calls,
+# which always blew the 120s deadline (every run 500'd with "deadline exceeded").
+# The intensity dial controls VOLUME but never bounded TIME — so any intensity
+# above ~2 timed out. This deadline makes the bug class impossible at ANY
+# intensity: we stop launching new work at the budget and return what we have.
+# 75s leaves headroom for the trailing react_to_comments pass + response.
+REVISIT_BUDGET_SEC = 75
 
 
 def _intensity_settings(intensity):
@@ -103,8 +114,11 @@ def _candidate_agents(thread_db_id, pool_size):
     return participants + new_eyes
 
 
-def _revisit_one_thread(thread, settings):
-    """Generate up to N new replies on a single old thread. Returns counts."""
+def _revisit_one_thread(thread, settings, deadline=None):
+    """Generate up to N new replies on a single old thread. Returns counts.
+
+    deadline: optional time.monotonic() value; stop launching new replies once
+    exceeded so the cycle never blows the gunicorn request deadline."""
     comments = get_thread_comments(thread['id'])
     if not comments:
         return {'attempted': 0, 'posted': 0}
@@ -127,6 +141,10 @@ def _revisit_one_thread(thread, settings):
 
     for agent in candidates:
         if posted >= target_count:
+            break
+        if deadline and time.monotonic() > deadline:
+            logger.info(f"  [revisit] time budget hit mid-thread {thread['thread_id']} "
+                        f"— stopping after {posted} posted")
             break
         if is_backend_in_backoff(agent.get('llm_backend', 'groq')):
             continue
@@ -212,32 +230,48 @@ def run_revisit_cycle():
     if not threads:
         return {'intensity': intensity, 'threads': 0, 'posted': 0}
 
+    deadline = time.monotonic() + REVISIT_BUDGET_SEC
     total_posted = 0
     total_attempted = 0
+    threads_done = 0
+    budget_hit = False
     for t in threads:
+        if time.monotonic() > deadline:
+            budget_hit = True
+            logger.info(f"  [revisit] {REVISIT_BUDGET_SEC}s budget reached — "
+                        f"processed {threads_done}/{len(threads)} threads")
+            break
         try:
-            res = _revisit_one_thread(t, settings)
+            res = _revisit_one_thread(t, settings, deadline=deadline)
             total_posted += res['posted']
             total_attempted += res['attempted']
+            threads_done += 1
         except Exception as e:
             logger.warning(f"  [revisit] thread {t['thread_id']} failed: {e}")
 
     # Also generate reactions on the same revisited threads — when a human
     # scrolls back through an old thread they don't only reply, they also
-    # heart/thumbsup things they liked. Same motion.
+    # heart/thumbsup things they liked. Same motion. Only react on the threads
+    # we actually processed, and skip entirely if we already blew the budget on
+    # replies — reactions are the lower-value half of the motion.
     total_reactions = 0
-    try:
-        total_reactions = react_to_comments(threads)
-    except Exception as e:
-        logger.warning(f"  [revisit] reactions failed: {e}")
+    if not budget_hit and time.monotonic() < deadline:
+        try:
+            total_reactions = react_to_comments(threads[:threads_done])
+        except Exception as e:
+            logger.warning(f"  [revisit] reactions failed: {e}")
 
     logger.info(
         f"Revisit cycle (intensity={intensity}): "
-        f"{total_posted} new replies + {total_reactions} reactions across {len(threads)} threads"
+        f"{total_posted} new replies + {total_reactions} reactions across "
+        f"{threads_done}/{len(threads)} threads"
+        + (" [time budget hit]" if budget_hit else "")
     )
     return {
         'intensity': intensity,
         'threads': len(threads),
+        'threads_processed': threads_done,
+        'budget_hit': budget_hit,
         'attempted': total_attempted,
         'posted': total_posted,
         'reactions': total_reactions,

@@ -470,7 +470,17 @@ def run_reflection_cycle(batch_size=25):
     changed = 0
 
     for agent in agents:
-        result = reflect_agent(agent, platform_ctx)
+        # Per-agent isolation: a single agent's failure (slow query, backend
+        # blip) must not 500 the whole reflect cron. reflect_agent already
+        # try/excepts its LLM call, but the pre-LLM DB reads (recent comments /
+        # social standing) sat outside any guard — that's how a statement
+        # timeout on one agent took down the entire batch. Mirrors the
+        # per-thread guard in revisit_old_threads.run_revisit_cycle.
+        try:
+            result = reflect_agent(agent, platform_ctx)
+        except Exception as e:
+            logger.warning(f"  reflect skipped for {agent.get('display_name', '?')}: {e}")
+            continue
         if result:
             results.append(result)
             if result['changed']:

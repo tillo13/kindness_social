@@ -101,6 +101,17 @@ def _attempt_refresh() -> bool:
             logger.warning(f"llm_registry_remote: kumori returned non-ok payload: {reg}")
             _next_attempt_ts = time.time() + _FAIL_RETRY_SEC
             return False
+        # Fail-stale, not fail-empty: an ok payload that carries an empty
+        # available_backends (kumori mid-deploy / transient catalog blip) must
+        # NOT wipe a previously-good pool — that empties AVAILABLE_BACKENDS and
+        # cascades into agents created with NULL backends + birth/invite crashes.
+        # Keep last-known-good and retry soon. (First-load with no prior pool
+        # still applies the empty so the app boots and admin pages surface it.)
+        if not reg.get('available_backends') and AVAILABLE_BACKENDS:
+            logger.warning("llm_registry_remote: ok payload had empty available_backends — "
+                           "keeping last-known-good pool, retrying soon")
+            _next_attempt_ts = time.time() + _FAIL_RETRY_SEC
+            return False
         added, removed = _apply_registry(reg)
         _last_success_ts = time.time()
         _next_attempt_ts = _last_success_ts + _REFRESH_TTL_SEC
