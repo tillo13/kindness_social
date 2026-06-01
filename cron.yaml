@@ -76,14 +76,6 @@ cron:
     min_backoff_seconds: 60
     max_doublings: 2
 
-- description: "LLM catalog audit + smoke-test new models, auto-retire stale (writes kumori_llm_provider_limits + events log)"
-  url: /api/cron/llm-catalog-audit
-  schedule: every day 06:00
-  timezone: America/Los_Angeles
-  retry_parameters:
-    min_backoff_seconds: 60
-    max_doublings: 2
-
 - description: "Sweep orphaned 'running' rows in kindness_cron_log (instance-died-mid-run cleanup)"
   url: /api/cron/cron-log-janitor
   schedule: every 6 hours from 00:56 to 23:56

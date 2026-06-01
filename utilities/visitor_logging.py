@@ -47,6 +47,8 @@ logger = logging.getLogger(__name__)
 BOT_SAMPLE_RATE = 0.02
 VISITOR_LOG_TTL_DAYS = 90
 TTL_PURGE_INTERVAL_SEC = 3600  # purge at most once per hour from any process
+TTL_PURGE_BATCH = 5000         # rows per DELETE — keeps each statement well under the 5s statement_timeout
+TTL_PURGE_MAX_BATCHES = 40     # safety cap (<=200k rows/cycle); a huge backlog drains over successive hours
 
 _KUMORI_PROJECT = 'kumori-404602'
 
@@ -377,13 +379,25 @@ def _maybe_ttl_purge():
     try:
         conn = _get_persistent_conn()
         cur = conn.cursor()
-        cur.execute(
-            "DELETE FROM kumori_ops.visitor_log "
-            "WHERE viewed_at < NOW() - (%s || ' days')::interval",
-            (VISITOR_LOG_TTL_DAYS,),
-        )
-        deleted = cur.rowcount
-        conn.commit()
+        # Delete in bounded batches so a single statement never approaches the
+        # 5s statement_timeout, even with a large backlog, and only short locks
+        # are held on the shared kumori_ops.visitor_log table. A huge backlog
+        # drains across successive hourly cycles rather than one giant DELETE.
+        deleted = 0
+        for _ in range(TTL_PURGE_MAX_BATCHES):
+            cur.execute(
+                "DELETE FROM kumori_ops.visitor_log WHERE ctid IN ("
+                "  SELECT ctid FROM kumori_ops.visitor_log "
+                "  WHERE viewed_at < NOW() - (%s || ' days')::interval "
+                "  LIMIT %s)",
+                (VISITOR_LOG_TTL_DAYS, TTL_PURGE_BATCH),
+            )
+            n = cur.rowcount
+            conn.commit()
+            if n > 0:
+                deleted += n
+            if n < TTL_PURGE_BATCH:
+                break  # caught up — fewer than a full batch remained
         if deleted:
             logger.info(f"visitor_logging: TTL purged {deleted} rows older than {VISITOR_LOG_TTL_DAYS}d")
     except Exception as e:
