@@ -8,9 +8,38 @@ db_ops.py re-exports everything from this module.
 
 import json
 import logging
+import time
+import threading
+from functools import wraps
 from utilities.postgres_utils import db_cursor
 
 logger = logging.getLogger(__name__)
+
+_ttl_cache = {}
+_ttl_lock = threading.Lock()
+
+
+def ttl_cached(seconds):
+    """Process-local TTL memo for read-only dashboard aggregates. Keyed by
+    (func name, args). Safe on App Engine: app.yaml pins max_instances=1, so
+    one cache per kindness process; staleness bounded by `seconds`. Cuts the
+    home page from an 8-query aggregate stack on every hit to at most once per
+    `seconds`, eliminating the statement_timeout->500 window."""
+    def deco(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            key = (fn.__name__, args, tuple(sorted(kwargs.items())))
+            now = time.time()
+            with _ttl_lock:
+                hit = _ttl_cache.get(key)
+                if hit and now - hit[0] < seconds:
+                    return hit[1]
+            val = fn(*args, **kwargs)
+            with _ttl_lock:
+                _ttl_cache[key] = (now, val)
+            return val
+        return wrapper
+    return deco
 
 
 def get_reaction_stats():
@@ -433,6 +462,7 @@ def get_cron_summary():
 # EXPERIMENT / RESEARCH DATA
 # ============================================================================
 
+@ttl_cached(60)
 def get_control_vs_treatment():
     """Compare control group vs treatment group metrics.
 
@@ -505,6 +535,7 @@ def get_experiment_raw_data():
         return [dict(r) for r in cur.fetchall()]
 
 
+@ttl_cached(60)
 def get_24h_summary():
     """Get activity summary for the last 24 hours."""
     with db_cursor(dict_cursor=True) as cur:
@@ -538,6 +569,7 @@ def get_24h_summary():
         return summary
 
 
+@ttl_cached(60)
 def get_experiment_pulse():
     """Multi-period experiment health dashboard data.
     Returns stats for 24h, 48h, 7d, 30d, all-time with deltas."""
@@ -683,6 +715,7 @@ def get_experiment_pulse():
         }
 
 
+@ttl_cached(60)
 def get_featured_thread():
     """Get the thread with the biggest positive toxicity swing (most improvement)."""
     with db_cursor(dict_cursor=True) as cur:
@@ -738,6 +771,7 @@ def set_config(key, value):
         """, (key, str(value)))
 
 
+@ttl_cached(60)
 def get_featured_agent():
     """Most-improved agent in the last 24h: biggest drop in toxicity from baseline,
     weighted by interaction count so we feature active learners not statistical noise."""

@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-06-01 04:31*
+*Last refreshed: 2026-06-03 04:17*
 
 ## 🎯 Pending
 
@@ -18,6 +18,7 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
+- `c8a6b24` · 2026-06-01 13:12 — severance: move ALL catalog lifecycle to kumori (the heart); kindness becomes a pure consumer+sen...
 - `fc39194` · 2026-05-31 07:43 — crons + pool: stop F1 PoolError bursts (visitor 500s). Stagger every frequent cron off the shared...
 - `e77ed4e` · 2026-05-30 17:57 — agent-LLM resilience: stop backend flakiness from 500-ing crons
 <!-- shipped:end -->
@@ -26,6 +27,6 @@
 
 <!-- wip:start -->
 **1 file(s) with uncommitted changes:**
-- ` M utilities/visitor_logging.py`
+- ` M next_steps.md`
 
 <!-- wip:end -->

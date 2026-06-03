@@ -8,6 +8,7 @@ import logging
 import random
 from datetime import datetime
 from utilities.postgres_utils import db_cursor
+from core.db_ops_analytics import ttl_cached
 
 logger = logging.getLogger(__name__)
 
@@ -709,6 +710,7 @@ def get_agent_kudos_received(agent_id):
         return dict(cur.fetchone())
 
 
+@ttl_cached(60)
 def get_global_stats():
     """Get all aggregate stats. Three fast queries instead of 12 subqueries."""
     with db_cursor(dict_cursor=True) as cur:
@@ -741,6 +743,7 @@ def get_global_stats():
         return stats
 
 
+@ttl_cached(60)
 def get_model_comparison():
     """Get toxicity/kindness averages per LLM backend for dashboard."""
     with db_cursor(dict_cursor=True) as cur:
