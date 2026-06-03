@@ -6,6 +6,7 @@ All CRUD operations for kindness_ prefixed tables.
 import json
 import logging
 import random
+from functools import lru_cache
 from datetime import datetime
 from utilities.postgres_utils import db_cursor
 from core.db_ops_analytics import ttl_cached
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 # TABLE CREATION
 # ============================================================================
 
+@lru_cache(maxsize=1)  # run the schema ensure once per process (shared db-f1-micro)
 def create_tables():
     """Create all kindness_ tables if they don't exist."""
     with db_cursor() as cur:
