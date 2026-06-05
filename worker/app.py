@@ -47,6 +47,8 @@ def chat_proxy():
             from grok_core.grok import Grok
             g = Grok(model=model_map.get(backend, 'grok-3-fast'))
             result = g.start_convo(prompt)
+            if 'error' in result and not result.get('response'):
+                raise RuntimeError(result['error'])
             text = result.get('response', '')
         elif backend == 'deepseek':
             from dsk.api import DeepSeekAPI
@@ -90,7 +92,14 @@ def chat_proxy():
 
         return jsonify({'text': text, 'backend': backend, 'status': 'ok'})
     except Exception as e:
-        return jsonify({'error': str(e)[:300], 'backend': backend}), 500
+        err = str(e)[:300]
+        if backend in ('grok', 'grok_fast', 'grok4'):
+            # grok.com regularly updates their frontend and breaks grok_core.
+            # Log prominently so it's findable in Cloud Logging, then let caller fall back.
+            logger.warning('[GROK_BROKEN] grok_core failed — grok.com may have updated: %s', err)
+        else:
+            logger.error('worker /chat error backend=%s: %s', backend, err)
+        return jsonify({'error': err, 'backend': backend, 'grok_broken': backend in ('grok', 'grok_fast', 'grok4')}), 500
 
 
 @app.route('/test-all-models', methods=['POST'])

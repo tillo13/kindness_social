@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-06-03 04:17*
+*Last refreshed: 2026-06-05 05:19*
 
 ## 🎯 Pending
 
@@ -18,6 +18,8 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
+- `650a048` · 2026-06-03 09:12 — guard create_tables() schema-ensure (@lru_cache, once per process) to pass db-speed gate; ships t...
+- `51e9fa2` · 2026-06-03 09:06 — 60s TTL cache on the 8 home-page aggregate queries (db_ops_analytics + db_ops re-export) — elimin...
 - `c8a6b24` · 2026-06-01 13:12 — severance: move ALL catalog lifecycle to kumori (the heart); kindness becomes a pure consumer+sen...
 - `fc39194` · 2026-05-31 07:43 — crons + pool: stop F1 PoolError bursts (visitor 500s). Stagger every frequent cron off the shared...
 - `e77ed4e` · 2026-05-30 17:57 — agent-LLM resilience: stop backend flakiness from 500-ing crons

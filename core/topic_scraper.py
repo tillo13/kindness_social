@@ -134,14 +134,23 @@ def headline_to_topic(headline, worker_url):
         f'CATEGORY: one category'
     )
     try:
+        messages = [{'role': 'user', 'content': prompt}]
         resp = http_req.post(
             f'{worker_url}/chat',
-            json={'backend': 'grok', 'messages': [{'role': 'user', 'content': prompt}]},
+            json={'backend': 'grok', 'messages': messages},
             timeout=30,
         )
         if not resp.ok:
-            return None
-        text = resp.json().get('text', '')
+            payload = resp.json() if resp.headers.get('content-type', '').startswith('application/json') else {}
+            if payload.get('grok_broken'):
+                logger.warning('[GROK_BROKEN] grok worker failed in topic_scraper, falling back to kumori LLM')
+                from utilities.kumori_api_client import llm_chat as _kumori_chat
+                text, _backend = _kumori_chat('groq-llama-70b', messages)
+                text = text or ''
+            else:
+                return None
+        else:
+            text = resp.json().get('text', '')
         # Parse response
         topic_text = ''
         category = 'everyday'

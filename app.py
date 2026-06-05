@@ -863,15 +863,23 @@ def api_submit_topic():
             f'CATEGORY: one of the four categories\n'
             f'REASON: one sentence'
         )
+        validation_messages = [{'role': 'user', 'content': validation_prompt}]
         resp = http_req.post(
             f'{CLOUD_RUN_WORKER_URL}/chat',
-            json={'backend': 'grok', 'messages': [{'role': 'user', 'content': validation_prompt}]},
+            json={'backend': 'grok', 'messages': validation_messages},
             timeout=30,
         )
         if resp.ok:
             result = resp.json().get('text', '')
         else:
-            result = ''
+            payload = resp.json() if resp.headers.get('content-type', '').startswith('application/json') else {}
+            if payload.get('grok_broken'):
+                logger.warning('[GROK_BROKEN] grok worker failed in topic validation, falling back to kumori LLM')
+                from utilities.kumori_api_client import llm_chat as _kumori_chat
+                result, _ = _kumori_chat('groq-llama-70b', validation_messages)
+                result = result or ''
+            else:
+                result = ''
         validation_note = result.strip()[:300]
         lines = result.strip().lower()
         is_approved = 'approved: yes' in lines or 'approved:yes' in lines
