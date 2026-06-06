@@ -109,6 +109,9 @@ class Parser:
             elif "880932)" in content:
                 script_content2 = content
 
+        # NOTE: this scraper is PAUSED as of 2026-06-06 (grok.com rebuilt their
+        # frontend; module id 880932 below is stale). Re-enable via GROK_PAUSED in
+        # worker/app.py after relocating the new statsig module id. See that note.
         if not script_content1:
             raise RuntimeError("Could not find anonPrivateKey script - grok.com may have updated")
         if not script_content2:

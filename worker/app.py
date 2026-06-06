@@ -22,6 +22,24 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+# ── grok scraper PAUSED (2026-06-06) ────────────────────────────────────────
+# The grok backend is our reverse-engineered grok.com web scraper (worker/
+# grok_core/) — it forges x-statsig-id signatures by hunting for a hardcoded
+# webpack module id (880932) in grok.com's JS. grok.com rebuilt their frontend
+# and that module id no longer exists, so every grok call failed with
+# "Could not find xsid script (880932)" → ~198 HTTP 500s/day flooding the
+# cross-project error digest. It was useful while it lasted, but it's brittle by
+# design (pinned to a magic number that changes on every grok.com rebuild).
+#
+# Paused rather than deleted: grok_core/ stays in place, dormant. Callers already
+# fall back to groq-llama-70b on the grok_broken flag, so chat keeps working.
+# To rewire later: relocate the statsig module id in grok.com's current chunks
+# (see grok_core/reverse/parser.py ~line 109/118), update it, then flip this to
+# False. We return 424 (not 500) so the failure logs as WARNING and stays out of
+# the error digest while paused.
+GROK_PAUSED = True
+_GROK_BACKENDS = ('grok', 'grok_fast', 'grok4')
+
 
 @app.route('/health')
 def health():
@@ -37,6 +55,14 @@ def chat_proxy():
 
     if not messages:
         return jsonify({'error': 'No messages provided'}), 400
+
+    # grok scraper is paused (see GROK_PAUSED note above) — short-circuit before
+    # touching the broken scraper. 424 + grok_broken=True makes callers fall back
+    # to groq-llama-70b exactly as they did when the scraper failed, but logs as
+    # WARNING (4xx) so it no longer floods the error digest.
+    if GROK_PAUSED and backend in _GROK_BACKENDS:
+        return jsonify({'error': 'grok scraper paused', 'backend': backend,
+                        'grok_broken': True}), 424
 
     # Extract the user message (last message content)
     prompt = messages[-1].get('content', '') if messages else ''

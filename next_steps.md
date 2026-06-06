@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-06-05 05:19*
+*Last refreshed: 2026-06-06 05:58*
 
 ## 🎯 Pending
 
@@ -18,6 +18,7 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
+- `00e064d` · 2026-06-05 10:36 — kindness-worker: log [GROK_BROKEN] prominently; fall back to groq via kumori when grok_core fails...
 - `650a048` · 2026-06-03 09:12 — guard create_tables() schema-ensure (@lru_cache, once per process) to pass db-speed gate; ships t...
 - `51e9fa2` · 2026-06-03 09:06 — 60s TTL cache on the 8 home-page aggregate queries (db_ops_analytics + db_ops re-export) — elimin...
 - `c8a6b24` · 2026-06-01 13:12 — severance: move ALL catalog lifecycle to kumori (the heart); kindness becomes a pure consumer+sen...
@@ -28,7 +29,5 @@
 ## ⚠️ Unfinished / WIP
 
 <!-- wip:start -->
-**1 file(s) with uncommitted changes:**
-- ` M next_steps.md`
-
+_(clean working tree, no TODO markers in recent files)_
 <!-- wip:end -->
