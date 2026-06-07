@@ -645,8 +645,10 @@ def react_to_comments(threads, browsers_per_thread=None):
             if not eligible:
                 continue
 
-            # Each browser reacts to 2-4 comments per visit
-            n_reactions = random.randint(2, min(4, len(eligible)))
+            # Each browser reacts to 2-4 comments per visit — but never more
+            # than are available (1 eligible comment => randint(2,1) blew up).
+            hi = min(4, len(eligible))
+            n_reactions = random.randint(min(2, hi), hi)
             weights = [(c.get('kindness_score', 5) or 5) for c in eligible]
             chosen_set = set()
             picks = []
