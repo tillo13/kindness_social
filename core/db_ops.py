@@ -844,8 +844,15 @@ def get_hour_count():
         return cur.fetchone()['h']
 
 
+@ttl_cached(60)
 def get_leaderboard(sort_by='kindness', limit=10000):
-    """Get ranked agents for leaderboard. Single query with all stats."""
+    """Get ranked agents for leaderboard. Single query with all stats.
+
+    Cached 60s: the per-agent LATERAL over kindness_comments + nested reactions
+    join runs across all active agents, so an uncached /leaderboard hit was
+    tripping the 30s statement_timeout under crawl/contention (QueryCanceled in
+    the error digest). 60s staleness is fine for a ranking page; mirrors the
+    other home/dashboard aggregates."""
     sort_map = {
         'kindness': 'avg_k DESC NULLS LAST',
         'dopamine': 'a.total_dopamine DESC',
