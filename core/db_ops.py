@@ -848,11 +848,16 @@ def get_hour_count():
 def get_leaderboard(sort_by='kindness', limit=10000):
     """Get ranked agents for leaderboard. Single query with all stats.
 
-    Cached 60s: the per-agent LATERAL over kindness_comments + nested reactions
-    join runs across all active agents, so an uncached /leaderboard hit was
-    tripping the 30s statement_timeout under crawl/contention (QueryCanceled in
-    the error digest). 60s staleness is fine for a ranking page; mirrors the
-    other home/dashboard aggregates."""
+    Cached 60s: the stats join runs across all active agents, so an uncached
+    /leaderboard hit was tripping the 30s statement_timeout under crawl/contention
+    (QueryCanceled in the error digest). 60s staleness is fine for a ranking page;
+    mirrors the other home/dashboard aggregates.
+
+    The per-agent comment/reaction stats are computed as two pre-grouped
+    GROUP BY agent_id passes (one over kindness_comments, one over
+    kindness_reactions⨝comments) joined once — NOT correlated LATERALs that
+    re-scanned comments once per agent (O(agents × comments), the thing that
+    timed out). Same output, one hash-aggregate pass per table."""
     sort_map = {
         'kindness': 'avg_k DESC NULLS LAST',
         'dopamine': 'a.total_dopamine DESC',
@@ -875,19 +880,21 @@ def get_leaderboard(sort_by='kindness', limit=10000):
                    COALESCE(rx.reaction_count, 0) as reaction_count,
                    (a.toxicity_baseline - a.current_toxicity) as toxicity_change
             FROM kindness_agents a
-            LEFT JOIN LATERAL (
-                SELECT AVG(kindness_score) as avg_k, AVG(toxicity_score) as avg_t,
+            LEFT JOIN (
+                SELECT agent_id,
+                       AVG(kindness_score) as avg_k, AVG(toxicity_score) as avg_t,
                        AVG(empathy_score) as avg_e,
                        COUNT(CASE WHEN bridge_score >= 7 THEN 1 END) as bridge_count,
                        COUNT(*) as comment_count
-                FROM kindness_comments WHERE agent_id = a.id
-            ) cs ON TRUE
-            LEFT JOIN LATERAL (
-                SELECT COUNT(*) as reaction_count
+                FROM kindness_comments
+                GROUP BY agent_id
+            ) cs ON cs.agent_id = a.id
+            LEFT JOIN (
+                SELECT c.agent_id, COUNT(*) as reaction_count
                 FROM kindness_reactions r
                 JOIN kindness_comments c ON r.comment_id = c.id
-                WHERE c.agent_id = a.id
-            ) rx ON TRUE
+                GROUP BY c.agent_id
+            ) rx ON rx.agent_id = a.id
             WHERE a.is_active = TRUE
             ORDER BY {order}
             LIMIT %s
