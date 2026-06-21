@@ -46,6 +46,50 @@ def health():
     return jsonify({'status': 'ok', 'service': 'kindness-worker'})
 
 
+def _deepseek_text_from_stream(response):
+    """Accumulate the assistant text from DeepSeek's path-patch SSE stream.
+
+    DeepSeek's web API does NOT use the OpenAI choices/delta shape (the dsk
+    library's _parse_chunk is stale). It streams JSON-patch events:
+      {"v":"The","p":"response/content","o":"APPEND"}  ← first content token
+      {"v":" capital"}                                  ← bare continuation, no o/p
+      {"v":"FINISHED","p":"response/status","o":"SET"}  ← non-content event
+      {"o":"BATCH","v":[ {..}, {..} ]}                  ← batched sub-events
+    The old worker loop only kept lines literally containing '"o":"APPEND"',
+    so it captured the FIRST token and dropped every bare continuation — every
+    DeepSeek reply collapsed to one word ("The"/"Golden"/...), which read as
+    "low quality" in the digest but was a parser bug. We track the current
+    patch path and append `v` only while it points at response/content.
+    """
+    text = ''
+    cur_path = None
+
+    def _apply(ev):
+        nonlocal text, cur_path
+        if ev.get('o') == 'BATCH' and isinstance(ev.get('v'), list):
+            for sub in ev['v']:
+                _apply(sub)
+            return
+        if 'p' in ev:
+            cur_path = ev['p']
+        v = ev.get('v')
+        if isinstance(v, str) and cur_path == 'response/content':
+            text += v
+
+    for line in response.iter_lines():
+        if not line:
+            continue
+        if line.startswith(b'data: '):
+            line = line[6:]
+        if line == b'[DONE]':
+            break
+        try:
+            _apply(json.loads(line))
+        except Exception:
+            pass
+    return text.strip()
+
+
 @app.route('/chat', methods=['POST'])
 def chat_proxy():
     """Proxy chat requests for backends that only work on Cloud Run (grok, deepseek)."""
@@ -104,15 +148,7 @@ def chat_proxy():
                 stream=True,
                 timeout=60,
             )
-            text = ''
-            for line in response.iter_lines():
-                if line and b'"o":"APPEND"' in line:
-                    try:
-                        data = json.loads(line.replace(b'data: ', b''))
-                        text += data.get('v', '')
-                    except Exception:
-                        pass
-            text = text.strip()
+            text = _deepseek_text_from_stream(response)
         else:
             return jsonify({'error': f'Unknown backend: {backend}'}), 400
 
@@ -245,16 +281,7 @@ def _test_deepseek(model_id):
         stream=True,
         timeout=30,
     )
-
-    text = ''
-    for line in response.iter_lines():
-        if line and b'"o":"APPEND"' in line:
-            try:
-                data = json.loads(line.replace(b'data: ', b''))
-                text += data.get('v', '')
-            except:
-                pass
-    return text.strip()
+    return _deepseek_text_from_stream(response)
 
 
 @app.route('/test-quick', methods=['POST'])

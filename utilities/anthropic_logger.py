@@ -158,7 +158,11 @@ def _pricing_for(model: str) -> dict:
 
 _KEY_CACHE = None
 _CLIENT = None
-_KUMORI_PROJECT = 'kumori-404602'
+# Env-overridable so a fully-decoupled app (e.g. kicksaw #877) points at its OWN
+# project + key WITHOUT forking this canonical logger. Defaults preserve kumori
+# for every other app (env unset -> identical behavior).
+_KUMORI_PROJECT = os.environ.get('ANTHROPIC_SECRET_PROJECT', 'kumori-404602')
+_ANTHROPIC_SECRET_NAME = os.environ.get('ANTHROPIC_SECRET_NAME', 'KUMORI_ANTHROPIC_API_KEY')
 
 
 def _get_api_key() -> str:
@@ -174,7 +178,7 @@ def _get_api_key() -> str:
     try:
         from google.cloud import secretmanager
         client = secretmanager.SecretManagerServiceClient()
-        name = f"projects/{_KUMORI_PROJECT}/secrets/KUMORI_ANTHROPIC_API_KEY/versions/latest"
+        name = f"projects/{_KUMORI_PROJECT}/secrets/{_ANTHROPIC_SECRET_NAME}/versions/latest"
         resp = client.access_secret_version(request={"name": name})
         _KEY_CACHE = resp.payload.data.decode("UTF-8")
         return _KEY_CACHE
@@ -524,7 +528,7 @@ def _insert_usage_row(*, app_name: str, model: str, usage: Any,
 def log_usage_async(*, app_name: str, model: str, usage: Any,
                     feature: Optional[str] = None, user_id: Optional[str] = None,
                     duration_ms: Optional[int] = None, streaming: bool = False,
-                    image_count: int = 0) -> None:
+                    image_count: int = 0, sync: Optional[bool] = None) -> None:
     """Log to kumori_api_usage.
 
     In long-running environments (App Engine, local) this spawns a daemon thread
@@ -536,17 +540,24 @@ def log_usage_async(*, app_name: str, model: str, usage: Any,
     Waiting for the INSERT adds ~50-200ms to the request — acceptable for the
     guarantee that every call lands a row.
 
+    Pass sync=True explicitly to force a blocking write regardless of platform —
+    REQUIRED for non-streaming / batch / cron / artifact calls on App Engine,
+    whose instances can be reaped before a daemon thread flushes (this dropped
+    rows while Anthropic still billed — a recurring leak-detector source).
+    sync=None (default) keeps the auto behavior; ANTHROPIC_LOGGER_SYNC=1/0 still
+    overrides when no explicit sync is passed.
+
     Never raises. DB failures are swallowed with a logger.warning.
-    Can be forced with ANTHROPIC_LOGGER_SYNC=1 / ANTHROPIC_LOGGER_SYNC=0.
     """
-    sync_override = os.environ.get('ANTHROPIC_LOGGER_SYNC', '').strip()
-    if sync_override in ('1', 'true', 'True', 'yes'):
-        sync = True
-    elif sync_override in ('0', 'false', 'False', 'no'):
-        sync = False
-    else:
-        # Default: sync on Cloud Run, async elsewhere
-        sync = bool(os.environ.get('K_SERVICE'))
+    if sync is None:
+        sync_override = os.environ.get('ANTHROPIC_LOGGER_SYNC', '').strip()
+        if sync_override in ('1', 'true', 'True', 'yes'):
+            sync = True
+        elif sync_override in ('0', 'false', 'False', 'no'):
+            sync = False
+        else:
+            # Default: sync on Cloud Run, async elsewhere
+            sync = bool(os.environ.get('K_SERVICE'))
 
     def _do():
         try:
