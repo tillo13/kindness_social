@@ -344,7 +344,10 @@ def cron_backfill_avatars():
     start = time.time()
 
     try:
-        result = backfill_missing_avatars(max_per_run=50)
+        # Cap low: generation is synchronous on the single F1 web instance, so a
+        # large batch pins it for minutes and 500s concurrent /thread requests.
+        # Births are ~1/6h, so 8/run drains any realistic backlog over a cycle or two.
+        result = backfill_missing_avatars(max_per_run=8)
         ms = int((time.time() - start) * 1000)
         db_ops.log_cron_end(log_id, 'ok', ms,
                             f"{result['generated']} generated, {result['missing']} still missing",

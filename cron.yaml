@@ -62,9 +62,12 @@ cron:
   schedule: every day 07:00
   timezone: America/Los_Angeles
 
+# Moved off :51 → :17 (2026-06-21): at :51 it collided with agent-reflect (:54),
+# scrape-topics (:48) and cron-log-janitor (:56), saturating the single F1 and
+# 500-ing /thread on the 60s deadline every 6h. :15-:20 was the only empty window.
 - description: "Backfill missing agent avatars (self-healing)"
   url: /api/cron/backfill-avatars
-  schedule: every 6 hours from 00:51 to 23:51
+  schedule: every 6 hours from 00:17 to 23:17
   retry_parameters:
     min_backoff_seconds: 60
     max_doublings: 2

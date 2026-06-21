@@ -361,18 +361,21 @@ def backfill_missing_avatars(max_per_run=10):
     cols = [d[0] for d in cur.description]
     conn.close()
 
-    missing = []
-    for row in rows:
-        agent = dict(zip(cols, row))
-        aid = agent['agent_id']
-        # Single source of truth: GCS
-        try:
-            resp = requests.head(f"{GCS_PUBLIC_URL}/{aid}.jpg", timeout=5)
-            if resp.status_code == 200:
-                continue
-        except Exception:
-            pass
-        missing.append(agent)
+    # Existence check via ONE bucket list, not a per-agent serial HTTP HEAD.
+    # The old N×requests.head loop (up to 5s each) ran on every cron regardless
+    # of whether anything was missing, scaled with the growing agent population,
+    # and pinned the single F1 web instance for minutes — colliding with the
+    # :54 agent-reflect cron + /thread crawler hits and 500-ing them on the 60s
+    # request deadline. One list_blobs is a single round-trip regardless of count.
+    try:
+        bucket = _get_gcs_bucket()
+        have = {b.name[:-4] for b in bucket.list_blobs() if b.name.endswith('.jpg')}
+    except Exception:
+        logger.exception("Avatar backfill: bucket list failed, skipping run")
+        return {'missing': 0, 'generated': 0, 'failed': 0}
+
+    agents = [dict(zip(cols, row)) for row in rows]
+    missing = [a for a in agents if a['agent_id'] not in have]
 
     if not missing:
         return {'missing': 0, 'generated': 0, 'failed': 0}
