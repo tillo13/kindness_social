@@ -35,8 +35,8 @@ def get_postgres_credentials():
     creds = {
         'host': get_secret('KUMORI_POSTGRES_IP'),
         'dbname': get_secret('KUMORI_POSTGRES_DB_NAME'),
-        'user': get_secret('KUMORI_POSTGRES_USERNAME'),
-        'password': get_secret('KUMORI_POSTGRES_PASSWORD'),
+        'user': get_secret('KINDNESS_POSTGRES_USERNAME'),
+        'password': get_secret('KINDNESS_POSTGRES_PASSWORD'),
         'connection_name': get_secret('KUMORI_POSTGRES_CONNECTION_NAME'),
     }
     _credentials_cache[GCP_PROJECT_ID] = creds
