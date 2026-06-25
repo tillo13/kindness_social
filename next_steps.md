@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-06-21 04:46*
+*Last refreshed: 2026-06-25 04:14*
 
 ## 🎯 Pending
 
@@ -18,14 +18,14 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
-_(no commits in the last 7 days)_
+- `18fbfe5` · 2026-06-21 08:28 — worker: fix deepseek SSE parser — only kept lines with literal '"o":"APPEND"' (first token only),...
+- `827ba36` · 2026-06-21 07:47 — fix 6-hourly /thread 500s: backfill-avatars was saturating the single F1. Replace N serial GCS HE...
 <!-- shipped:end -->
 
 ## ⚠️ Unfinished / WIP
 
 <!-- wip:start -->
-**2 file(s) with uncommitted changes:**
+**1 file(s) with uncommitted changes:**
 - ` M next_steps.md`
-- `?? utilities/kumori_api_client/README.md`
 
 <!-- wip:end -->

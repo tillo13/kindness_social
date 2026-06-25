@@ -101,9 +101,18 @@ def run_thread(config=None):
     # as conversational ("I hear you, X / fair point but...").
     from core.responder import _pick_reply_target
 
+    # Soft wall-clock budget. A viral thread (up to 60 sequential free-LLM
+    # generations) could exceed App Engine's request deadline and get the worker
+    # killed (HTTP 500 'request deadline exceeded', 2026-06-25). Comments are
+    # saved incrementally, so stop cleanly near the limit and return the (valid,
+    # smaller) thread instead of being killed mid-generation.
+    import time
+    _start = time.time()
+    _BUDGET_S = 90
+
     for position, persona in enumerate(participants):
-        if successful >= target_count:
-            break  # hit our target, stop walking the oversample
+        if successful >= target_count or time.time() - _start > _BUDGET_S:
+            break  # hit our target (or wall-clock budget), stop walking the oversample
         logger.info(f"[{thread_slug}] Pos {position+1}/{len(participants)}: {persona['display_name']} ({persona['llm_backend']})")
         # Generate comment — if backend is down, agent stays silent
         comment, actual_backend, gen_time_ms = generate_comment(

@@ -454,8 +454,17 @@ def run_agent_responses(config=None):
     total_responses = 0
     response_details = []  # Track each response for logging
 
+    # Soft wall-clock budget. Each generate_comment is a sequential free-LLM call;
+    # a slow backend over a full 6-12 round could exceed App Engine's request
+    # deadline and get the worker killed (HTTP 500 'request deadline exceeded',
+    # 2026-06-25). Responses are saved incrementally, so we stop cleanly near the
+    # limit and return the partial round (200) instead of being killed.
+    import time
+    _start = time.time()
+    _BUDGET_S = 90
+
     for thread in threads_to_check:
-        if total_responses >= max_responses_this_round:
+        if total_responses >= max_responses_this_round or time.time() - _start > _BUDGET_S:
             break
 
         comments = get_thread_comments(thread['id'])
@@ -488,7 +497,7 @@ def run_agent_responses(config=None):
         all_candidates = potential_responders + existing_agents
 
         for agent in all_candidates:
-            if total_responses >= max_responses_this_round:
+            if total_responses >= max_responses_this_round or time.time() - _start > _BUDGET_S:
                 break
 
             # Skip agents whose backend is in backoff — don't waste the call
