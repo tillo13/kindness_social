@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-06-25 04:14*
+*Last refreshed: 2026-07-01 04:31*
 
 ## 🎯 Pending
 
@@ -18,14 +18,15 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
-- `18fbfe5` · 2026-06-21 08:28 — worker: fix deepseek SSE parser — only kept lines with literal '"o":"APPEND"' (first token only),...
-- `827ba36` · 2026-06-21 07:47 — fix 6-hourly /thread 500s: backfill-avatars was saturating the single F1. Replace N serial GCS HE...
+- `b045d59` · 2026-06-25 12:11 — kindness: cut over to least-privilege kindness_app DB role (table-level grants on its own public....
+- `4421037` · 2026-06-25 08:50 — Fix cron HTTP 500s (request-deadline exceeded): add a 90s soft wall-clock budget to run_thread (s...
 <!-- shipped:end -->
 
 ## ⚠️ Unfinished / WIP
 
 <!-- wip:start -->
-**1 file(s) with uncommitted changes:**
+**2 file(s) with uncommitted changes:**
 - ` M next_steps.md`
+- ` M utilities/visitor_logging.py`
 
 <!-- wip:end -->

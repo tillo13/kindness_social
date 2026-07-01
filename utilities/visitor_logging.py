@@ -68,11 +68,21 @@ def _get_db_creds() -> dict:
         path = f"projects/{_KUMORI_PROJECT}/secrets/{name}/versions/latest"
         return client.access_secret_version(request={"name": path}).payload.data.decode("UTF-8")
 
+    def fetch_or(primary: str, fallback: str) -> str:
+        # Loggers connect as the dedicated least-privilege telemetry_writer role
+        # (INSERT-only on the telemetry tables) rather than the shared postgres
+        # role, so an app's logger can never reach another tenant's data. Falls
+        # back to KUMORI_* until TELEMETRY_* is provisioned, so no flag day.
+        try:
+            return fetch(primary)
+        except Exception:
+            return fetch(fallback)
+
     _DB_CREDS_CACHE = {
         'host': fetch('KUMORI_POSTGRES_IP'),
         'dbname': fetch('KUMORI_POSTGRES_DB_NAME'),
-        'user': fetch('KUMORI_POSTGRES_USERNAME'),
-        'password': fetch('KUMORI_POSTGRES_PASSWORD'),
+        'user': fetch_or('TELEMETRY_POSTGRES_USERNAME', 'KUMORI_POSTGRES_USERNAME'),
+        'password': fetch_or('TELEMETRY_POSTGRES_PASSWORD', 'KUMORI_POSTGRES_PASSWORD'),
         'connection_name': fetch('KUMORI_POSTGRES_CONNECTION_NAME'),
     }
     return _DB_CREDS_CACHE
