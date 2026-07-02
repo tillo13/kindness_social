@@ -44,6 +44,25 @@ def force_canonical_host():
     if host.startswith('www.'):
         return redirect(f'https://kindness.social{request.full_path}', code=301)
 
+
+# ── Runtime DB-speed instrumentation (tier-1, per db-speed-first) ────────────
+@app.before_request
+def _reset_db_query_counter():
+    from utilities.postgres_utils import reset_db_counter
+    reset_db_counter()
+
+
+@app.after_request
+def _warn_high_db_query_count(response):
+    from utilities.postgres_utils import get_db_counter, DB_CALL_WARN_THRESHOLD
+    n = get_db_counter()
+    # Skip crons — they do legitimate batch work (many cursors) and would just
+    # add noise to the error digest this instrumentation exists to keep clean.
+    if n > DB_CALL_WARN_THRESHOLD and not request.path.startswith('/api/cron'):
+        logger.warning("HIGH DB query count: %d cursors on %s %s (threshold %d — runtime N+1?)",
+                       n, request.method, request.path, DB_CALL_WARN_THRESHOLD)
+    return response
+
 # Auto-run schema migrations on first import. create_tables() is idempotent
 # (CREATE TABLE IF NOT EXISTS + ALTER TABLE ADD COLUMN IF NOT EXISTS) so it's
 # safe on every cold start. Without this, ALTER migrations sit in code but

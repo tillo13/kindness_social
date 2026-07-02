@@ -144,6 +144,39 @@ def get_db_connection():
     return PooledConnection(conn, pool)
 
 
+# ── Runtime DB-speed instrumentation (tier-1, per db-speed-first) ────────────
+# The runtime half of the db-speed gate (the static N+1 linter runs at deploy).
+# Mirrors galactica's per-request cursor counter + inroads' slow-query timing:
+#   • counter — reset_db_counter() in a before_request hook, get_db_counter() to
+#     read (app.py warns when a request exceeds DB_CALL_WARN_THRESHOLD). Catches
+#     runtime N+1 the static linter can't: a cursor opened in a helper called in
+#     a loop.
+#   • slow log — any cursor held >= SLOW_QUERY_MS logs its caller site, surfacing
+#     slow single queries + connections held too long on the shared f1-micro pool.
+from time import perf_counter as _perf_counter
+_db_tls = threading.local()
+DB_CALL_WARN_THRESHOLD = 20
+SLOW_QUERY_MS = int(os.environ.get('KINDNESS_SLOW_QUERY_MS', '500'))
+
+
+def reset_db_counter():
+    _db_tls.count = 0
+
+
+def get_db_counter() -> int:
+    return getattr(_db_tls, 'count', 0)
+
+
+def _slow_cursor_site():
+    import traceback
+    here = os.path.basename(__file__)
+    for fr in reversed(traceback.extract_stack()[:-2]):
+        base = os.path.basename(fr.filename)
+        if base != here and 'contextlib' not in fr.filename:
+            return f"{base}:{fr.lineno}"
+    return 'unknown'
+
+
 @contextmanager
 def db_cursor(dict_cursor=False, commit=True):
     """Context manager for DB operations with auto-commit/rollback.
@@ -153,6 +186,8 @@ def db_cursor(dict_cursor=False, commit=True):
     Cursor factory is set explicitly so the connection's default cannot
     surprise callers that ask for tuples.
     """
+    _db_tls.count = getattr(_db_tls, 'count', 0) + 1
+    _t0 = _perf_counter()
     conn = get_db_connection()
     if dict_cursor:
         cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
@@ -168,6 +203,9 @@ def db_cursor(dict_cursor=False, commit=True):
     finally:
         cursor.close()
         conn.close()
+        _ms = (_perf_counter() - _t0) * 1000
+        if _ms >= SLOW_QUERY_MS:
+            logger.warning("SLOW DB cursor %.0fms (>=%dms) held by %s", _ms, SLOW_QUERY_MS, _slow_cursor_site())
 
 
 def log_api_usage(model, usage, feature=None, streaming=False,
