@@ -267,26 +267,41 @@ def _ensure_trace_table():
         password=creds['password'], connect_timeout=5,
     )
     try:
+        import psycopg2.errors
         cur = conn.cursor()
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS kumori_anthropic_call_trace (
-                id BIGSERIAL PRIMARY KEY,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                host_app TEXT,
-                caller_file TEXT,
-                caller_line INT,
-                caller_func TEXT,
-                model TEXT,
-                streaming BOOLEAN DEFAULT FALSE,
-                input_tokens BIGINT,
-                output_tokens BIGINT,
-                cache_creation_tokens BIGINT,
-                cache_read_tokens BIGINT
-            )
-        """)
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_trace_created ON kumori_anthropic_call_trace(created_at DESC)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_trace_model_created ON kumori_anthropic_call_trace(model, created_at DESC)")
-        conn.commit()
+        # Skip the bootstrap DDL when the table already exists. telemetry_writer is
+        # INSERT-only (no CREATE on the schema), and Postgres runs the schema
+        # ACL_CREATE check BEFORE the IF-NOT-EXISTS short-circuit — so even a no-op
+        # CREATE ... IF NOT EXISTS makes the engine LOG 'permission denied for schema'
+        # (which the cross-project error digest reports). to_regclass is a silent
+        # existence check needing only schema USAGE (which the role has); use the
+        # SAME unqualified name as the CREATE so search_path resolution matches.
+        cur.execute("SELECT to_regclass('kumori_anthropic_call_trace')")
+        if cur.fetchone()[0] is None:
+            try:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS kumori_anthropic_call_trace (
+                        id BIGSERIAL PRIMARY KEY,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        host_app TEXT,
+                        caller_file TEXT,
+                        caller_line INT,
+                        caller_func TEXT,
+                        model TEXT,
+                        streaming BOOLEAN DEFAULT FALSE,
+                        input_tokens BIGINT,
+                        output_tokens BIGINT,
+                        cache_creation_tokens BIGINT,
+                        cache_read_tokens BIGINT
+                    )
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_trace_created ON kumori_anthropic_call_trace(created_at DESC)")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_trace_model_created ON kumori_anthropic_call_trace(model, created_at DESC)")
+                conn.commit()
+            except psycopg2.errors.InsufficientPrivilege:
+                # Genuinely-fresh DB and this role can't create it — the superuser
+                # provisions it elsewhere. One engine-log line until then, not per-call.
+                conn.rollback()
         _TRACE_TABLE_READY = True
     finally:
         conn.close()
@@ -409,11 +424,21 @@ def _get_db_creds() -> dict:
         path = f"projects/{_KUMORI_PROJECT}/secrets/{name}/versions/latest"
         return client.access_secret_version(request={"name": path}).payload.data.decode("UTF-8")
 
+    def fetch_or(primary: str, fallback: str) -> str:
+        # Connect as the dedicated least-privilege telemetry_writer role (INSERT-
+        # only on the telemetry tables) rather than the shared postgres role, so
+        # the logger can never reach another tenant's data. Falls back to KUMORI_*
+        # until TELEMETRY_* is provisioned, so no flag day.
+        try:
+            return fetch(primary)
+        except Exception:
+            return fetch(fallback)
+
     _DB_CREDS_CACHE = {
         'host': fetch('KUMORI_POSTGRES_IP'),
         'dbname': fetch('KUMORI_POSTGRES_DB_NAME'),
-        'user': fetch('KUMORI_POSTGRES_USERNAME'),
-        'password': fetch('KUMORI_POSTGRES_PASSWORD'),
+        'user': fetch_or('TELEMETRY_POSTGRES_USERNAME', 'KUMORI_POSTGRES_USERNAME'),
+        'password': fetch_or('TELEMETRY_POSTGRES_PASSWORD', 'KUMORI_POSTGRES_PASSWORD'),
         'connection_name': fetch('KUMORI_POSTGRES_CONNECTION_NAME'),
     }
     return _DB_CREDS_CACHE

@@ -145,6 +145,24 @@ def _redact_b64(obj):
     return obj
 
 
+def _backoff_sleep(response):
+    """Jittered backoff before the single retry. Instant, synchronized retries
+    across many consumer apps thundering-herd an already-overloaded gateway —
+    the 502/503 amplification in the cross-project digest. Jitter de-syncs the
+    herd; a numeric Retry-After (when the server sends one) is honored, capped
+    at 5s so a caller never blocks too long. Returns seconds to sleep."""
+    import random
+    delay = 0.5 + random.random() * 0.75  # 0.5–1.25s, de-synchronized
+    if response is not None:
+        ra = response.headers.get('Retry-After')
+        if ra:
+            try:
+                delay = min(float(ra), 5.0)
+            except ValueError:
+                pass
+    return delay
+
+
 def _request(method, path, body=None, timeout=(5, 60), retry_on_5xx=True):
     """Generic kumori API call. Returns parsed JSON dict on success, raises
     KumoriAPIError on failure.
@@ -184,6 +202,7 @@ def _request(method, path, body=None, timeout=(5, 60), retry_on_5xx=True):
                 })
             if attempt == 1 and retry_on_5xx:
                 logger.warning(f"kumori {path} {type(e).__name__}, retrying")
+                _time.sleep(_backoff_sleep(None))
                 continue
             raise KumoriAPIError(f'Network error reaching kumori: {e}')
         ms = int((_time.time() - t0) * 1000)
@@ -210,6 +229,7 @@ def _request(method, path, body=None, timeout=(5, 60), retry_on_5xx=True):
             return data
         if 500 <= r.status_code < 600 and attempt == 1 and retry_on_5xx:
             logger.warning(f"kumori {path} HTTP {r.status_code}, retrying")
+            _time.sleep(_backoff_sleep(r))
             continue
         # Build a CLEAN error string from whatever structured fields the
         # server returned. Imggen failures now include error_code (kumori

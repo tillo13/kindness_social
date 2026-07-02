@@ -469,7 +469,20 @@ def run_reflection_cycle(batch_size=25):
     results = []
     changed = 0
 
+    # Wall-clock budget: App Engine F1 kills the request at the 60s deadline
+    # (Error 123). Reflecting 8-13 agents — each an LLM call through the shared
+    # gateway — routinely overran it and 500'd the whole cron (surfaced as the
+    # agent-reflect deadline-exceeded errors in the digest). Stop at 45s and let
+    # the next cycle (every 30 min) pick up the rest; partial progress beats a
+    # hard timeout that records zero reflections.
+    import time
+    _deadline_s = 45
+    _cycle_start = time.time()
+
     for agent in agents:
+        if time.time() - _cycle_start > _deadline_s:
+            logger.info(f"Reflection cycle hit {_deadline_s}s budget — {len(results)}/{len(agents)} reflected, rest next cycle")
+            break
         # Per-agent isolation: a single agent's failure (slow query, backend
         # blip) must not 500 the whole reflect cron. reflect_agent already
         # try/excepts its LLM call, but the pre-LLM DB reads (recent comments /

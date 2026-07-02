@@ -52,7 +52,15 @@ try:
     db_ops.create_tables()
     logger.info("Schema migrations applied on startup")
 except Exception as _e:
-    logger.exception(f"Startup schema migration failed: {_e}")
+    # Least-priv cutover: kindness_app has DML but does not OWN the tables, so the
+    # ALTERs in create_tables() can't run (SQLSTATE 42501). The schema is superuser-
+    # provisioned and current, so this startup bootstrap is now defensive-only.
+    # Log 42501 quietly as expected — it was surfacing as an ERROR traceback that
+    # tripped the cross-project error digest every cold start.
+    if getattr(_e, 'pgcode', None) == '42501':
+        logger.info("Startup schema bootstrap skipped ownership-required DDL under least-priv role (expected; schema is superuser-provisioned)")
+    else:
+        logger.exception(f"Startup schema migration failed: {_e}")
 
 # Init the kumori_api_client (HTTP path to kumori.ai/api/v1/*) on startup.
 # Post 2026-05-10 migration: kindness no longer vendors kumori_free_llms; it
