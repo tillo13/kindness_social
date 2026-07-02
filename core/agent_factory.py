@@ -105,6 +105,28 @@ def _weighted_pick(eligible):
     return picked
 
 
+def _bounded(fn, timeout_s, default, label):
+    """Run a fail-open gateway call with a hard wall-clock cap so a slow/strained
+    gateway can't push birth-agent past App Engine's 60s request deadline (the
+    Error-123 500s in the digest). Returns `default` if it overruns; the abandoned
+    thread dies with the request/instance — acceptable for a 6h cron. GAE can't be
+    trusted to finish true background work after the response, so we bound the
+    synchronous path instead of fire-and-forget."""
+    import threading
+    box = {'v': default}
+    def _run():
+        try:
+            box['v'] = fn()
+        except Exception as e:
+            logger.debug(f"{label} failed: {e}")
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    t.join(timeout_s)
+    if t.is_alive():
+        logger.info(f"{label} exceeded {timeout_s}s — using fallback (gateway slow)")
+    return box['v']
+
+
 def create_agent(backend=None):
     """
     Create a new agent with a random personality and model-based name.
@@ -117,14 +139,14 @@ def create_agent(backend=None):
         # new backends are invisible until redeploy.
         try:
             from utilities import llm_registry_remote
-            llm_registry_remote.refresh_if_stale()
+            _bounded(llm_registry_remote.refresh_if_stale, 8, None, "registry refresh")
         except Exception as e:
             logger.debug(f"registry refresh skipped: {e}")
         # Filter known-low-quality backends via kumori /catalog/quality.json.
-        # Fail-open: any error / no signal → original pool.
+        # Fail-open: any error / no signal / slow gateway → original pool.
         try:
             from core.quality_filter import filter_eligible
-            eligible = filter_eligible(AVAILABLE_BACKENDS)
+            eligible = _bounded(lambda: filter_eligible(AVAILABLE_BACKENDS), 8, AVAILABLE_BACKENDS, "quality filter")
         except Exception as e:
             logger.debug(f"quality filter skipped: {e}")
             eligible = AVAILABLE_BACKENDS
@@ -207,7 +229,7 @@ def create_agent(backend=None):
 
             try:
                 from core.embed_bios import embed_agent
-                embed_agent(agent)
+                _bounded(lambda: embed_agent(agent), 10, None, f"bio embed {agent_id}")
             except Exception as e:
                 logger.warning(f"bio embed skipped for {agent_id}: {e}")
 
