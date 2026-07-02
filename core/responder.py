@@ -36,6 +36,19 @@ except ImportError:
 # top hits and <0.2 when the corpus is irrelevant to the query.
 _RERANK_CONFIDENCE_FLOOR = 0.30
 
+# Rerank flood-control — added after fcef402 ("rerank in responder") put kindness
+# at the top of the kumori error digest: per-reply rerank exhausted the SHARED
+# free-tier rerank pool, gated it for ~8h, then kept hammering it every reply
+# (~620 502/day, one caller). Both guards are zero functional cost — rerank
+# already fails open to the heuristic weighted-random picker:
+#   (1) sample: only rerank a fraction of replies. It's a quality canary + a
+#       marginal picker upgrade, so a sample gives the signal without burning the
+#       shared daily cap every other app also draws on.
+#   (2) cooldown: when the tier reports gated/error, stop calling until its
+#       retry_after (capped 1h so we re-probe) instead of flooding every cycle.
+_RERANK_SAMPLE_RATE = 0.15
+_rerank_cooldown_until = 0.0
+
 
 def _persona_alignment_score(agent, scores):
     """Did the backend produce a reply that matches who this agent IS?
@@ -197,7 +210,13 @@ def _rerank_pick(eligible, agent):
     Emits a kindness_rerank_v1 sample to the kumori quality catalog with the
     top relevance as the score (0-100). Fire-and-forget — never blocks the
     pick path."""
+    global _rerank_cooldown_until
+    import time as _t
     if _kumori_rerank is None or len(eligible) < 2:
+        return None, None
+    # Flood-control: skip while the shared rerank tier is cooling down, and only
+    # sample a fraction of replies so we never exhaust its free cap to begin with.
+    if _t.time() < _rerank_cooldown_until or random.random() > _RERANK_SAMPLE_RATE:
         return None, None
     query = _build_persona_query(agent)
     docs = [(c.get('comment_text') or '')[:500] for c in eligible]
@@ -208,7 +227,18 @@ def _rerank_pick(eligible, agent):
         results, backend = _kumori_rerank(query, docs, top_n=min(3, len(docs)))
         duration_ms = int((_t.time() - t0) * 1000)
     except Exception as e:
-        logger.debug(f"rerank failed, falling back to weighted-random: {e}")
+        # Back off the shared rerank tier locally so we stop hammering it while
+        # it's gated. Honor the server's retry_after when present (capped 1h so we
+        # re-probe), else default 15 min.
+        retry_after = None
+        _payload = getattr(e, 'payload', None)
+        if isinstance(_payload, dict):
+            retry_after = _payload.get('retry_after')
+        try:
+            _rerank_cooldown_until = _t.time() + (min(float(retry_after), 3600) if retry_after else 900)
+        except (TypeError, ValueError):
+            _rerank_cooldown_until = _t.time() + 900
+        logger.debug(f"rerank failed, backing off, falling back to weighted-random: {e}")
         if _emit_quality_sample is not None:
             try:
                 _emit_quality_sample(
