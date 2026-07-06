@@ -517,7 +517,6 @@ def roadmap():
                     (SELECT COUNT(*) FROM kindness_comments) AS comments,
                     (SELECT COUNT(*) FROM kindness_threads) AS threads,
                     (SELECT COUNT(*) FROM kindness_reflections) AS reflections,
-                    (SELECT COUNT(*) FROM kindness_reactions) AS reactions,
                     (SELECT COALESCE(SUM(total_dopamine), 0) FROM kindness_agents) AS dopamine,
                     (SELECT COUNT(DISTINCT llm_backend) FROM kindness_agents WHERE is_active = TRUE) AS backends,
                     (SELECT MIN(created_at) FROM kindness_agents) AS started_at
@@ -531,6 +530,12 @@ def roadmap():
                     progress['days_running'] = max(1, delta.days)
                 else:
                     progress['days_running'] = 0
+        if progress:
+            # reactions was a bare COUNT(*) full scan of the 1.9M-row
+            # kindness_reactions table (>10s on the f1-micro, holding a pooled
+            # connection the whole time) — reuse the incrementally-maintained
+            # total instead. Outside the cursor block so no nested pool conns.
+            progress['reactions'] = db_ops.get_reaction_stats()['total']
     except Exception as e:
         logger.warning(f"roadmap progress fetch failed: {e}")
     return render_template('roadmap.html', progress=progress)

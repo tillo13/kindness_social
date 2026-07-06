@@ -77,23 +77,31 @@ def get_reaction_stats():
                 state = json.loads(raw['value'])
             except (TypeError, ValueError):
                 state = None
-        if not state:
-            state = {'last_id': 0, 'total': 0, 'thumbsup': 0, 'heart': 0, 'candidates': []}
+        if not state or 'agent_counts' not in state:
+            # No state yet, or pre-agent_counts state from an older deploy —
+            # restart the fold from id 0 so per-agent counts backfill too.
+            state = {'last_id': 0, 'total': 0, 'thumbsup': 0, 'heart': 0,
+                     'candidates': [], 'agent_counts': {}}
 
         cur.execute("SELECT COALESCE(MAX(id), 0) AS max_id FROM kindness_reactions")
         max_id = cur.fetchone()['max_id']
         window_end = min(state['last_id'] + REACTION_CATCHUP_CHUNK, max_id)
 
         if window_end > state['last_id']:
+            # Joined to comments for agent_id so get_leaderboard's per-agent
+            # reaction counts fold from the same walk (comments are never
+            # deleted, so this matches the old rx-subquery JOIN semantics).
             cur.execute("""
-                SELECT comment_id, reaction_type, COUNT(*) as cnt
-                FROM kindness_reactions
-                WHERE id > %s AND id <= %s
-                GROUP BY comment_id, reaction_type
+                SELECT r.comment_id, c.agent_id, r.reaction_type, COUNT(*) as cnt
+                FROM kindness_reactions r
+                JOIN kindness_comments c ON c.id = r.comment_id
+                WHERE r.id > %s AND r.id <= %s
+                GROUP BY r.comment_id, c.agent_id, r.reaction_type
             """, (state['last_id'], window_end))
             window = cur.fetchall()
 
             touched = {}
+            agent_counts = state['agent_counts']
             for r in window:
                 state['total'] += r['cnt']
                 if r['reaction_type'] == 'thumbsup':
@@ -101,6 +109,8 @@ def get_reaction_stats():
                 elif r['reaction_type'] == 'heart':
                     state['heart'] += r['cnt']
                 touched[r['comment_id']] = touched.get(r['comment_id'], 0) + r['cnt']
+                ak = str(r['agent_id'])  # JSON object keys are strings
+                agent_counts[ak] = agent_counts.get(ak, 0) + r['cnt']
 
             candidates = {cid: cnt for cid, cnt in state['candidates']}
             if touched and len(touched) <= 500:
@@ -134,7 +144,8 @@ def get_reaction_stats():
             """, (REACTION_STATE_KEY, json.dumps(state)))
 
         stats = {'total': state['total'], 'thumbsup': state['thumbsup'],
-                 'heart': state['heart'], 'top_comments': []}
+                 'heart': state['heart'], 'top_comments': [],
+                 'agent_counts': {int(k): v for k, v in state['agent_counts'].items()}}
 
         top5 = state['candidates'][:5]
         if top5:
@@ -152,6 +163,15 @@ def get_reaction_stats():
                 for cid, cnt in top5 if cid in details
             ]
         return stats
+
+
+def get_agent_reaction_counts():
+    """Per-agent reaction totals ({agent db id: count}) from the incremental
+    fold state above. Replaces get_leaderboard's rx subquery, which re-ran a
+    full kindness_reactions⨝kindness_comments GROUP BY agent_id pass (1.9M
+    rows) per uncached render and hit the 30s statement_timeout once the
+    2026-07-06 vacuum/index churn evicted its buffer cache."""
+    return get_reaction_stats()['agent_counts']
 
 
 def get_backend_health():

@@ -860,21 +860,29 @@ def get_leaderboard(sort_by='kindness', limit=10000):
     (QueryCanceled in the error digest). 60s staleness is fine for a ranking page;
     mirrors the other home/dashboard aggregates.
 
-    The per-agent comment/reaction stats are computed as two pre-grouped
-    GROUP BY agent_id passes (one over kindness_comments, one over
-    kindness_reactions⨝comments) joined once — NOT correlated LATERALs that
+    The per-agent comment stats are one pre-grouped GROUP BY agent_id pass
+    over kindness_comments joined once — NOT correlated LATERALs that
     re-scanned comments once per agent (O(agents × comments), the thing that
-    timed out). Same output, one hash-aggregate pass per table."""
+    timed out first). Per-agent reaction counts come from the incremental
+    fold state (get_agent_reaction_counts): the old rx subquery re-aggregated
+    all 1.9M kindness_reactions⨝comments rows per uncached render and started
+    QueryCanceling on the 30s statement_timeout when the 2026-07-06
+    vacuum/index churn evicted the buffer cache that had let it squeak by —
+    those 30s scans also held pooled connections (maxconn=8), starving / of
+    connections entirely."""
     sort_map = {
         'kindness': 'avg_k DESC NULLS LAST',
         'dopamine': 'a.total_dopamine DESC',
         'bridges': 'bridge_count DESC',
         'most_improved': '(a.toxicity_baseline - a.current_toxicity) DESC',
-        'most_loved': 'reaction_count DESC',
         'most_active': 'a.total_interactions DESC',
         'empathy': 'a.current_empathy DESC',
     }
+    # most_loved sorts on the folded counts in Python (no SQL column anymore)
     order = sort_map.get(sort_by, sort_map['kindness'])
+
+    from core.db_ops_analytics import get_agent_reaction_counts
+    reaction_counts = get_agent_reaction_counts()
 
     with db_cursor(dict_cursor=True) as cur:
         cur.execute(f"""
@@ -884,7 +892,6 @@ def get_leaderboard(sort_by='kindness', limit=10000):
                    COALESCE(cs.avg_e, 0) as avg_empathy_score,
                    COALESCE(cs.bridge_count, 0) as bridge_count,
                    COALESCE(cs.comment_count, 0) as comment_count,
-                   COALESCE(rx.reaction_count, 0) as reaction_count,
                    (a.toxicity_baseline - a.current_toxicity) as toxicity_change
             FROM kindness_agents a
             LEFT JOIN (
@@ -896,17 +903,18 @@ def get_leaderboard(sort_by='kindness', limit=10000):
                 FROM kindness_comments
                 GROUP BY agent_id
             ) cs ON cs.agent_id = a.id
-            LEFT JOIN (
-                SELECT c.agent_id, COUNT(*) as reaction_count
-                FROM kindness_reactions r
-                JOIN kindness_comments c ON r.comment_id = c.id
-                GROUP BY c.agent_id
-            ) rx ON rx.agent_id = a.id
             WHERE a.is_active = TRUE
             ORDER BY {order}
             LIMIT %s
-        """, (limit,))
-        return [dict(row) for row in cur.fetchall()]
+        """, (limit if sort_by != 'most_loved' else 100000,))
+        rows = [dict(row) for row in cur.fetchall()]
+
+    for row in rows:
+        row['reaction_count'] = reaction_counts.get(row['id'], 0)
+    if sort_by == 'most_loved':
+        rows.sort(key=lambda r: r['reaction_count'], reverse=True)
+        rows = rows[:limit]
+    return rows
 
 
 
