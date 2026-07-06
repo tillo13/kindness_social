@@ -737,12 +737,19 @@ def get_global_stats():
         cur.execute("""
             SELECT COUNT(*) as total_comments,
                    AVG(kindness_score) as avg_kindness,
-                   COUNT(CASE WHEN bridge_score >= 7 THEN 1 END) as total_bridges,
-                   (SELECT COUNT(*) FROM kindness_reactions) as total_reactions
+                   COUNT(CASE WHEN bridge_score >= 7 THEN 1 END) as total_bridges
             FROM kindness_comments
         """)
         stats.update(dict(cur.fetchone()))
-        return stats
+
+    # total_reactions was a correlated COUNT(*) full scan of the 1.9M-row
+    # kindness_reactions table (>10s on the f1-micro; same statement_timeout
+    # family as get_reaction_stats). Reuse the incrementally-maintained total
+    # instead — called outside the cursor block so we never hold two pooled
+    # connections at once.
+    from core.db_ops_analytics import get_reaction_stats
+    stats['total_reactions'] = get_reaction_stats()['total']
+    return stats
 
 
 @ttl_cached(60)

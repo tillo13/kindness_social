@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-07-02 04:18*
+*Last refreshed: 2026-07-06 04:47*
 
 ## 🎯 Pending
 
@@ -18,16 +18,17 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
+- `30a2c4e` · 2026-07-02 10:07 — db-speed tier-1 runtime instrumentation (per db-speed-first): db_cursor now (1) increments a thre...
+- `ac3b785` · 2026-07-02 09:11 — rerank flood fix (root cause of kumori gateway rerank 502s — NOT capacity): fcef402 added per-rep...
+- `c4e0def` · 2026-07-02 08:44 — birth-agent cron 500s (Error 123 deadline-exceeded): create_agent() made 3 sequential gateway cal...
+- `d49b645` · 2026-07-02 08:31 — digest fixes: (1) agent-reflect cron 500s (Error 123 deadline-exceeded) — run_reflection_cycle re...
 - `8c64f7c` · 2026-07-01 09:11 — propagate kumori_api_client retry fix: jittered backoff before the single retry (de-syncs cross-a...
-- `b045d59` · 2026-06-25 12:11 — kindness: cut over to least-privilege kindness_app DB role (table-level grants on its own public....
-- `4421037` · 2026-06-25 08:50 — Fix cron HTTP 500s (request-deadline exceeded): add a 90s soft wall-clock budget to run_thread (s...
 <!-- shipped:end -->
 
 ## ⚠️ Unfinished / WIP
 
 <!-- wip:start -->
-**2 file(s) with uncommitted changes:**
-- ` M utilities/anthropic_logger.py`
-- ` M utilities/kumori_api_client/client.py`
+**1 file(s) with uncommitted changes:**
+- ` M next_steps.md`
 
 <!-- wip:end -->

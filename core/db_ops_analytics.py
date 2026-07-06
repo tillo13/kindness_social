@@ -42,32 +42,115 @@ def ttl_cached(seconds):
     return deco
 
 
-def get_reaction_stats():
-    """Reaction summary for dashboard. Single query."""
-    with db_cursor(dict_cursor=True) as cur:
-        cur.execute("""
-            SELECT
-                COUNT(*) as total,
-                COUNT(CASE WHEN reaction_type = 'thumbsup' THEN 1 END) as thumbsup,
-                COUNT(CASE WHEN reaction_type = 'heart' THEN 1 END) as heart
-            FROM kindness_reactions
-        """)
-        stats = dict(cur.fetchone())
+# Incremental reaction-stats state, persisted in kindness_config as JSON.
+# kindness_reactions is insert-only (save_reaction is the only writer, no
+# UPDATE/DELETE anywhere), so running totals + a running top-comments list
+# stay correct by folding in only rows with id > last_id each call.
+REACTION_STATE_KEY = 'reaction_stats_state'
+REACTION_CATCHUP_CHUNK = 100000   # max pkey-range ids folded per call (~4s scan)
+REACTION_CANDIDATES_KEPT = 100    # top-comment candidates carried in state
+_reaction_state_lock = threading.Lock()
 
-        # Top 5 most-reacted comments
-        cur.execute("""
-            SELECT c.id, c.comment_text, a.display_name, a.agent_id, a.color_hex,
-                   t.thread_id as thread_slug,
-                   COUNT(r.id) as reaction_count
-            FROM kindness_reactions r
-            JOIN kindness_comments c ON r.comment_id = c.id
-            JOIN kindness_agents a ON c.agent_id = a.id
-            JOIN kindness_threads t ON c.thread_id = t.id
-            GROUP BY c.id, c.comment_text, a.display_name, a.agent_id, a.color_hex, t.thread_id
-            ORDER BY COUNT(r.id) DESC
-            LIMIT 5
-        """)
-        stats['top_comments'] = [dict(r) for r in cur.fetchall()]
+
+@ttl_cached(60)
+def get_reaction_stats():
+    """Reaction summary for dashboard.
+
+    Was two full scans of kindness_reactions per /dashboard hit (1.9M rows,
+    109MB heap — >10s each on the shared f1-micro), tripping the 30s
+    statement_timeout under load (QueryCanceled ×2/day in the error digest,
+    app.py dashboard → line 58 here). Rewritten incrementally: state lives in
+    kindness_config and each call folds in only reactions with id > last_id
+    via a pkey range scan, capped at REACTION_CATCHUP_CHUNK so the first
+    post-deploy backfill is chunked (~20 calls to converge, ~4s each) instead
+    of one giant scan. Counts only ever grow, so the running top list stays honest;
+    small touched-comment sets get an exact index-probe recount each fold.
+    """
+    with _reaction_state_lock, db_cursor(dict_cursor=True) as cur:
+        # Config read/write inlined on this cursor (not get_config/set_config)
+        # so the fold holds one pooled connection, not two nested ones.
+        state = None
+        cur.execute("SELECT value FROM kindness_config WHERE key = %s", (REACTION_STATE_KEY,))
+        raw = cur.fetchone()
+        if raw:
+            try:
+                state = json.loads(raw['value'])
+            except (TypeError, ValueError):
+                state = None
+        if not state:
+            state = {'last_id': 0, 'total': 0, 'thumbsup': 0, 'heart': 0, 'candidates': []}
+
+        cur.execute("SELECT COALESCE(MAX(id), 0) AS max_id FROM kindness_reactions")
+        max_id = cur.fetchone()['max_id']
+        window_end = min(state['last_id'] + REACTION_CATCHUP_CHUNK, max_id)
+
+        if window_end > state['last_id']:
+            cur.execute("""
+                SELECT comment_id, reaction_type, COUNT(*) as cnt
+                FROM kindness_reactions
+                WHERE id > %s AND id <= %s
+                GROUP BY comment_id, reaction_type
+            """, (state['last_id'], window_end))
+            window = cur.fetchall()
+
+            touched = {}
+            for r in window:
+                state['total'] += r['cnt']
+                if r['reaction_type'] == 'thumbsup':
+                    state['thumbsup'] += r['cnt']
+                elif r['reaction_type'] == 'heart':
+                    state['heart'] += r['cnt']
+                touched[r['comment_id']] = touched.get(r['comment_id'], 0) + r['cnt']
+
+            candidates = {cid: cnt for cid, cnt in state['candidates']}
+            if touched and len(touched) <= 500:
+                # Steady state: few comments touched — recount them exactly
+                # via idx_kindness_reactions_comment probes (self-heals any
+                # drift from the additive catch-up path).
+                cur.execute("""
+                    SELECT comment_id, COUNT(*) as cnt
+                    FROM kindness_reactions
+                    WHERE comment_id = ANY(%s)
+                    GROUP BY comment_id
+                """, (list(touched.keys()),))
+                for r in cur.fetchall():
+                    candidates[r['comment_id']] = r['cnt']
+            else:
+                # Catch-up: additive merge. Reactions cluster near a comment's
+                # creation (ids are time-ordered), so per-window sums are a
+                # faithful ranking without probing tens of thousands of ids.
+                for cid, cnt in touched.items():
+                    candidates[cid] = candidates.get(cid, 0) + cnt
+
+            state['candidates'] = sorted(
+                candidates.items(), key=lambda kv: kv[1], reverse=True
+            )[:REACTION_CANDIDATES_KEPT]
+            state['last_id'] = window_end
+            cur.execute("""
+                INSERT INTO kindness_config (key, value, updated_at)
+                VALUES (%s, %s, NOW())
+                ON CONFLICT (key) DO UPDATE
+                SET value = EXCLUDED.value, updated_at = NOW()
+            """, (REACTION_STATE_KEY, json.dumps(state)))
+
+        stats = {'total': state['total'], 'thumbsup': state['thumbsup'],
+                 'heart': state['heart'], 'top_comments': []}
+
+        top5 = state['candidates'][:5]
+        if top5:
+            cur.execute("""
+                SELECT c.id, c.comment_text, a.display_name, a.agent_id, a.color_hex,
+                       t.thread_id as thread_slug
+                FROM kindness_comments c
+                JOIN kindness_agents a ON c.agent_id = a.id
+                JOIN kindness_threads t ON c.thread_id = t.id
+                WHERE c.id = ANY(%s)
+            """, ([cid for cid, _ in top5],))
+            details = {r['id']: dict(r) for r in cur.fetchall()}
+            stats['top_comments'] = [
+                dict(details[cid], reaction_count=cnt)
+                for cid, cnt in top5 if cid in details
+            ]
         return stats
 
 
@@ -717,7 +800,16 @@ def get_experiment_pulse():
 
 @ttl_cached(60)
 def get_featured_thread():
-    """Get the thread with the biggest positive toxicity swing (most improvement)."""
+    """Get the thread with the biggest positive toxicity swing (most improvement).
+
+    Bounded to threads created in the last 30 days (2026-07-06): the unbounded
+    version ran the two LATERAL first/last-comment probes against every thread
+    ever (3.7K and growing, 2 index probes each) and hit the 30s
+    statement_timeout when the daily-digest cron landed on a saturated F1
+    (QueryCanceled, line 722 in the digest). idx_kindness_threads_created
+    keeps the candidate set ~1/4 and caps it forever; a rolling window also
+    means the featured spot rotates instead of pinning one all-time thread.
+    """
     with db_cursor(dict_cursor=True) as cur:
         cur.execute("""
             SELECT t.thread_id, t.avg_kindness, t.avg_toxicity, t.participant_count,
@@ -736,6 +828,7 @@ def get_featured_thread():
                 WHERE thread_id = t.id ORDER BY position DESC LIMIT 1
             ) last_c ON TRUE
             WHERE t.participant_count >= 3
+              AND t.created_at >= NOW() - INTERVAL '30 days'
             ORDER BY (first_c.toxicity_score - last_c.toxicity_score) DESC,
                      t.avg_kindness DESC NULLS LAST
             LIMIT 1
