@@ -659,6 +659,31 @@ def contact():
         import time as _time
         ip = request.headers.get('X-Forwarded-For', request.remote_addr or '').split(',')[0].strip()
 
+        # Canonical spam_guard first: content patterns (SEO + jackpot/crypto),
+        # StopForumSpam IP/email reputation, Origin validation, disposable
+        # domains, gibberish scoring. The 2026-06/07 'Russellattib' jackpot wave
+        # walked through the lighter hand-rolled checks below.
+        try:
+            from utilities.spam_guard import check_spam
+            _sg_data = request.form.to_dict()
+            # spam_guard's timing gate reads time_open (ms on page); this form
+            # sends ts (epoch at render). Convert, else every submission —
+            # legit included — silently drops as too_fast:0ms.
+            try:
+                _sg_data['time_open'] = int((_time.time() - float(_sg_data.get('ts', 0))) * 1000) if _sg_data.get('ts') else 0
+            except (TypeError, ValueError):
+                _sg_data['time_open'] = 0
+            reason = check_spam(_sg_data, ip,
+                                fields=['name', 'email', 'message'],
+                                origin=request.headers.get('Origin') or request.headers.get('Referer'),
+                                user_agent=request.headers.get('User-Agent'),
+                                expected_hosts=['kindness.social', 'www.kindness.social'])
+            if reason:
+                logger.warning(f"contact spam blocked ({reason}) from {ip}")
+                return render_template('contact.html', sent=True)  # silent success
+        except ImportError:
+            pass  # vendored copy lands on deploy; local dev without it still works
+
         # Honeypot — bots fill any hidden field
         if request.form.get('website') or request.form.get('url'):
             logger.warning(f"contact spam blocked: honeypot tripped from {ip}")
@@ -688,9 +713,10 @@ def contact():
         if not message:
             return render_template('contact.html', error='Please write a message.')
 
-        # URL spam: 3+ links is almost certainly link spam
+        # URL spam: 2+ links is almost certainly link spam (the jackpot wave
+        # carried exactly one shortlink, so content patterns catch singles).
         url_count = message.lower().count('http')
-        if url_count >= 3:
+        if url_count >= 2:
             logger.warning(f"contact spam blocked: {url_count} URLs from {ip}")
             return render_template('contact.html', sent=True)
 

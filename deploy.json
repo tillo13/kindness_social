@@ -26,6 +26,10 @@
     {
       "src": "gtag/gtag.py",
       "dst": "utilities/gtag.py"
+    },
+    {
+      "src": "spam_control/spam_guard.py",
+      "dst": "utilities/spam_guard.py"
     }
   ],
   "custom_domain": "https://kindness.social",
