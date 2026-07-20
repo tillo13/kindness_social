@@ -269,11 +269,13 @@ def llm_generate(prompt, max_tokens=500, temperature=1.0):
 
 
 def llm_chat(backend_name, messages, max_tokens=500, temperature=0.3, system=None,
-             app_name=None):
+             app_name=None, timeout=None):
     """Pinned-backend multi-turn chat. Returns (text, backend_name).
 
     app_name: optional consumer attribution (e.g. 'dos_bros', 'galactica').
     When set, lands in kumori_api_usage.app_name for this call's detail row.
+    timeout: optional (connect, read) tuple for callers who tolerate slow
+    lanes (e.g. probation-ward validation traffic); default (5, 60).
     """
     body = {'backend': backend_name, 'messages': messages,
             'max_tokens': max_tokens, 'temperature': temperature}
@@ -281,26 +283,44 @@ def llm_chat(backend_name, messages, max_tokens=500, temperature=0.3, system=Non
         body['system'] = system
     if app_name:
         body['app_name'] = app_name
-    data = _request('POST', '/api/v1/llm/chat', body)
+    data = _request('POST', '/api/v1/llm/chat', body, timeout=timeout or (5, 60))
     return data.get('text'), data.get('backend')
 
 
-def llm_chat_resilient(backends, messages, max_tokens=500, temperature=0.3,
-                       system=None, min_chars=1, debug=False, app_name=None):
-    """Server-side fallback chat. Tries each backend in `backends` (list, in
-    order); rotates on empty / 5xx / transient errors. Returns
-    (text, winning_backend, attempt_log_list, debug_info). debug_info is None
-    unless debug=True, in which case it's a dict {upstream_calls:[...]} listing
-    every outbound HTTP call kumori made to LLM provider APIs.
+def llm_chat_resilient(backends=None, messages=None, max_tokens=500, temperature=0.3,
+                       system=None, min_chars=1, debug=False, app_name=None,
+                       min_quality_tier=None, require_capabilities=None,
+                       budget_ms=None, allow_degrade=None):
+    """Server-side fallback chat. Returns (text, winning_backend,
+    attempt_log_list, debug_info). Pick models ONE of two ways:
 
-    min_chars: response-shape gate — backend response shorter than this counts
-    as a failure and rotation continues.
-    app_name: optional consumer attribution (e.g. 'dos_bros'). Lands in
-    kumori_api_usage.app_name for each rotation attempt's detail row.
+    INTENT MODE (recommended) — ask for a capability tier, kumori resolves the
+    best available free lane; you never name a provider:
+        min_quality_tier: 'frontier' | 'high' | 'medium' | 'low'
+            (storefront: Frontier / Pro / Standard / Fast — capability classes)
+        require_capabilities: optional list, e.g. ['reasoning'] (thinking models)
+        budget_ms: hard wall-clock cap for the whole cascade (never hangs past it)
+        allow_degrade: True → drop below the tier if it's exhausted rather than fail
+
+    EXPLICIT MODE — pin the exact fallback order yourself:
+        backends: list of backend names, tried in order.
+
+    Provide EITHER min_quality_tier/require_capabilities OR backends (server 400s
+    if neither). min_chars: response-shape gate (shorter → rotate). app_name:
+    consumer attribution → kumori_api_usage.app_name.
     """
-    body = {'backends': list(backends), 'messages': messages,
-            'max_tokens': max_tokens, 'temperature': temperature,
-            'min_chars': min_chars}
+    body = {'messages': messages, 'max_tokens': max_tokens,
+            'temperature': temperature, 'min_chars': min_chars}
+    if backends:
+        body['backends'] = list(backends)
+    if min_quality_tier:
+        body['min_quality_tier'] = min_quality_tier
+    if require_capabilities:
+        body['require_capabilities'] = list(require_capabilities)
+    if budget_ms is not None:
+        body['budget_ms'] = int(budget_ms)
+    if allow_degrade is not None:
+        body['allow_degrade'] = bool(allow_degrade)
     if system:
         body['system'] = system
     if debug:
@@ -321,9 +341,17 @@ def llm_chat_eval(prompt, system=None, caller=None):
     return data.get('text'), data.get('backend')
 
 
-def llm_backends():
-    """List available backends. Returns the list of backend dicts."""
-    data = _request('GET', '/api/v1/llm/backends')
+def llm_backends(modality=None):
+    """List available backends. Returns the list of backend dicts.
+
+    modality: None (default) = the runtime chat catalog, unchanged.
+    'image-gen' | 'image-edit' | 'embedding' | ... | 'all' = the
+    kumori_llm_endpoints lifecycle feed across modalities (the probation-ward
+    view: every enabled lane with lifecycle_status + status_since)."""
+    path = '/api/v1/llm/backends'
+    if modality:
+        path += f'?modality={modality}'
+    data = _request('GET', path)
     return data.get('backends', [])
 
 
@@ -553,9 +581,11 @@ def imggen_usage(date=None, platform=None, limit=50):
 # ─── Image describe ───────────────────────────────────────────────────────────
 
 def describe_image(image_url=None, image_b64=None, prompt=None, mime=None, skip=None,
-                   app_name=None):
+                   app_name=None, n=None, min_n=None):
     """Describe an image via free vision LLMs. Pass either image_url OR
-    image_b64. Returns {text, backend, ms, attempts}.
+    image_b64. Returns {text, backend, ms, attempts} for n<=1; for n>1 the
+    response carries voters: [{voter_idx, backend, text, ms}, ...] (multi-voter
+    rotation — distinct vision lanes look at the same image).
 
     app_name: optional consumer attribution (e.g. 'dos_bros', 'galactica').
     When set, lands in kumori_api_usage.app_name for this call's detail row.
@@ -576,5 +606,10 @@ def describe_image(image_url=None, image_b64=None, prompt=None, mime=None, skip=
         body['skip'] = skip
     if app_name:
         body['app_name'] = app_name
-    data = _request('POST', '/api/v1/describe/describe', body, timeout=(5, 60))
+    if n:
+        body['n'] = int(n)
+    if min_n:
+        body['min_n'] = int(min_n)
+    data = _request('POST', '/api/v1/describe/describe', body,
+                    timeout=(5, 60 if not n or n <= 1 else 120))
     return data

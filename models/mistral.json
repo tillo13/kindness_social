@@ -3,7 +3,7 @@
   "provider_url": "https://console.mistral.ai",
   "api_base": "https://api.mistral.ai/v1",
   "auth_type": "api_key",
-  "secret_name": "KINDNESS_MISTRAL_API_KEY",
+  "secret_name": "MISTRAL_PRIMARY_API_KEY",
   "pricing": {
     "tier": "free",
     "free_tier": "500K tokens/min",
