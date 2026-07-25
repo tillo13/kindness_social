@@ -158,7 +158,7 @@ def _pricing_for(model: str) -> dict:
 
 _KEY_CACHE = None
 _CLIENT = None
-# Env-overridable so a fully-decoupled app (e.g. kicksaw #877) points at its OWN
+# Env-overridable so a fully-decoupled app (one fully-decoupled app) points at its OWN
 # project + key WITHOUT forking this canonical logger. Defaults preserve kumori
 # for every other app (env unset -> identical behavior).
 _KUMORI_PROJECT = os.environ.get('ANTHROPIC_SECRET_PROJECT', 'kumori-404602')

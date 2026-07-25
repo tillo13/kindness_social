@@ -290,7 +290,7 @@ def append_bot_block(existing_robots_txt: str) -> str:
 # (max_connections=50 on the shared kumori instance, ~9k page views/hour during
 # peak GPTBot crawl = ~9k connect/close per hour from this module alone). On
 # 2026-05-08 that pattern combined with a deploy-time 2× instance overlap on
-# kicksaw saturated the pool and slowed sites portfolio-wide. This was a direct
+# one high-traffic app saturated the pool and slowed sites portfolio-wide. This was a direct
 # violation of db-speed-first/SKILL.md ("NEVER use direct psycopg2.connect()
 # without pooling").
 #
@@ -306,7 +306,7 @@ def append_bot_block(existing_robots_txt: str) -> str:
 # typically ~11. The budget table in db-speed-first should be amended to add:
 #     visitor_logging: 1/process across all sites
 # Stale-connection probe (SELECT 1) is mandatory before reuse — same fix that
-# resolved the kicksaw.io 2026-04-04 prod outage.
+# resolved a 2026-04-04 prod outage on a portfolio app.
 
 import queue as _q
 
@@ -325,7 +325,7 @@ def _get_persistent_conn():
 
     Cloud SQL drops idle connections after ~10 min and App Engine scales to 0,
     so we MUST do a SELECT 1 liveness probe before reusing — pattern from
-    db-speed-first/SKILL.md (the same fix that resolved the kicksaw.io
+    db-speed-first/SKILL.md (the same fix that resolved the portfolio-app
     2026-04-04 prod outage). `.closed` alone isn't enough: a TCP-half-open
     socket can read 0 from .closed yet fail on first execute()."""
     global _persistent_conn
@@ -495,7 +495,7 @@ def log_view(app_name: str, path: str, ip: str = '', user_agent: str = '',
 # dashboard itself, which would create a feedback loop). Expanded 2026-05-08
 # after seeing internal cron / polling endpoints dominate "humans" stats —
 # galactica's /api/crew/mission/*, dandy's /cron/check-email, wattson's
-# /api/cron/poll, kicksaw's /api/time-pulse/* etc. were all logged as
+# /api/cron/poll, one app's /api/time-pulse/* etc. were all logged as
 # "humans" because they pass UA-based bot detection.
 _SKIP_PATH_PREFIXES = (
     '/static/',

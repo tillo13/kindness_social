@@ -45,7 +45,6 @@ MEASUREMENT_IDS: dict[str, str] = {
     # 'kumori':          'G-...',
     # 'scatterbrain':    'G-...',
     # 'kindness_social': 'G-...',
-    # 'kicksaw':         'G-...',
     # 'wattson':         'G-...',
     # 'galactica':       'G-...',
     # 'crab_travel':     'G-...',
