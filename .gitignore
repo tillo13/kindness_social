@@ -42,3 +42,16 @@ _antiquated/
 *.flac
 *.ogg
 *.opus
+
+# ─── archived / scratch / generated — never committed ──────────────────
+# Mirrors DEFAULT_UNSTAGE_PATTERNS in _local_infrastructure/deploy/deploy.py,
+# which unstages these after `git add .` on every deploy. This file only
+# silences `git status` noise — the deploy gate is what prevents commits.
+# git history already holds every committed version, and node_modules is
+# rebuilt by `npm install` from package.json + package-lock.json.
+_antiquated_files/
+*_antiquated*
+_oneoff/
+_private/
+*.bak
+node_modules/
