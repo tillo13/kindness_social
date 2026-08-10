@@ -23,6 +23,10 @@ from utilities.kumori_api_client import (
 
 logger = logging.getLogger(__name__)
 
+# Backends the kumori catalog 404'd this process ("unknown backend" = retired,
+# not transient). See chat() — muted to stop per-cycle dead calls.
+_dead_pins = set()
+
 
 def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
     """Kindness LLM seam for pinned-backend agent chat.
@@ -32,11 +36,23 @@ def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
     The agent then stays silent — it never substitutes another model, which is
     the whole point of the experiment (see CLAUDE.md). Callers already handle
     the (None, ...) shape via their `if text is None` branches."""
+    if backend in _dead_pins:
+        # 404'd earlier this process: the backend is retired from the kumori
+        # catalog (permanent, per the 2026-07-07 unknown-pin contract), so
+        # don't re-hit the API every cycle — 43 dead 404 calls in 25 min on
+        # 2026-08-10. Agent stays silent exactly as before; the memo clears on
+        # instance recycle, so a revived lane un-mutes on its own.
+        return None, backend
     try:
         return _kf_chat(backend, messages, max_tokens=max_tokens,
                         temperature=temperature, system=system)
     except KumoriAPIError as e:
-        logger.info(f"agent silent — backend {backend!r} unavailable: {e}")
+        if getattr(e, 'status_code', None) == 404:
+            _dead_pins.add(backend)
+            logger.warning(f"agent silent — backend {backend!r} retired from the "
+                           f"kumori catalog (404), muted for this process: {e}")
+        else:
+            logger.info(f"agent silent — backend {backend!r} unavailable: {e}")
         return None, backend
     except Exception as e:
         logger.warning(f"agent silent — unexpected error on backend {backend!r}: {e}")
