@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-07-25 05:24*
+*Last refreshed: 2026-08-10 07:19*
 
 ## 🎯 Pending
 
@@ -18,16 +18,14 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
-- `03d05d2` · 2026-07-20 12:56 — Trim sitemap to static pages + top 25 agents; drop rotating thread URLs
+_(no commits in the last 7 days)_
 <!-- shipped:end -->
 
 ## ⚠️ Unfinished / WIP
 
 <!-- wip:start -->
-**4 file(s) with uncommitted changes:**
+**2 file(s) with uncommitted changes:**
 - ` M next_steps.md`
-- ` M utilities/anthropic_logger.py`
-- ` M utilities/gtag.py`
-- ` M utilities/visitor_logging.py`
+- ` M utilities/kumori_api_client/client.py`
 
 <!-- wip:end -->
