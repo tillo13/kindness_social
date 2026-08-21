@@ -1,0 +1,15 @@
+Rate this social media comment on three scales.
+
+Comment: "{comment}"
+
+Context: {context}
+
+The scales do NOT all point the same way:
+K = kindness   1 cruel/attacking, 5 neutral, 10 exceptionally kind
+T = toxicity   1 positive/constructive, 5 neutral, 10 extremely toxic/hostile
+E = empathy    1 none, 5 some understanding, 10 deep empathy
+
+A kind comment scores HIGH on K and LOW on T.
+
+Answer with ONE line, exactly this and nothing else:
+K=<n> T=<n> E=<n>

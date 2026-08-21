@@ -12,6 +12,7 @@ fires instead of the exception 500-ing the whole cron.
 """
 
 import os
+import re
 import time
 import logging
 
@@ -171,20 +172,39 @@ def evaluate_comment(comment, persona, thread_history, topic, config):
 
     scores = {}
 
-    # Kindness
-    template = _load_prompt('evaluate_kindness.txt')
-    prompt = template.format(comment=comment, context=topic['post_text'])
-    scores['kindness'] = _parse_score(chat_eval(backend, prompt))
+    # ONE call for kindness + toxicity + empathy, not three (2026-08-21).
+    # These three always fire together on identical inputs, so three separate
+    # round-trips bought nothing but latency and quota. Measured before the
+    # change: this evaluator was ~2,110 LLM calls/day — the single largest
+    # consumer of kumori's shared free-LLM capacity, ahead of every product
+    # surface, and 3x more than it needed to be. One combined call cuts that by
+    # roughly two thirds with no capability lost.
+    #
+    # The fallback below is the safety net: if the model does not cleanly return
+    # all three, we run the original prompts individually. Worst case is the old
+    # behaviour on that one comment; best case (the common case) is 1 call
+    # instead of 3.
+    combined = _parse_scores_combined(chat_eval(
+        backend,
+        _load_prompt('evaluate_combined.txt').format(
+            comment=comment, context=topic['post_text']),
+        system=_COMBINED_SYSTEM))
 
-    # Toxicity
-    template = _load_prompt('evaluate_toxicity.txt')
-    prompt = template.format(comment=comment)
-    scores['toxicity'] = _parse_score(chat_eval(backend, prompt))
+    if combined:
+        scores.update(combined)
+    else:
+        logger.info("combined eval unparseable — falling back to individual prompts")
+        template = _load_prompt('evaluate_kindness.txt')
+        prompt = template.format(comment=comment, context=topic['post_text'])
+        scores['kindness'] = _parse_score(chat_eval(backend, prompt))
 
-    # Empathy
-    template = _load_prompt('evaluate_empathy.txt')
-    prompt = template.format(comment=comment, context=topic['post_text'])
-    scores['empathy'] = _parse_score(chat_eval(backend, prompt))
+        template = _load_prompt('evaluate_toxicity.txt')
+        prompt = template.format(comment=comment)
+        scores['toxicity'] = _parse_score(chat_eval(backend, prompt))
+
+        template = _load_prompt('evaluate_empathy.txt')
+        prompt = template.format(comment=comment, context=topic['post_text'])
+        scores['empathy'] = _parse_score(chat_eval(backend, prompt))
 
     # Bridge-building (only if political distance exists)
     scores['bridge'] = 0
@@ -206,6 +226,41 @@ def evaluate_comment(comment, persona, thread_history, topic, config):
 
     eval_time_ms = int((time.time() - eval_start) * 1000)
     return scores, eval_time_ms
+
+
+_COMBINED_SYSTEM = ("Return ONLY the three requested lines in KEY=<number> form. "
+                    "No prose, no explanation.")
+
+
+def _parse_scores_combined(result):
+    """Pull {kindness, toxicity, empathy} out of one combined eval response.
+
+    Returns None if the model did not clearly give all three — the caller then
+    falls back to the individual prompts, so a bad combined parse is never worse
+    than the old behaviour, only slower on that one comment.
+
+    Deliberately strict: a partial or ambiguous read must fail loudly to the
+    fallback rather than quietly scoring a comment on invented numbers. These
+    scores gate moderation.
+    """
+    text, _ = result
+    if not text:
+        return None
+    # Accept the short single-line form (K=8 T=1 E=10) and the long one
+    # (KINDNESS=8 ...). Short is what we ask for: the eval endpoint sends no
+    # max_tokens, so the pool's default cap is tight — the original prompts only
+    # ever needed one token. Three labelled LINES got truncated mid-answer by
+    # groq-allam ('KINDNESS=8\nTOXICITY=') roughly a third of the time, which is
+    # worse than useless because a fallback costs 4 calls where the old code
+    # cost 3. One short line fits.
+    out = {}
+    for key, short in (('kindness', 'k'), ('toxicity', 't'), ('empathy', 'e')):
+        m = (re.search(rf'\b{key}\s*[=:]\s*(10|[1-9])\b', text, re.I)
+             or re.search(rf'(?<![a-z]){short}\s*[=:]\s*(10|[1-9])\b', text, re.I))
+        if not m:
+            return None
+        out[key] = int(m.group(1))
+    return out
 
 
 def _parse_score(result):

@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-08-15 04:02*
+*Last refreshed: 2026-08-21 04:22*
 
 ## 🎯 Pending
 
@@ -18,8 +18,7 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
-- `d49dd6d` · 2026-08-10 08:32 — dead-pin memo: a 404'd backend is muted for the life of the process, not re-dialed every cycle. T...
-- `007ec3b` · 2026-08-10 08:11 — peer-recognition votes ride the evaluator seam, not the raw kumori client; vendored client synced...
+- `afa5489` · 2026-08-15 10:21 — PooledConnection.__setattr__ + reset-on-return + clean probe handout (cross-project sweep from pi...
 <!-- shipped:end -->
 
 ## ⚠️ Unfinished / WIP
