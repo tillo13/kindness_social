@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-08-21 04:22*
+*Last refreshed: 2026-08-28 04:11*
 
 ## 🎯 Pending
 
@@ -18,13 +18,15 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
-- `afa5489` · 2026-08-15 10:21 — PooledConnection.__setattr__ + reset-on-return + clean probe handout (cross-project sweep from pi...
+- `8f07aa9` · 2026-08-21 16:30 — pick up the visitor_logging idle release: give the shared DB connection back when this site has n...
+- `e61312b` · 2026-08-21 12:39 — evaluator: one LLM call for kindness + toxicity + empathy instead of three. This evaluator was th...
 <!-- shipped:end -->
 
 ## ⚠️ Unfinished / WIP
 
 <!-- wip:start -->
-**1 file(s) with uncommitted changes:**
+**2 file(s) with uncommitted changes:**
+- ` M core/db_ops.py`
 - ` M next_steps.md`
 
 <!-- wip:end -->

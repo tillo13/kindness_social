@@ -117,6 +117,10 @@ def create_tables():
 
             CREATE INDEX IF NOT EXISTS idx_kindness_threads_created
                 ON kindness_threads(created_at DESC);
+            -- FK to kindness_topics: without this, joins/WHEREs on topic_id
+            -- seq-scan (DB-health alert fired at ~5.2K rows, 2026-08-22).
+            CREATE INDEX IF NOT EXISTS idx_kindness_threads_topic
+                ON kindness_threads(topic_id);
             CREATE INDEX IF NOT EXISTS idx_kindness_comments_thread
                 ON kindness_comments(thread_id, position);
             CREATE INDEX IF NOT EXISTS idx_kindness_agents_active

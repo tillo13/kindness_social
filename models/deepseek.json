@@ -19,8 +19,8 @@
       "api_base": "https://api.deepseek.com/v1",
       "auth_type": "api_key",
       "secret_name": "KINDNESS_DEEPSEEK_API_KEY",
-      "cost": "$0.14/M input tokens",
-      "status": "Balance $0.00 \u2014 needs $2 top-up"
+      "cost": "PAID \u2014 never use",
+      "status": "PAID \u2014 PERMANENTLY OFF. Andy 2026-08-28: will not fund this. Secret exists but is not injected anywhere (removed from kumori/shared/kumori_free_llm/deploy.json set_secrets, same day). Do not re-wire, do not top up, do not propose it. Free path (chat.deepseek.com PoW bypass) got the account SUSPENDED 2026-08-27 21:33 PDT until 08-30; lane disabled in kumori_llm_endpoints."
     }
   },
   "models": [

@@ -19,8 +19,8 @@
       "api_base": "https://api.x.ai/v1",
       "auth_type": "api_key",
       "secret_name": "KINDNESS_XAI_API_KEY",
-      "cost": "$25 free credits on signup, then $0.20/M tokens (grok-4-1-fast)",
-      "status": "Key stored, waiting for credits to activate (needs payment method)",
+      "cost": "PAID \u2014 never use",
+      "status": "PAID \u2014 PERMANENTLY OFF. Andy 2026-08-28: will not fund this. Secret exists but is not injected anywhere (removed from kumori/shared/kumori_free_llm/deploy.json set_secrets, same day). Do not re-wire, do not top up, do not propose it. Free path is anonymous ECDSA (no account); lane paused since the grok_core scraper broke.",
       "models_available": [
         "grok-4.20-0309-reasoning",
         "grok-4.20-0309-non-reasoning",
