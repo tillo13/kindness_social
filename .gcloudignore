@@ -16,3 +16,6 @@ setup_system.py
 lmstudio_utils.py
 main.py
 scripts/
+
+# Scratch — never ship (2026-09-02 fleet fix: _oneoff/ may hold ingested data with secrets)
+_oneoff/

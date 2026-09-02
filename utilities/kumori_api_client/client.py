@@ -526,6 +526,27 @@ def sparebrains_attempt(row):
         return None
 
 
+def sparebrains_previous(target_set, target, backend):
+    """The latest answered attempt for one cell (id, verdict, failure_kind, reason, proof,
+    lean_output, response_head) or {'found': False}. Read-only; errors return None."""
+    try:
+        q = f'/api/v1/sparebrains/previous?target_set={target_set}&target={target}&backend={backend}'
+        return _request('GET', q, None, timeout=(5, 20), retry_on_5xx=False)
+    except Exception as e:
+        logger.warning(f"sparebrains_previous failed for {target}/{backend}: {e}")
+        return None
+
+
+def sparebrains_heartbeat(row):
+    """Upsert the job's progress row (run_id, mode, status, cells_total, cells_owed, calls,
+    accepts, lanes, targets). Fire-and-forget like sparebrains_attempt."""
+    try:
+        return _request('POST', '/api/v1/sparebrains/heartbeat', row, timeout=(5, 20), retry_on_5xx=False)
+    except Exception as e:
+        logger.warning(f"sparebrains_heartbeat failed for {row.get('run_id')}: {e}")
+        return None
+
+
 def sparebrains_summary(run_id):
     """Per-backend and per-target rollup of one run, straight from the table."""
     return _request('GET', f'/api/v1/sparebrains/summary?run_id={run_id}', None)

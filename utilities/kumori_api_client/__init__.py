@@ -19,6 +19,8 @@ from .client import (
     quality_catalog,
     emit_quality_sample,
     sparebrains_attempt,
+    sparebrains_heartbeat,
+    sparebrains_previous,
     sparebrains_summary,
     imggen_generate,
     imggen_edit,
