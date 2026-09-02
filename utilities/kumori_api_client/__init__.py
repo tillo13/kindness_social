@@ -18,6 +18,8 @@ from .client import (
     transcribe,
     quality_catalog,
     emit_quality_sample,
+    sparebrains_attempt,
+    sparebrains_summary,
     imggen_generate,
     imggen_edit,
     imggen_usage,

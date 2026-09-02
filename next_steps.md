@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-08-28 04:11*
+*Last refreshed: 2026-09-02 04:00*
 
 ## 🎯 Pending
 
@@ -18,15 +18,13 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
-- `8f07aa9` · 2026-08-21 16:30 — pick up the visitor_logging idle release: give the shared DB connection back when this site has n...
-- `e61312b` · 2026-08-21 12:39 — evaluator: one LLM call for kindness + toxicity + empathy instead of three. This evaluator was th...
+- `3809c72` · 2026-08-28 14:32 — the paid DeepSeek and xAI fallbacks are marked never-use, not merely unfunded. models/deepseek.js...
 <!-- shipped:end -->
 
 ## ⚠️ Unfinished / WIP
 
 <!-- wip:start -->
-**2 file(s) with uncommitted changes:**
-- ` M core/db_ops.py`
+**1 file(s) with uncommitted changes:**
 - ` M next_steps.md`
 
 <!-- wip:end -->

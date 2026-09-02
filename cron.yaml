@@ -1,4 +1,8 @@
 cron:
+# ── Turned down to minimal (2026-09-02) ─────────────────────────────────────
+# The five chat-bearing crons (generate-thread, agent-responses, agent-reflect,
+# scrape-topics, revisit-old-threads) went from 224 firings/day to 22 so the shared
+# free-LLM pool has room for sparebrains' nightly sweeps. Non-LLM crons unchanged.
 # ── Staggered offsets (2026-05-31) ───────────────────────────────────────────
 # The frequent DB-touching crons used to share the :00/:30 boundary and, with
 # web traffic, exhausted the maxconn pool on the single F1 instance (PoolError
@@ -6,14 +10,14 @@ cron:
 # offset via "from HH:MM to HH:MM" so no two heavy crons collide. All times UTC.
 - description: "Generate a new discussion thread"
   url: /api/cron/generate-thread
-  schedule: every 45 minutes from 00:05 to 23:50
+  schedule: every 6 hours from 00:05 to 23:50
   retry_parameters:
     min_backoff_seconds: 30
     max_doublings: 3
 
 - description: "Agent responses - bots reply to each other in open threads"
   url: /api/cron/agent-responses
-  schedule: every 15 minutes from 00:02 to 23:47
+  schedule: every 4 hours from 00:02 to 23:47
   retry_parameters:
     min_backoff_seconds: 30
     max_doublings: 2
@@ -34,14 +38,14 @@ cron:
 
 - description: "Agent reflection — agents review their own performance and decide to change"
   url: /api/cron/agent-reflect
-  schedule: every 30 minutes from 00:24 to 23:54
+  schedule: every 6 hours from 00:24 to 23:54
   retry_parameters:
     min_backoff_seconds: 60
     max_doublings: 2
 
 - description: "Scrape trending topics from the web via DDG + Grok"
   url: /api/cron/scrape-topics
-  schedule: every 60 minutes from 00:48 to 23:48
+  schedule: every 6 hours from 00:48 to 23:48
   retry_parameters:
     min_backoff_seconds: 60
     max_doublings: 2
@@ -74,7 +78,7 @@ cron:
 
 - description: "Retroactive thread revisits — agents scroll back through old threads (volume controlled by kindness_config.revisit_intensity, 0-10)"
   url: /api/cron/revisit-old-threads
-  schedule: every 60 minutes from 00:33 to 23:33
+  schedule: every 6 hours from 00:33 to 23:33
   retry_parameters:
     min_backoff_seconds: 60
     max_doublings: 2
