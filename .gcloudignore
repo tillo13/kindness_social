@@ -19,3 +19,16 @@ scripts/
 
 # Scratch — never ship (2026-09-02 fleet fix: _oneoff/ may hold ingested data with secrets)
 _oneoff/
+
+# Never runtime — local agent config, OS cruft, pre-edit backups, and the
+# archive convention. Mirrors DEFAULT_UNSTAGE_PATTERNS in the shared deploy
+# tool. Added 2026-09-04 after an archived MP4 in a gcloudignore-uncovered
+# _antiquated dir stalled three deploys: the upload-hygiene gate only reads as
+# a signal if its warn list is normally empty.
+.DS_Store
+.claude/
+*.bak
+_antiquated/
+_antiquated_files/
+*_antiquated*
+gcloud_deploy.py

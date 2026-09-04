@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-09-02 04:00*
+*Last refreshed: 2026-09-04 04:00*
 
 ## 🎯 Pending
 
@@ -18,6 +18,9 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
+- `068013d` · 2026-09-02 16:50 — upload hygiene: exclude gitignored scratch from the App Engine bundle. _oneoff/ (which the fleet ...
+- `cc19418` · 2026-09-02 08:05 — cron: the five chat-bearing sims every 12 hours, was 4-6 h (10 firings/day). On a drip: the share...
+- `31e12ae` · 2026-09-02 07:08 — cron: the five chat-bearing sims every 4-6 h, was every 15-60 min (224 firings/day to 22). Turned...
 - `3809c72` · 2026-08-28 14:32 — the paid DeepSeek and xAI fallbacks are marked never-use, not merely unfunded. models/deepseek.js...
 <!-- shipped:end -->
 
