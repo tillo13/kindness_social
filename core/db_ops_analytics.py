@@ -15,6 +15,12 @@ from utilities.postgres_utils import db_cursor
 
 logger = logging.getLogger(__name__)
 
+# Experiment dashboard figures on a run measured in months: a ten-minute-old number is
+# indistinguishable to a reader, and each miss is a full scan of kindness_comments
+# (125,242 rows) through a buffer cache shared by 20+ apps. 60s was ten times tighter
+# than the data warrants.
+DASHBOARD_TTL_S = 600
+
 _ttl_cache = {}
 _ttl_lock = threading.Lock()
 
@@ -24,7 +30,19 @@ def ttl_cached(seconds):
     (func name, args). Safe on App Engine: app.yaml pins max_instances=1, so
     one cache per kindness process; staleness bounded by `seconds`. Cuts the
     home page from an 8-query aggregate stack on every hit to at most once per
-    `seconds`, eliminating the statement_timeout->500 window."""
+    `seconds`.
+
+    It does NOT by itself eliminate the statement_timeout->500 window, which is
+    what the comment here used to claim. A cache only helps on a HIT; the miss
+    still runs the full scan, and when the shared instance is busy that scan can
+    exceed the 30s statement_timeout. That is exactly what reached production on
+    2026-09-07: QueryCanceled out of get_control_vs_treatment, propagating through
+    app.py home() as a 500 on the front page.
+
+    So a miss that raises now falls back to the last good value. These are
+    experiment dashboard figures on a months-long run — a number a few minutes
+    stale is worth incomparably more than a 500. Only a cold process with no
+    cached value at all re-raises, because then there is nothing to show."""
     def deco(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):
@@ -34,7 +52,15 @@ def ttl_cached(seconds):
                 hit = _ttl_cache.get(key)
                 if hit and now - hit[0] < seconds:
                     return hit[1]
-            val = fn(*args, **kwargs)
+            try:
+                val = fn(*args, **kwargs)
+            except Exception as e:
+                if hit is not None:
+                    logging.getLogger(__name__).warning(
+                        f'{fn.__name__} failed ({type(e).__name__}: {str(e)[:120]}); '
+                        f'serving a value {int(now - hit[0])}s old rather than failing the page')
+                    return hit[1]
+                raise
             with _ttl_lock:
                 _ttl_cache[key] = (now, val)
             return val
@@ -52,7 +78,7 @@ REACTION_CANDIDATES_KEPT = 100    # top-comment candidates carried in state
 _reaction_state_lock = threading.Lock()
 
 
-@ttl_cached(60)
+@ttl_cached(DASHBOARD_TTL_S)
 def get_reaction_stats():
     """Reaction summary for dashboard.
 
@@ -565,7 +591,7 @@ def get_cron_summary():
 # EXPERIMENT / RESEARCH DATA
 # ============================================================================
 
-@ttl_cached(60)
+@ttl_cached(DASHBOARD_TTL_S)
 def get_control_vs_treatment():
     """Compare control group vs treatment group metrics.
 
@@ -638,7 +664,7 @@ def get_experiment_raw_data():
         return [dict(r) for r in cur.fetchall()]
 
 
-@ttl_cached(60)
+@ttl_cached(DASHBOARD_TTL_S)
 def get_24h_summary():
     """Get activity summary for the last 24 hours."""
     with db_cursor(dict_cursor=True) as cur:
@@ -672,7 +698,7 @@ def get_24h_summary():
         return summary
 
 
-@ttl_cached(60)
+@ttl_cached(DASHBOARD_TTL_S)
 def get_experiment_pulse():
     """Multi-period experiment health dashboard data.
     Returns stats for 24h, 48h, 7d, 30d, all-time with deltas."""
@@ -818,7 +844,7 @@ def get_experiment_pulse():
         }
 
 
-@ttl_cached(60)
+@ttl_cached(DASHBOARD_TTL_S)
 def get_featured_thread():
     """Get the thread with the biggest positive toxicity swing (most improvement).
 
@@ -884,7 +910,7 @@ def set_config(key, value):
         """, (key, str(value)))
 
 
-@ttl_cached(60)
+@ttl_cached(DASHBOARD_TTL_S)
 def get_featured_agent():
     """Most-improved agent in the last 24h: biggest drop in toxicity from baseline,
     weighted by interaction count so we feature active learners not statistical noise."""

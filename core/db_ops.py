@@ -127,6 +127,13 @@ def create_tables():
                 ON kindness_agents(is_active);
             CREATE INDEX IF NOT EXISTS idx_kindness_comments_created
                 ON kindness_comments(created_at DESC);
+            -- The experiment dashboard counts bridges with
+            -- COUNT(*) WHERE bridge_score >= 7, which was a full heap scan of all
+            -- 125,242 comments (114ms warm, 1,174ms mean in production under load).
+            -- Partial, so it indexes only the 28.6% that qualify: 264 kB, and the
+            -- plan becomes an index-only scan. Built CONCURRENTLY on 2026-09-08.
+            CREATE INDEX IF NOT EXISTS idx_kindness_comments_bridge
+                ON kindness_comments(bridge_score) WHERE bridge_score >= 7;
             -- Reflect path: get_agent_recent_comments does
             -- WHERE agent_id = %s ORDER BY created_at DESC LIMIT 8.
             -- Without this composite there's no serving index (created_at is
