@@ -151,6 +151,18 @@ def create_tables():
             -- get_agent_recent_comments / get_agent_social_standing.
             CREATE INDEX IF NOT EXISTS idx_kindness_reactions_comment
                 ON kindness_reactions(comment_id);
+            -- The notification feeds: WHERE agent_id = %s ORDER BY created_at DESC LIMIT n.
+            -- created_at must be IN the index or Postgres fetches every one of an agent's
+            -- reactions (4,599 rows, 1,421 blocks off disk for a busy agent), sorts them all,
+            -- and keeps 20. Those two queries were 24,321 + 24,313 calls at 723ms and 631ms
+            -- mean = ~33,000s of database time on an instance shared by 20+ apps, and the I/O
+            -- was a top contributor to its 87.8% buffer cache hit rate. With this index the
+            -- plan is a nested loop with no sort: 502ms -> 32ms, 1,421 blocks read -> 5.
+            -- Replaces a bare (agent_id) index, which this one covers as a prefix; keeping
+            -- both would have paid the write cost twice on a 3.7M-row table. Built and the
+            -- old one dropped CONCURRENTLY against prod on 2026-09-08.
+            CREATE INDEX IF NOT EXISTS idx_reactions_agent_created
+                ON kindness_reactions(agent_id, created_at DESC);
 
             CREATE TABLE IF NOT EXISTS kindness_peer_kudos (
                 id SERIAL PRIMARY KEY,
