@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-09-08 05:30*
+*Last refreshed: 2026-09-15 05:24*
 
 ## 🎯 Pending
 
@@ -18,19 +18,14 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
-- `aca8a13` · 2026-09-04 11:01 — gcloudignore: stop shipping non-runtime files to App Engine. Adds the fleet block — .DS_Store, .c...
-- `068013d` · 2026-09-02 16:50 — upload hygiene: exclude gitignored scratch from the App Engine bundle. _oneoff/ (which the fleet ...
-- `cc19418` · 2026-09-02 08:05 — cron: the five chat-bearing sims every 12 hours, was 4-6 h (10 firings/day). On a drip: the share...
-- `31e12ae` · 2026-09-02 07:08 — cron: the five chat-bearing sims every 4-6 h, was every 15-60 min (224 firings/day to 22). Turned...
+- `9892dea` · 2026-09-08 09:21 — A dashboard number must never 500 the front page: serve-stale-on-error, a TTL matched to the data...
+- `1b71ac2` · 2026-09-08 08:20 — Record idx_reactions_agent_created in the schema, and drop the bare (agent_id) index it supersede...
 <!-- shipped:end -->
 
 ## ⚠️ Unfinished / WIP
 
 <!-- wip:start -->
-**4 file(s) with uncommitted changes:**
+**1 file(s) with uncommitted changes:**
 - ` M next_steps.md`
-- ` M utilities/kumori_api_client/README.md`
-- ` M utilities/kumori_api_client/__init__.py`
-- ` M utilities/kumori_api_client/client.py`
 
 <!-- wip:end -->
