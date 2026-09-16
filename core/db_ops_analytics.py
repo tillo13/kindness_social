@@ -956,7 +956,7 @@ def get_featured_agent():
 
 SNAPSHOT_FULL_DETAIL_DAYS = 30
 SNAPSHOT_PRUNE_PAUSE_S = 0.2
-SNAPSHOT_DELETE_BATCH = 500
+SNAPSHOT_DELETE_BATCH = 200
 # One night's surplus is ~911 agents x 48 rows = ~44K rows, and deletes run at
 # roughly 70 rows/second on this instance, so a normal run is ~10 minutes. The
 # cap exists for the first runs, which face a 4.3M-row backlog (2026-09-15):
@@ -1034,7 +1034,12 @@ def prune_agent_snapshots(full_detail_days=SNAPSHOT_FULL_DETAIL_DAYS,
         # one already started cannot overrun by much.
         for i in range(0, len(surplus), SNAPSHOT_DELETE_BATCH):
             with db_cursor(dict_cursor=True) as cur:
-                cur.execute("SET LOCAL statement_timeout = '10s'")
+                # 30s, and the batch is 200 not 500. Unlike the surplus SELECT above,
+                # a DELETE cannot be index-only: it has to visit each row's heap page
+                # and maintain three indexes. This agent's rows are scattered roughly
+                # one per block, and a random read costs ~10ms here, so a 500-row
+                # batch measured 1-10s and kept clipping its own 10s ceiling.
+                cur.execute("SET LOCAL statement_timeout = '30s'")
                 cur.execute("DELETE FROM kindness_agent_snapshots WHERE id = ANY(%s)",
                             (surplus[i:i + SNAPSHOT_DELETE_BATCH],))
                 deleted += cur.rowcount
