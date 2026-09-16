@@ -271,8 +271,8 @@ def cron_birth_agent():
                                 f"tox:{agent.get('current_toxicity', '?')} emp:{agent.get('current_empathy', '?')}",
                                 birth_data)
             return jsonify({'created': agent['agent_id'], 'backend': agent['llm_backend']})
-        db_ops.log_cron_end(log_id, 'error', ms, 'Could not create agent')
-        return jsonify({'error': 'Could not create agent'}), 500
+        db_ops.log_cron_end(log_id, 'skipped', ms, 'No eligible backend or unique name this cycle')
+        return jsonify({'skipped': 'No eligible backend or unique name this cycle'})
     except Exception as e:
         ms = int((time.time() - start) * 1000)
         db_ops.log_cron_end(log_id, 'error', ms, error_text=str(e)[:500])

@@ -32,11 +32,12 @@ def get_postgres_credentials():
     if GCP_PROJECT_ID in _credentials_cache:
         return _credentials_cache[GCP_PROJECT_ID]
 
+    prefix = 'KINDNESS_BATCH' if os.environ.get('KINDNESS_DB_TIER') == 'batch' else 'KINDNESS'
     creds = {
         'host': get_secret('KUMORI_POSTGRES_IP'),
         'dbname': get_secret('KUMORI_POSTGRES_DB_NAME'),
-        'user': get_secret('KINDNESS_POSTGRES_USERNAME'),
-        'password': get_secret('KINDNESS_POSTGRES_PASSWORD'),
+        'user': get_secret(f'{prefix}_POSTGRES_USERNAME'),
+        'password': get_secret(f'{prefix}_POSTGRES_PASSWORD'),
         'connection_name': get_secret('KUMORI_POSTGRES_CONNECTION_NAME'),
     }
     _credentials_cache[GCP_PROJECT_ID] = creds
@@ -50,7 +51,8 @@ def _get_connection_pool():
             return _connection_pools[GCP_PROJECT_ID]
 
         db_credentials = get_postgres_credentials()
-        is_gcp = os.environ.get('GAE_ENV', '').startswith('standard')
+        is_gcp = (os.environ.get('GAE_ENV', '').startswith('standard')
+                  or bool(os.environ.get('K_SERVICE') or os.environ.get('CLOUD_RUN_JOB')))
 
         if is_gcp:
             db_socket_dir = os.environ.get("DB_SOCKET_DIR", "/cloudsql")
@@ -66,7 +68,7 @@ def _get_connection_pool():
         # pool starved by colliding crons (now also staggered in cron.yaml).
         pool = psycopg2.pool.ThreadedConnectionPool(
             minconn=1,
-            maxconn=8,
+            maxconn=2 if os.environ.get('KINDNESS_DB_TIER') == 'batch' else 4,
             dbname=db_credentials['dbname'],
             user=db_credentials['user'],
             password=db_credentials['password'],

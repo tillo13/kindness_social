@@ -385,17 +385,34 @@ def get_agent_full_activity(agent_id, limit=50):
         """, (db_id, limit))
         reactions_given = [dict(row) for row in cur.fetchall()]
 
-        # Reactions received on my comments
+        # Reactions received on my comments, bounded to the agent's most recent
+        # comments on purpose.
+        #
+        # The unbounded form filtered on c.agent_id but sorted on r.created_at, so
+        # Postgres had to join EVERY comment the agent ever wrote to EVERY reaction
+        # on it, sort the lot, and keep 30. For the busiest agent that materialised
+        # 15,163 rows to return 30, at 1.8s cold — and past the statement timeout for
+        # anyone busier. This single query raised 496 of the 728 errors in the
+        # 2026-09-16 fleet digest, all surfacing as HTTP 500 on /agent/<id>.
+        #
+        # Reactions land on recent comments, so the window costs nothing a visitor
+        # would notice and turns the sort input into ~3.7k rows (measured 67ms -> 9.5ms
+        # warm). RECENT_COMMENT_WINDOW is deliberately 3x the page's own limit of 30.
         cur.execute("""
+            WITH mine AS (
+                SELECT id, comment_text, thread_id
+                  FROM kindness_comments
+                 WHERE agent_id = %s
+                 ORDER BY created_at DESC
+                 LIMIT 100)
             SELECT r.reaction_type, r.created_at,
-                   c.comment_text, c.id as comment_id,
+                   mine.comment_text, mine.id as comment_id,
                    a2.agent_id as from_agent_id, a2.display_name as from_agent_name,
                    t.thread_id as thread_slug
-            FROM kindness_reactions r
-            JOIN kindness_comments c ON r.comment_id = c.id
+            FROM mine
+            JOIN kindness_reactions r ON r.comment_id = mine.id
             JOIN kindness_agents a2 ON r.agent_id = a2.id
-            JOIN kindness_threads t ON c.thread_id = t.id
-            WHERE c.agent_id = %s
+            JOIN kindness_threads t ON mine.thread_id = t.id
             ORDER BY r.created_at DESC LIMIT %s
         """, (db_id, limit))
         reactions_received = [dict(row) for row in cur.fetchall()]
@@ -939,7 +956,7 @@ def get_featured_agent():
 
 SNAPSHOT_FULL_DETAIL_DAYS = 30
 SNAPSHOT_PRUNE_PAUSE_S = 0.2
-SNAPSHOT_DELETE_BATCH = 5000
+SNAPSHOT_DELETE_BATCH = 500
 # One night's surplus is ~911 agents x 48 rows = ~44K rows, and deletes run at
 # roughly 70 rows/second on this instance, so a normal run is ~10 minutes. The
 # cap exists for the first runs, which face a 4.3M-row backlog (2026-09-15):
@@ -949,7 +966,7 @@ SNAPSHOT_PRUNE_MAX_ROWS = 150_000
 
 def prune_agent_snapshots(full_detail_days=SNAPSHOT_FULL_DETAIL_DAYS,
                           pause_s=SNAPSHOT_PRUNE_PAUSE_S, agent_ids=None,
-                          max_rows=SNAPSHOT_PRUNE_MAX_ROWS):
+                          max_rows=SNAPSHOT_PRUNE_MAX_ROWS, max_seconds=240):
     """Past `full_detail_days`, keep one snapshot per agent per day.
 
     The cron writes a row per active agent every 30 minutes, which reached 5.4M
@@ -967,19 +984,22 @@ def prune_agent_snapshots(full_detail_days=SNAPSHOT_FULL_DETAIL_DAYS,
     remaining surplus is the same set either way. Returns rows deleted."""
     import time
 
-    if agent_ids is None:
+    deadline = time.monotonic() + max_seconds
+    resume = agent_ids is None
+    if resume:
         with db_cursor(dict_cursor=True) as cur:
-            cur.execute("SELECT id FROM kindness_agents ORDER BY id")
+            cur.execute("SELECT value FROM kindness_config WHERE key = 'snapshot_prune_after_agent'")
+            saved = cur.fetchone()
+            after = int(saved['value']) if saved else 0
+            cur.execute("SELECT id FROM kindness_agents ORDER BY (id <= %s), id", (after,))
             agent_ids = [r['id'] for r in cur.fetchall()]
 
     deleted = 0
     for agent_id in agent_ids:
-        if max_rows and deleted >= max_rows:
-            logger.info(f"snapshot prune stopped at {deleted} rows (cap {max_rows}); "
-                        f"the rest waits for the next run")
+        if time.monotonic() >= deadline or (max_rows and deleted >= max_rows):
             break
         with db_cursor(dict_cursor=True) as cur:
-            cur.execute("SET LOCAL statement_timeout = '120s'")
+            cur.execute("SET LOCAL statement_timeout = '10s'")
             cur.execute("""
                 SELECT id FROM (
                   SELECT id, row_number() OVER (PARTITION BY created_at::date
@@ -991,14 +1011,27 @@ def prune_agent_snapshots(full_detail_days=SNAPSHOT_FULL_DETAIL_DAYS,
             """, (agent_id, full_detail_days))
             surplus = [r['id'] for r in cur.fetchall()]
         for i in range(0, len(surplus), SNAPSHOT_DELETE_BATCH):
+            if time.monotonic() >= deadline or (max_rows and deleted >= max_rows):
+                return deleted
+            size = min(SNAPSHOT_DELETE_BATCH, max_rows - deleted) if max_rows else SNAPSHOT_DELETE_BATCH
             with db_cursor(dict_cursor=True) as cur:
-                cur.execute("SET LOCAL statement_timeout = '120s'")
+                cur.execute("SET LOCAL statement_timeout = '10s'")
                 cur.execute("DELETE FROM kindness_agent_snapshots WHERE id = ANY(%s)",
-                            (surplus[i:i + SNAPSHOT_DELETE_BATCH],))
+                            (surplus[i:i + size],))
                 deleted += cur.rowcount
             time.sleep(pause_s)
+            if size < SNAPSHOT_DELETE_BATCH and i + size < len(surplus):
+                return deleted
+        # Advance only after completing an agent: a partial agent resumes next
+        # run, while completed agents do not consume every subsequent budget.
+        if resume:
+            with db_cursor(dict_cursor=True) as cur:
+                cur.execute("""INSERT INTO kindness_config (key, value)
+                               VALUES ('snapshot_prune_after_agent', %s)
+                               ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value,
+                                                               updated_at = NOW()""", (str(agent_id),))
         if surplus:
-            logger.info(f"pruned {len(surplus)} old snapshots for agent {agent_id}")
+            logger.info("pruned %d old snapshots for agent %s", len(surplus), agent_id)
     return deleted
 
 

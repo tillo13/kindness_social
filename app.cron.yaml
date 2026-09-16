@@ -1,0 +1,7 @@
+# NOT WIRED. Prepared but deliberately not referenced from deploy.json.
+# Standing this up costs money (a second App Engine service that never idles
+# out under this cron cadence) and KINDNESS_DB_TIER=batch needs a kindness_batch
+# role plus KINDNESS_BATCH_POSTGRES_* secrets that do not exist. To enable:
+# provision those, add "app_engine_services": ["app.cron.yaml"] to deploy.json,
+# and put 'target: cron' back on cron.yaml.
+

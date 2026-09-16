@@ -212,28 +212,28 @@ def create_agent(backend=None):
             agent = dict(cur.fetchone())
             logger.info(f"Created agent: {agent_id} ({preset['type']}, backend={backend})")
 
-            # Try to generate an avatar, but don't roll back the agent if it
-            # fails. avatar_generator was disabled 2026-04-25 (free-tier cost
-            # control) and previously this gate was silently killing every new
-            # agent — including auto-discovered backends and the 6-hour
-            # /api/cron/birth-agent. Agents work fine without an avatar; the
-            # UI just shows a broken image. Worth it to keep the experiment
-            # rolling.
-            try:
-                from utilities.avatar_generator import generate_avatar, avatar_exists
-                generate_avatar(agent)
-                if not avatar_exists(agent_id):
-                    logger.info(f"agent {agent_id} created without avatar (avatar gen disabled)")
-            except Exception as e:
-                logger.warning(f"avatar generation skipped for {agent_id}: {e}")
+        # Try to generate an avatar, but don't roll back the agent if it
+        # fails. avatar_generator was disabled 2026-04-25 (free-tier cost
+        # control) and previously this gate was silently killing every new
+        # agent — including auto-discovered backends and the 6-hour
+        # /api/cron/birth-agent. Agents work fine without an avatar; the
+        # UI just shows a broken image. Worth it to keep the experiment
+        # rolling.
+        try:
+            from utilities.avatar_generator import generate_avatar, avatar_exists
+            generate_avatar(agent)
+            if not avatar_exists(agent_id):
+                logger.info(f"agent {agent_id} created without avatar (avatar gen disabled)")
+        except Exception as e:
+            logger.warning(f"avatar generation skipped for {agent_id}: {e}")
 
-            try:
-                from core.embed_bios import embed_agent
-                _bounded(lambda: embed_agent(agent), 10, None, f"bio embed {agent_id}")
-            except Exception as e:
-                logger.warning(f"bio embed skipped for {agent_id}: {e}")
+        try:
+            from core.embed_bios import embed_agent
+            _bounded(lambda: embed_agent(agent), 10, None, f"bio embed {agent_id}")
+        except Exception as e:
+            logger.warning(f"bio embed skipped for {agent_id}: {e}")
 
-            return agent
+        return agent
 
     logger.warning(f"Could not create unique agent for backend {backend}")
     return None

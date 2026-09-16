@@ -22,6 +22,18 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+@app.before_request
+def isolate_cron_service():
+    # Inert until that service exists; GAE_SERVICE is 'default' on the serving tier.
+    if os.environ.get('GAE_SERVICE') == 'cron':
+        # /_ah/* is the platform's own (warmup, start, stop) and never carries the
+        # cron header, so gating it would 403 App Engine's instance lifecycle.
+        if request.path.startswith('/_ah/'):
+            return None
+        if request.headers.get('X-Appengine-Cron') != 'true' or not request.path.startswith('/api/cron/'):
+            return 'Forbidden', 403
+
+
 
 # GA4 tag injection — registers `ga_snippet(slug)` for use in base.html
 try:
@@ -63,23 +75,10 @@ def _warn_high_db_query_count(response):
                        n, request.method, request.path, DB_CALL_WARN_THRESHOLD)
     return response
 
-# Auto-run schema migrations on first import. create_tables() is idempotent
-# (CREATE TABLE IF NOT EXISTS + ALTER TABLE ADD COLUMN IF NOT EXISTS) so it's
-# safe on every cold start. Without this, ALTER migrations sit in code but
-# never reach the live DB until someone manually hits /api/seed-data.
-try:
+# Schema is provisioned explicitly; cold starts must never repeat historical
+# multi-million-row backfills or take DDL locks on serving tables.
+if os.environ.get('KINDNESS_BOOTSTRAP_SCHEMA') == '1':
     db_ops.create_tables()
-    logger.info("Schema migrations applied on startup")
-except Exception as _e:
-    # Least-priv cutover: kindness_app has DML but does not OWN the tables, so the
-    # ALTERs in create_tables() can't run (SQLSTATE 42501). The schema is superuser-
-    # provisioned and current, so this startup bootstrap is now defensive-only.
-    # Log 42501 quietly as expected — it was surfacing as an ERROR traceback that
-    # tripped the cross-project error digest every cold start.
-    if getattr(_e, 'pgcode', None) == '42501':
-        logger.info("Startup schema bootstrap skipped ownership-required DDL under least-priv role (expected; schema is superuser-provisioned)")
-    else:
-        logger.exception(f"Startup schema migration failed: {_e}")
 
 # Init the kumori_api_client (HTTP path to kumori.ai/api/v1/*) on startup.
 # Post 2026-05-10 migration: kindness no longer vendors kumori_free_llms; it

@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-09-15 05:24*
+*Last refreshed: 2026-09-16 05:45*
 
 ## 🎯 Pending
 
@@ -18,14 +18,13 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
-- `9892dea` · 2026-09-08 09:21 — A dashboard number must never 500 the front page: serve-stale-on-error, a TTL matched to the data...
-- `1b71ac2` · 2026-09-08 08:20 — Record idx_reactions_agent_created in the schema, and drop the bare (agent_id) index it supersede...
+- `d32998a` · 2026-09-15 18:36 — Snapshot prune: delete by primary key in batches, and cap a run. As one DELETE matching an id sub...
+- `85f770f` · 2026-09-15 17:53 — Snapshot retention: past 30 days, keep one agent snapshot per day. The snapshot cron writes a row...
+- `e13325f` · 2026-09-15 10:10 — visitor_logging credential fetch fails closed: no fallback to the postgres superuser.
 <!-- shipped:end -->
 
 ## ⚠️ Unfinished / WIP
 
 <!-- wip:start -->
-**1 file(s) with uncommitted changes:**
-- ` M next_steps.md`
-
+_(clean working tree, no TODO markers in recent files)_
 <!-- wip:end -->
