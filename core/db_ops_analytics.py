@@ -1010,18 +1010,18 @@ def prune_agent_snapshots(full_detail_days=SNAPSHOT_FULL_DETAIL_DAYS,
                  WHERE rn > 1
             """, (agent_id, full_detail_days))
             surplus = [r['id'] for r in cur.fetchall()]
+        # Both budgets are checked at the AGENT boundary above, never inside this
+        # loop: an agent left half-pruned has some days rolled up and some not, and
+        # the resume marker below can only advance past whole agents. One agent's
+        # surplus is bounded anyway (~48 rows/day of retention), so finishing the
+        # one already started cannot overrun by much.
         for i in range(0, len(surplus), SNAPSHOT_DELETE_BATCH):
-            if time.monotonic() >= deadline or (max_rows and deleted >= max_rows):
-                return deleted
-            size = min(SNAPSHOT_DELETE_BATCH, max_rows - deleted) if max_rows else SNAPSHOT_DELETE_BATCH
             with db_cursor(dict_cursor=True) as cur:
                 cur.execute("SET LOCAL statement_timeout = '10s'")
                 cur.execute("DELETE FROM kindness_agent_snapshots WHERE id = ANY(%s)",
-                            (surplus[i:i + size],))
+                            (surplus[i:i + SNAPSHOT_DELETE_BATCH],))
                 deleted += cur.rowcount
             time.sleep(pause_s)
-            if size < SNAPSHOT_DELETE_BATCH and i + size < len(surplus):
-                return deleted
         # Advance only after completing an agent: a partial agent resumes next
         # run, while completed agents do not consume every subsequent budget.
         if resume:
