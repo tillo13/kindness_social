@@ -939,10 +939,17 @@ def get_featured_agent():
 
 SNAPSHOT_FULL_DETAIL_DAYS = 30
 SNAPSHOT_PRUNE_PAUSE_S = 0.2
+SNAPSHOT_DELETE_BATCH = 5000
+# One night's surplus is ~911 agents x 48 rows = ~44K rows, and deletes run at
+# roughly 70 rows/second on this instance, so a normal run is ~10 minutes. The
+# cap exists for the first runs, which face a 4.3M-row backlog (2026-09-15):
+# without it the cron would try ~20 hours of deletes inside a web request.
+SNAPSHOT_PRUNE_MAX_ROWS = 150_000
 
 
 def prune_agent_snapshots(full_detail_days=SNAPSHOT_FULL_DETAIL_DAYS,
-                          pause_s=SNAPSHOT_PRUNE_PAUSE_S, agent_ids=None):
+                          pause_s=SNAPSHOT_PRUNE_PAUSE_S, agent_ids=None,
+                          max_rows=SNAPSHOT_PRUNE_MAX_ROWS):
     """Past `full_detail_days`, keep one snapshot per agent per day.
 
     The cron writes a row per active agent every 30 minutes, which reached 5.4M
@@ -952,10 +959,12 @@ def prune_agent_snapshots(full_detail_days=SNAPSHOT_FULL_DETAIL_DAYS,
     hour_number, so a daily point keeps the shape of the old part of the curve
     while the last month stays at full resolution.
 
-    One statement per agent, oldest agents first, with a pause between: the
-    same delete written as one window over every old row scans millions of rows
-    per pass and overruns the statement timeout. `agent_ids` scopes it to a
-    subset. Returns rows deleted."""
+    Per agent: read the surplus ids off that agent's index, then delete them by
+    primary key in batches with a pause between. Written as one DELETE with the
+    ids as a subquery, Postgres seq-scans the whole 1.1 GB table to match them
+    and overruns the statement timeout. `agent_ids` scopes it to a subset.
+    Stops after `max_rows` and picks up where it left off next run: the
+    remaining surplus is the same set either way. Returns rows deleted."""
     import time
 
     if agent_ids is None:
@@ -965,24 +974,31 @@ def prune_agent_snapshots(full_detail_days=SNAPSHOT_FULL_DETAIL_DAYS,
 
     deleted = 0
     for agent_id in agent_ids:
+        if max_rows and deleted >= max_rows:
+            logger.info(f"snapshot prune stopped at {deleted} rows (cap {max_rows}); "
+                        f"the rest waits for the next run")
+            break
         with db_cursor(dict_cursor=True) as cur:
             cur.execute("SET LOCAL statement_timeout = '120s'")
             cur.execute("""
-                DELETE FROM kindness_agent_snapshots
-                 WHERE agent_id = %s AND id IN (
-                       SELECT id FROM (
-                         SELECT id, row_number() OVER (PARTITION BY created_at::date
-                                                       ORDER BY created_at, id) AS rn
-                           FROM kindness_agent_snapshots
-                          WHERE agent_id = %s
-                            AND created_at < NOW() - make_interval(days => %s)) t
-                        WHERE rn > 1)
-            """, (agent_id, agent_id, full_detail_days))
-            n = cur.rowcount
-        deleted += n
-        if n:
-            logger.info(f"pruned {n} old snapshots for agent {agent_id}")
+                SELECT id FROM (
+                  SELECT id, row_number() OVER (PARTITION BY created_at::date
+                                                ORDER BY created_at, id) AS rn
+                    FROM kindness_agent_snapshots
+                   WHERE agent_id = %s
+                     AND created_at < NOW() - make_interval(days => %s)) t
+                 WHERE rn > 1
+            """, (agent_id, full_detail_days))
+            surplus = [r['id'] for r in cur.fetchall()]
+        for i in range(0, len(surplus), SNAPSHOT_DELETE_BATCH):
+            with db_cursor(dict_cursor=True) as cur:
+                cur.execute("SET LOCAL statement_timeout = '120s'")
+                cur.execute("DELETE FROM kindness_agent_snapshots WHERE id = ANY(%s)",
+                            (surplus[i:i + SNAPSHOT_DELETE_BATCH],))
+                deleted += cur.rowcount
             time.sleep(pause_s)
+        if surplus:
+            logger.info(f"pruned {len(surplus)} old snapshots for agent {agent_id}")
     return deleted
 
 

@@ -39,12 +39,15 @@ class PruneAgentSnapshots(unittest.TestCase):
     def setUp(self):
         self._cleanup()
         with db_cursor(dict_cursor=True) as cur:
-            cur.execute("""INSERT INTO kindness_agents
-                             (agent_id, display_name, political_lean, toxicity_baseline,
-                              current_toxicity, empathy_baseline, current_empathy, openness_to_change)
-                           VALUES (%s, 'Retention Tester', 0, 0.1, 0.1, 0.5, 0.5, 5.0)
-                           RETURNING id""", (AGENT,))
-            self.agent = cur.fetchone()['id']
+            agents = []
+            for suffix in ('', '_second'):
+                cur.execute("""INSERT INTO kindness_agents
+                                 (agent_id, display_name, political_lean, toxicity_baseline,
+                                  current_toxicity, empathy_baseline, current_empathy, openness_to_change)
+                               VALUES (%s, 'Retention Tester', 0, 0.1, 0.1, 0.5, 0.5, 5.0)
+                               RETURNING id""", (AGENT + suffix,))
+                agents.append(cur.fetchone()['id'])
+            self.agent, self.agent_two = agents
             # four rows on each of two old days, plus two inside the 30-day window
             for days_ago, hours in ((90, (0, 6, 12, 18)), (60, (0, 6, 12, 18)), (2, (0, 6))):
                 for hour in hours:
@@ -56,6 +59,12 @@ class PruneAgentSnapshots(unittest.TestCase):
                                            (NOW()::date - make_interval(days => %s))
                                              + make_interval(hours => %s))""",
                                 (self.agent, days_ago * 24 + hour, days_ago, hour))
+                    cur.execute("""INSERT INTO kindness_agent_snapshots
+                                     (agent_id, hour_number, current_toxicity, created_at)
+                                   VALUES (%s, %s, 0.1,
+                                           (NOW()::date - make_interval(days => %s))
+                                             + make_interval(hours => %s))""",
+                                (self.agent_two, days_ago * 24 + hour, days_ago, hour))
 
     def tearDown(self):
         self._cleanup()
@@ -64,8 +73,13 @@ class PruneAgentSnapshots(unittest.TestCase):
     def _cleanup():
         with db_cursor(dict_cursor=True) as cur:
             cur.execute("""DELETE FROM kindness_agent_snapshots WHERE agent_id IN
-                           (SELECT id FROM kindness_agents WHERE agent_id = %s)""", (AGENT,))
-            cur.execute("DELETE FROM kindness_agents WHERE agent_id = %s", (AGENT,))
+                           (SELECT id FROM kindness_agents WHERE agent_id LIKE %s)""", (AGENT + '%',))
+            cur.execute("DELETE FROM kindness_agents WHERE agent_id LIKE %s", (AGENT + '%',))
+
+    def _count(self, agent):
+        with db_cursor(dict_cursor=True) as cur:
+            cur.execute("SELECT count(*) AS n FROM kindness_agent_snapshots WHERE agent_id = %s", (agent,))
+            return cur.fetchone()['n']
 
     def _rows(self):
         with db_cursor(dict_cursor=True) as cur:
@@ -94,6 +108,17 @@ class PruneAgentSnapshots(unittest.TestCase):
         self.assertEqual(prune_agent_snapshots(full_detail_days=365, pause_s=0, agent_ids=[self.agent]), 0)
         self.assertEqual(self._rows(), before)
 
+    def test_the_cap_stops_before_the_next_agent(self):
+        """The first runs face a 4.3M-row backlog, which the cron must not try
+        in one web request. The cap is checked per agent, so an agent is never
+        left half-pruned: this run takes the first one and leaves the second."""
+        from core.db_ops_analytics import prune_agent_snapshots as prune
+        both = [self.agent, self.agent_two]
+        self.assertEqual(prune(pause_s=0, agent_ids=both, max_rows=1), 6)
+        self.assertEqual((self._count(self.agent), self._count(self.agent_two)), (4, 10))
+        self.assertEqual(prune(pause_s=0, agent_ids=both, max_rows=1), 6)
+        self.assertEqual((self._count(self.agent), self._count(self.agent_two)), (4, 4))
+        self.assertEqual(prune(pause_s=0, agent_ids=both, max_rows=1), 0)
 
 if __name__ == '__main__':
     unittest.main()
