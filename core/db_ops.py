@@ -222,6 +222,14 @@ def create_tables():
             );
             CREATE INDEX IF NOT EXISTS idx_kindness_snapshots_agent
                 ON kindness_agent_snapshots(agent_id, hour_number);
+            -- The retention pruner filters (agent_id, created_at), not hour_number.
+            -- Without this it bitmap-scanned every snapshot the agent ever had and
+            -- threw ~90% away at the heap: 1,674 blocks read and 23,984ms to return
+            -- 151 ids, which blew the pruner's own 10s internal statement_timeout and
+            -- made the 5.27M-row backlog undrainable. With it: 154 blocks, 148ms.
+            -- Built live with CREATE INDEX CONCURRENTLY on 2026-09-16 (159 MB).
+            CREATE INDEX IF NOT EXISTS idx_kindness_snapshots_agent_created
+                ON kindness_agent_snapshots(agent_id, created_at);
 
             -- Agent reflections: the agent's internal monologue about its own performance
             CREATE TABLE IF NOT EXISTS kindness_reflections (

@@ -981,7 +981,17 @@ def prune_agent_snapshots(full_detail_days=SNAPSHOT_FULL_DETAIL_DAYS,
     ids as a subquery, Postgres seq-scans the whole 1.1 GB table to match them
     and overruns the statement timeout. `agent_ids` scopes it to a subset.
     Stops after `max_rows` and picks up where it left off next run: the
-    remaining surplus is the same set either way. Returns rows deleted."""
+    remaining surplus is the same set either way. Returns rows deleted.
+
+    Draining a BACKLOG by calling this back to back? VACUUM (ANALYZE) between
+    passes. The surplus SELECT is only fast because idx_kindness_snapshots_prune
+    covers it as an Index Only Scan (Heap Fetches: 0, ~169ms vs 70,487ms via the
+    heap on 2026-09-16), and an index-only scan needs a current visibility map.
+    Each pass's deletes dirty exactly the pages it is about to re-read, so pass
+    N+1 silently falls back to heap fetches and dies on the statement timeout.
+    Measured: passes 1 and 2 cleared 97,780 and 69,848 rows after a fresh vacuum,
+    pass 3 timed out having deleted nothing. The nightly cron does not need this —
+    autovacuum has all day between runs."""
     import time
 
     deadline = time.monotonic() + max_seconds
@@ -999,7 +1009,14 @@ def prune_agent_snapshots(full_detail_days=SNAPSHOT_FULL_DETAIL_DAYS,
         if time.monotonic() >= deadline or (max_rows and deleted >= max_rows):
             break
         with db_cursor(dict_cursor=True) as cur:
-            cur.execute("SET LOCAL statement_timeout = '10s'")
+            # 60s, not 10s. The heaviest agents hold ~8,571 snapshots each (the
+            # distribution is flat, nothing pathological), and on a cold cache this
+            # shared instance cannot window-sort that inside 10s — every run died
+            # here instead of deleting anything, so the backlog could not drain at
+            # all. Runaway risk is already covered by the caller: `deadline` and
+            # `max_rows` are both checked at the agent boundary just above, so a
+            # slow agent costs one query, not the run.
+            cur.execute("SET LOCAL statement_timeout = '60s'")
             cur.execute("""
                 SELECT id FROM (
                   SELECT id, row_number() OVER (PARTITION BY created_at::date
