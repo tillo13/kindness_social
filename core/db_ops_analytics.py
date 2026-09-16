@@ -937,6 +937,55 @@ def get_featured_agent():
 # AGENT SNAPSHOTS (for evolution charts)
 # ============================================================================
 
+SNAPSHOT_FULL_DETAIL_DAYS = 30
+SNAPSHOT_PRUNE_PAUSE_S = 0.2
+
+
+def prune_agent_snapshots(full_detail_days=SNAPSHOT_FULL_DETAIL_DAYS,
+                          pause_s=SNAPSHOT_PRUNE_PAUSE_S, agent_ids=None):
+    """Past `full_detail_days`, keep one snapshot per agent per day.
+
+    The cron writes a row per active agent every 30 minutes, which reached 5.4M
+    rows / 1,222 MB — the second-biggest table on the shared Cloud SQL instance
+    (2026-09-15), 81% of it older than 30 days, on a disk ~1 GB from Google's
+    paid auto-resize. get_agent_history reads one agent's series ordered by
+    hour_number, so a daily point keeps the shape of the old part of the curve
+    while the last month stays at full resolution.
+
+    One statement per agent, oldest agents first, with a pause between: the
+    same delete written as one window over every old row scans millions of rows
+    per pass and overruns the statement timeout. `agent_ids` scopes it to a
+    subset. Returns rows deleted."""
+    import time
+
+    if agent_ids is None:
+        with db_cursor(dict_cursor=True) as cur:
+            cur.execute("SELECT id FROM kindness_agents ORDER BY id")
+            agent_ids = [r['id'] for r in cur.fetchall()]
+
+    deleted = 0
+    for agent_id in agent_ids:
+        with db_cursor(dict_cursor=True) as cur:
+            cur.execute("SET LOCAL statement_timeout = '120s'")
+            cur.execute("""
+                DELETE FROM kindness_agent_snapshots
+                 WHERE agent_id = %s AND id IN (
+                       SELECT id FROM (
+                         SELECT id, row_number() OVER (PARTITION BY created_at::date
+                                                       ORDER BY created_at, id) AS rn
+                           FROM kindness_agent_snapshots
+                          WHERE agent_id = %s
+                            AND created_at < NOW() - make_interval(days => %s)) t
+                        WHERE rn > 1)
+            """, (agent_id, agent_id, full_detail_days))
+            n = cur.rowcount
+        deleted += n
+        if n:
+            logger.info(f"pruned {n} old snapshots for agent {agent_id}")
+            time.sleep(pause_s)
+    return deleted
+
+
 def snapshot_all_agents(hour_number):
     """Snapshot current state of all active agents. Called hourly."""
     with db_cursor(dict_cursor=True) as cur:
