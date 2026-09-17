@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-09-16 05:45*
+*Last refreshed: 2026-09-17 04:22*
 
 ## 🎯 Pending
 
@@ -18,6 +18,10 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
+- `f98397b` · 2026-09-16 16:34 — Snapshot prune: 200-row delete batches at a 30s ceiling, not 500 at 10s.
+- `74bfe08` · 2026-09-16 15:34 — The snapshot pruner gets the covering index it needed to work at all.
+- `83a3c5d` · 2026-09-16 12:18 — Snapshot prune keeps its per-agent boundary; the cap never splits an agent.
+- `3b6b7a0` · 2026-09-16 12:15 — The agent page stops sorting every reaction an agent ever received to show 30.
 - `d32998a` · 2026-09-15 18:36 — Snapshot prune: delete by primary key in batches, and cap a run. As one DELETE matching an id sub...
 - `85f770f` · 2026-09-15 17:53 — Snapshot retention: past 30 days, keep one agent snapshot per day. The snapshot cron writes a row...
 - `e13325f` · 2026-09-15 10:10 — visitor_logging credential fetch fails closed: no fallback to the postgres superuser.
