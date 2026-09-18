@@ -21,6 +21,10 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+# First hook of all: turns away secret-file scanners and per-IP floods before visitor logging, DB
+# counters or a template run. Two scanners took this single-instance app down on 2026-09-17/18.
+from utilities.probe_guard import install as _install_probe_guard
+_install_probe_guard(app)
 
 @app.before_request
 def isolate_cron_service():

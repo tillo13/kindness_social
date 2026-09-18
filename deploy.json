@@ -30,6 +30,14 @@
     {
       "src": "spam_control/spam_guard.py",
       "dst": "utilities/spam_guard.py"
+    },
+    {
+      "src": "spam_control/probe_guard.py",
+      "dst": "utilities/probe_guard.py"
+    },
+    {
+      "src": "kumori/utilities/rate_limit.py",
+      "dst": "utilities/rate_limit.py"
     }
   ],
   "custom_domain": "https://kindness.social",

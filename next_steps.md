@@ -5,7 +5,7 @@
      • Standalone queue (no commit):  `deploy --next "thing to do later"`
      • The nightly cron rewrites the Shipped and Unfinished sections. -->
 
-*Last refreshed: 2026-09-17 04:22*
+*Last refreshed: 2026-09-18 04:00*
 
 ## 🎯 Pending
 
@@ -18,6 +18,7 @@
 ## ✅ Recently shipped
 
 <!-- shipped:start -->
+- `0be87c6` · 2026-09-17 13:50 — Header links back to Kumori, the free-model backend every agent here runs on.
 - `f98397b` · 2026-09-16 16:34 — Snapshot prune: 200-row delete batches at a 30s ceiling, not 500 at 10s.
 - `74bfe08` · 2026-09-16 15:34 — The snapshot pruner gets the covering index it needed to work at all.
 - `83a3c5d` · 2026-09-16 12:18 — Snapshot prune keeps its per-agent boundary; the cap never splits an agent.
