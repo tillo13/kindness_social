@@ -9,7 +9,7 @@ from utilities.gmail_utils import send_email
 logger = logging.getLogger(__name__)
 
 RECIPIENT = 'andy.tillo@gmail.com'
-SITE_URL = 'https://kindness-io.wl.r.appspot.com'
+SITE_URL = 'https://kindness.social'
 
 
 def generate_digest_html(summary, experiment, featured):
@@ -130,7 +130,7 @@ def generate_digest_html(summary, experiment, featured):
     <!-- Footer -->
     <div style="text-align: center; font-size: 11px; color: #555; margin-top: 24px; padding-top: 16px; border-top: 1px solid #2a2a4a;">
         "What if social media rewarded kindness?"<br>
-        <a href="{SITE_URL}" style="color: #4ade80; text-decoration: none;">kindness-io.wl.r.appspot.com</a>
+        <a href="{SITE_URL}" style="color: #4ade80; text-decoration: none;">kindness.social</a>
     </div>
 
 </div>
