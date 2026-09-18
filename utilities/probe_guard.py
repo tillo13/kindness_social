@@ -22,6 +22,7 @@ kumori/utilities/rate_limit.py -> utilities/rate_limit.py), then immediately aft
     from utilities.probe_guard import install as install_probe_guard
     install_probe_guard(app)
 """
+import ipaddress
 import logging
 import re
 import threading
@@ -51,12 +52,34 @@ _strikes = {}             # ip -> probe count
 _blocked = {}             # ip -> unblock time
 
 
+# Cloudflare's published edge ranges (cloudflare.com/ips and its /ips API agree, 15 v4 + 7 v6, fetched
+# 2026-09-18). Behind the proxy every request arrives FROM one of these, so the visitor's own address is
+# the CF-Connecting-IP header -- believed only when the request really came from Cloudflare, or anyone
+# could forge it and dodge the limits. They change rarely; cloudflare_edge refreshes its own copy live.
+_CLOUDFLARE_NETS = [ipaddress.ip_network(n) for n in (
+    '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22', '141.101.64.0/18',
+    '108.162.192.0/18', '190.93.240.0/20', '188.114.96.0/20', '197.234.240.0/22', '198.41.128.0/17',
+    '162.158.0.0/15', '104.16.0.0/13', '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22',
+    '2400:cb00::/32', '2606:4700::/32', '2803:f800::/32', '2405:b500::/32', '2405:8100::/32',
+    '2a06:98c0::/29', '2c0f:f248::/32')]
+
+
+def from_cloudflare(ip):
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    return any(addr in net for net in _CLOUDFLARE_NETS)
+
+
 def client_ip():
-    # X-Appengine-User-Ip is written by Google's front end and cannot be forged by the client;
-    # the first X-Forwarded-For entry can, so it is only the fallback off App Engine.
-    return (request.headers.get('X-Appengine-User-Ip')
+    # X-Appengine-User-Ip is written by Google's front end and cannot be forged by the client; the
+    # first X-Forwarded-For entry can, so it is only the fallback off App Engine.
+    edge = (request.headers.get('X-Appengine-User-Ip')
             or (request.headers.get('X-Forwarded-For') or '').split(',')[0].strip()
             or request.remote_addr or '')
+    visitor = request.headers.get('CF-Connecting-IP')
+    return visitor if visitor and from_cloudflare(edge) else edge
 
 
 def is_probe(path):
