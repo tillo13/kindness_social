@@ -1,0 +1,15 @@
+<style>
+.km-product-context{background:var(--bg-surface);color:var(--text-primary);border-bottom:1px solid var(--border-subtle);font:500 12px/1.35 system-ui,sans-serif;flex-shrink:0}
+.km-product-context>div{display:flex;align-items:center;gap:10px;min-height:40px;max-width:1280px;padding:0 20px;margin:0 auto;box-sizing:border-box}
+.km-product-context a,.km-product-context a:visited{color:var(--text-primary);text-decoration:none;white-space:nowrap;min-height:36px;display:inline-flex;align-items:center}
+.km-product-context a:hover,.km-product-context a:active{color:var(--text-primary);text-decoration:underline;text-underline-offset:3px}
+.km-product-context a:focus-visible{outline:2px solid currentColor;outline-offset:2px;border-radius:3px}
+.km-product-context .km-all-products{margin-left:auto}
+.km-product-context .km-current{min-width:0}
+@media(max-width:380px){.km-product-context>div{gap:7px;padding:0 12px;font-size:11px}}
+</style>
+<nav class="km-product-context" aria-label="Product context"><div>
+<a href="https://kumori.ai/" target="_blank" rel="noopener noreferrer" aria-label="Kumori home (opens in a new tab)">Kumori</a>
+<span aria-hidden="true">/</span><span class="km-current" aria-current="page">Kindness Social</span>
+<a class="km-all-products" href="https://kumori.ai/products" target="_blank" rel="noopener noreferrer" aria-label="All Kumori products (opens in a new tab)">All products <span aria-hidden="true">&nbsp;↗</span></a>
+</div></nav>
