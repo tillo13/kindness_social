@@ -1,0 +1,2 @@
+# Marker: this project's queue is in Postgres (kumori_tasks, project=kindness_social): https://kumori.ai/admin/tasks
+# `deploy --next "..."` appends there via kumori/dev/tools/tasks.py -P kindness_social.

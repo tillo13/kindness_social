@@ -1,6 +1,6 @@
 # Kindness Social — LLM Rules
 
-**📋 Always read `next_steps.md` at the repo root first** — it's auto-maintained nightly with the latest shipped commits, pending queue (from `deploy --next`), and any uncommitted WIP or TODO markers.
+**📋 Pending queue: `kumori_tasks`, project=`kindness_social`**: https://kumori.ai/admin/tasks, or `~/Desktop/code/kumori/venv_kumori/bin/python ~/Desktop/code/kumori/dev/tools/tasks.py list -P kindness_social`. `deploy --next "..."` appends there. Shipped history is `git log`.
 
 ## Claude / Anthropic API: NEVER as a fallback
 
