@@ -609,7 +609,7 @@ new Chart(document.getElementById('evolutionChart').getContext('2d'), {
                 borderColor: t.color,
                 backgroundColor: t.fill || (t.color + '14'),
                 fill: false,
-                tension: 0.3,
+                stepped: 'before',  // change-only rows: each value holds until the next change
                 pointRadius: 0,
                 borderWidth: 2,
                 spanGaps: true,

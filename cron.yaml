@@ -30,7 +30,7 @@ cron:
     min_backoff_seconds: 30
     max_doublings: 2
 
-- description: "Snapshot agent personalities for evolution charts"
+- description: "Record agent personality changes (a row only when traits change) for evolution charts"
   url: /api/cron/snapshot-agents
   schedule: every 30 minutes from 00:13 to 23:43
   retry_parameters:
@@ -96,13 +96,5 @@ cron:
     min_backoff_seconds: 60
     max_doublings: 2
 
-# Retention: past 30 days keep one agent snapshot per day (see
-# core/db_ops_analytics.prune_agent_snapshots). 04:40 PT, clear of the other
-# apps' nightly work on the shared instance.
-- description: "Prune old agent snapshots to one per day"
-  url: /api/cron/prune-snapshots
-  schedule: every day 11:40
-  timezone: UTC
-  retry_parameters:
-    min_backoff_seconds: 60
-    max_doublings: 2
+# prune-snapshots cron removed 2026-09-21: snapshots are change-only now, and thinning
+# them would delete real change points.

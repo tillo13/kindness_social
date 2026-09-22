@@ -954,143 +954,62 @@ def get_featured_agent():
 # AGENT SNAPSHOTS (for evolution charts)
 # ============================================================================
 
-SNAPSHOT_FULL_DETAIL_DAYS = 30
-SNAPSHOT_PRUNE_PAUSE_S = 0.2
-SNAPSHOT_DELETE_BATCH = 200
-# One night's surplus is ~911 agents x 48 rows = ~44K rows, and deletes run at
-# roughly 70 rows/second on this instance, so a normal run is ~10 minutes. The
-# cap exists for the first runs, which face a 4.3M-row backlog (2026-09-15):
-# without it the cron would try ~20 hours of deletes inside a web request.
-SNAPSHOT_PRUNE_MAX_ROWS = 150_000
+# Snapshots are change-only since 2026-09-21 (see snapshot_all_agents), so there is no
+# retention prune: thinning would delete real change points.
 
 
-def prune_agent_snapshots(full_detail_days=SNAPSHOT_FULL_DETAIL_DAYS,
-                          pause_s=SNAPSHOT_PRUNE_PAUSE_S, agent_ids=None,
-                          max_rows=SNAPSHOT_PRUNE_MAX_ROWS, max_seconds=240):
-    """Past `full_detail_days`, keep one snapshot per agent per day.
-
-    The cron writes a row per active agent every 30 minutes, which reached 5.4M
-    rows / 1,222 MB — the second-biggest table on the shared Cloud SQL instance
-    (2026-09-15), 81% of it older than 30 days, on a disk ~1 GB from Google's
-    paid auto-resize. get_agent_history reads one agent's series ordered by
-    hour_number, so a daily point keeps the shape of the old part of the curve
-    while the last month stays at full resolution.
-
-    Per agent: read the surplus ids off that agent's index, then delete them by
-    primary key in batches with a pause between. Written as one DELETE with the
-    ids as a subquery, Postgres seq-scans the whole 1.1 GB table to match them
-    and overruns the statement timeout. `agent_ids` scopes it to a subset.
-    Stops after `max_rows` and picks up where it left off next run: the
-    remaining surplus is the same set either way. Returns rows deleted.
-
-    Draining a BACKLOG by calling this back to back? VACUUM (ANALYZE) between
-    passes. The surplus SELECT is only fast because idx_kindness_snapshots_prune
-    covers it as an Index Only Scan (Heap Fetches: 0, ~169ms vs 70,487ms via the
-    heap on 2026-09-16), and an index-only scan needs a current visibility map.
-    Each pass's deletes dirty exactly the pages it is about to re-read, so pass
-    N+1 silently falls back to heap fetches and dies on the statement timeout.
-    Measured: passes 1 and 2 cleared 97,780 and 69,848 rows after a fresh vacuum,
-    pass 3 timed out having deleted nothing. The nightly cron does not need this —
-    autovacuum has all day between runs."""
-    import time
-
-    deadline = time.monotonic() + max_seconds
-    resume = agent_ids is None
-    if resume:
-        with db_cursor(dict_cursor=True) as cur:
-            cur.execute("SELECT value FROM kindness_config WHERE key = 'snapshot_prune_after_agent'")
-            saved = cur.fetchone()
-            after = int(saved['value']) if saved else 0
-            cur.execute("SELECT id FROM kindness_agents ORDER BY (id <= %s), id", (after,))
-            agent_ids = [r['id'] for r in cur.fetchall()]
-
-    deleted = 0
-    for agent_id in agent_ids:
-        if time.monotonic() >= deadline or (max_rows and deleted >= max_rows):
-            break
-        with db_cursor(dict_cursor=True) as cur:
-            # 60s, not 10s. The heaviest agents hold ~8,571 snapshots each (the
-            # distribution is flat, nothing pathological), and on a cold cache this
-            # shared instance cannot window-sort that inside 10s — every run died
-            # here instead of deleting anything, so the backlog could not drain at
-            # all. Runaway risk is already covered by the caller: `deadline` and
-            # `max_rows` are both checked at the agent boundary just above, so a
-            # slow agent costs one query, not the run.
-            cur.execute("SET LOCAL statement_timeout = '60s'")
-            cur.execute("""
-                SELECT id FROM (
-                  SELECT id, row_number() OVER (PARTITION BY created_at::date
-                                                ORDER BY created_at, id) AS rn
-                    FROM kindness_agent_snapshots
-                   WHERE agent_id = %s
-                     AND created_at < NOW() - make_interval(days => %s)) t
-                 WHERE rn > 1
-            """, (agent_id, full_detail_days))
-            surplus = [r['id'] for r in cur.fetchall()]
-        # Both budgets are checked at the AGENT boundary above, never inside this
-        # loop: an agent left half-pruned has some days rolled up and some not, and
-        # the resume marker below can only advance past whole agents. One agent's
-        # surplus is bounded anyway (~48 rows/day of retention), so finishing the
-        # one already started cannot overrun by much.
-        for i in range(0, len(surplus), SNAPSHOT_DELETE_BATCH):
-            with db_cursor(dict_cursor=True) as cur:
-                # 30s, and the batch is 200 not 500. Unlike the surplus SELECT above,
-                # a DELETE cannot be index-only: it has to visit each row's heap page
-                # and maintain three indexes. This agent's rows are scattered roughly
-                # one per block, and a random read costs ~10ms here, so a 500-row
-                # batch measured 1-10s and kept clipping its own 10s ceiling.
-                cur.execute("SET LOCAL statement_timeout = '30s'")
-                cur.execute("DELETE FROM kindness_agent_snapshots WHERE id = ANY(%s)",
-                            (surplus[i:i + SNAPSHOT_DELETE_BATCH],))
-                deleted += cur.rowcount
-            time.sleep(pause_s)
-        # Advance only after completing an agent: a partial agent resumes next
-        # run, while completed agents do not consume every subsequent budget.
-        if resume:
-            with db_cursor(dict_cursor=True) as cur:
-                cur.execute("""INSERT INTO kindness_config (key, value)
-                               VALUES ('snapshot_prune_after_agent', %s)
-                               ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value,
-                                                               updated_at = NOW()""", (str(agent_id),))
-        if surplus:
-            logger.info("pruned %d old snapshots for agent %s", len(surplus), agent_id)
-    return deleted
+_TRAITS = """current_toxicity, current_empathy, humor, patience, curiosity, defensiveness,
+               agreeableness, need_for_recognition, stubbornness, cynicism, conformity,
+               openness_to_change"""
 
 
-def snapshot_all_agents(hour_number):
-    """Snapshot current state of all active agents. Called hourly."""
+def snapshot_all_agents(hour_number, agent_ids=None):
+    """Record a row only when an agent's 12 traits differ from its last recorded row
+    (its first row is its birth). Measured 2026-09-21: of 1,051,822 rows written every
+    30 minutes over 30 days, 135 were actual changes, and only 70 of 734 agents changed
+    at all, so writing every tick stored identical rows. Returns rows written."""
     with db_cursor(dict_cursor=True) as cur:
-        cur.execute("""
+        cur.execute(f"""
             INSERT INTO kindness_agent_snapshots
                 (agent_id, hour_number, current_toxicity, current_empathy,
                  total_dopamine, total_interactions, kindness_streak,
                  humor, patience, curiosity, defensiveness, agreeableness,
                  need_for_recognition, stubbornness, cynicism, conformity, openness_to_change)
-            SELECT id, %s, current_toxicity, current_empathy,
-                   total_dopamine, total_interactions, kindness_streak,
-                   humor, patience, curiosity, defensiveness, agreeableness,
-                   need_for_recognition, stubbornness, cynicism, conformity, openness_to_change
-            FROM kindness_agents
-            WHERE is_active = TRUE AND total_interactions > 0
-        """, (hour_number,))
+            SELECT a.id, %s, a.current_toxicity, a.current_empathy,
+                   a.total_dopamine, a.total_interactions, a.kindness_streak,
+                   a.humor, a.patience, a.curiosity, a.defensiveness, a.agreeableness,
+                   a.need_for_recognition, a.stubbornness, a.cynicism, a.conformity, a.openness_to_change
+            FROM kindness_agents a
+            LEFT JOIN LATERAL (
+                SELECT {_TRAITS} FROM kindness_agent_snapshots s
+                WHERE s.agent_id = a.id ORDER BY s.created_at DESC, s.id DESC LIMIT 1) l ON TRUE
+            WHERE a.is_active = TRUE AND a.total_interactions > 0
+              AND (%s::int[] IS NULL OR a.id = ANY(%s::int[]))
+              AND ROW(a.current_toxicity, a.current_empathy, a.humor, a.patience, a.curiosity,
+                      a.defensiveness, a.agreeableness, a.need_for_recognition, a.stubbornness,
+                      a.cynicism, a.conformity, a.openness_to_change)
+                  IS DISTINCT FROM
+                  ROW(l.current_toxicity, l.current_empathy, l.humor, l.patience, l.curiosity,
+                      l.defensiveness, l.agreeableness, l.need_for_recognition, l.stubbornness,
+                      l.cynicism, l.conformity, l.openness_to_change)
+        """, (hour_number, agent_ids, agent_ids))
         return cur.rowcount
 
 
-def get_agent_evolution(agent_db_id, limit=168):
-    """Get snapshot history for one agent (default: last 7 days of hourly data)."""
+def get_agent_evolution(agent_db_id, limit=500):
+    """One agent's trait history since birth: every recorded change, then its current
+    values as the final point so the line reaches today. Most recent `limit` points."""
+    from core.db_ops import get_hour_count
     with db_cursor(dict_cursor=True) as cur:
-        cur.execute("""
-            SELECT hour_number, current_toxicity, current_empathy,
-                   total_dopamine, total_interactions, kindness_streak,
-                   humor, patience, curiosity, defensiveness, agreeableness,
-                   need_for_recognition, stubbornness, cynicism, conformity, openness_to_change,
-                   created_at
-            FROM kindness_agent_snapshots
-            WHERE agent_id = %s
-            ORDER BY hour_number ASC
-            LIMIT %s
-        """, (agent_db_id, limit))
-        return [dict(r) for r in cur.fetchall()]
+        cur.execute(f"""
+            SELECT * FROM (
+                SELECT hour_number, {_TRAITS}, created_at
+                FROM kindness_agent_snapshots WHERE agent_id = %s
+                UNION ALL
+                SELECT %s, {_TRAITS}, NOW() FROM kindness_agents WHERE id = %s
+            ) t ORDER BY created_at DESC LIMIT %s
+        """, (agent_db_id, get_hour_count(), agent_db_id, limit))
+        return [dict(r) for r in reversed(cur.fetchall())]
 
 
 def get_cerebras_burn_rate():

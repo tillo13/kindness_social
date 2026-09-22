@@ -141,32 +141,6 @@ def cron_snapshot_agents():
         return jsonify({'error': str(e)[:200]}), 500
 
 
-@bp.route('/api/cron/prune-snapshots')
-def cron_prune_snapshots():
-    """Cron: past 30 days, keep one agent snapshot per day. This table was
-    1,222 MB of the shared instance's 9 GB (2026-09-15) and the freed space is
-    reused by later snapshots instead of pushing the disk toward Cloud SQL's
-    paid auto-resize."""
-    if not is_cron_request():
-        return "Forbidden", 403
-
-    import time
-    log_id = db_ops.log_cron_start('prune-snapshots')
-    start = time.time()
-
-    try:
-        from core.db_ops_analytics import prune_agent_snapshots
-        deleted = prune_agent_snapshots()
-        ms = int((time.time() - start) * 1000)
-        db_ops.log_cron_end(log_id, 'ok', ms, f'Pruned {deleted} old snapshots')
-        return jsonify({'deleted': deleted, 'status': 'ok'})
-    except Exception as e:
-        ms = int((time.time() - start) * 1000)
-        db_ops.log_cron_end(log_id, 'error', ms, error_text=str(e)[:500])
-        logger.exception("Cron prune-snapshots failed")
-        return jsonify({'error': str(e)[:200]}), 500
-
-
 @bp.route('/api/cron/agent-reflect')
 def cron_agent_reflect():
     """Cron: Agents reflect on their performance and decide whether to change."""
