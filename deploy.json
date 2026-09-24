@@ -46,6 +46,10 @@
     {
       "src": "kumori/utilities/google_secrets_utils.py",
       "dst": "utilities/google_secrets_utils.py"
+    },
+    {
+      "src": "kumori/utilities/mail_guard.py",
+      "dst": "utilities/mail_guard.py"
     }
   ],
   "custom_domain": "https://kindness.social",

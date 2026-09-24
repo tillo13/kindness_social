@@ -56,8 +56,13 @@ def _get_gmail_service():
 
 
 def send_email(subject, body, to_emails, is_html=True, from_name="Kindness Social"):
+    recipients = to_emails if isinstance(to_emails, list) else [to_emails]
+    # Shared-sender guard (kumori task #34): every app mails as kumoridotai, so a repeat
+    # or a burst here is refused and logged, never queued. Canonical: kumori/utilities/mail_guard.py.
+    from utilities.mail_guard import admit
+    if not admit('kindness', ','.join(sorted(recipients)), subject)[0]:
+        return False
     try:
-        recipients = to_emails if isinstance(to_emails, list) else [to_emails]
         msg = MIMEMultipart()
         msg['From'] = f'{from_name} <kumoridotai@gmail.com>'
         msg['To'] = ', '.join(recipients)
