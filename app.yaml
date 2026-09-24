@@ -9,6 +9,12 @@ automatic_scaling:
 env_variables:
   GAE_ENV: "standard"
   FLASK_ENV: "production"
+  # DB connection = kumori's canonical module (utilities/kumori_db.py, vendored on deploy).
+  # IAM login as kindness-io@appspot, runs as kindness_app; no DB password read.
+  KUMORI_DB_AUTH: iam
+  DB_ROLE: kindness_app
+  DB_SECRET_PREFIX: KINDNESS
+  DB_POOL_MAX: "4"
 
 beta_settings:
   cloud_sql_instances: "kumori-404602:us-central1:kumori"

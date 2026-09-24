@@ -10,158 +10,20 @@ import threading
 import psycopg2
 import psycopg2.extensions
 import psycopg2.extras
-import psycopg2.pool
 from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
 GCP_PROJECT_ID = 'kumori-404602'
 
-_credentials_cache = {}
-_connection_pools = {}
-_pool_lock = threading.Lock()
-
-
-def get_secret(secret_id, default=None):
-    from utilities.google_secret_utils import get_secret as _get_secret
-    return _get_secret(secret_id, default)
-
-
-def get_postgres_credentials():
-    global _credentials_cache
-    if GCP_PROJECT_ID in _credentials_cache:
-        return _credentials_cache[GCP_PROJECT_ID]
-
-    prefix = 'KINDNESS_BATCH' if os.environ.get('KINDNESS_DB_TIER') == 'batch' else 'KINDNESS'
-    creds = {
-        'host': get_secret('KUMORI_POSTGRES_IP'),
-        'dbname': get_secret('KUMORI_POSTGRES_DB_NAME'),
-        'user': get_secret(f'{prefix}_POSTGRES_USERNAME'),
-        'password': get_secret(f'{prefix}_POSTGRES_PASSWORD'),
-        'connection_name': get_secret('KUMORI_POSTGRES_CONNECTION_NAME'),
-    }
-    _credentials_cache[GCP_PROJECT_ID] = creds
-    return creds
-
-
-def _get_connection_pool():
-    global _connection_pools
-    with _pool_lock:
-        if GCP_PROJECT_ID in _connection_pools:
-            return _connection_pools[GCP_PROJECT_ID]
-
-        db_credentials = get_postgres_credentials()
-        is_gcp = (os.environ.get('GAE_ENV', '').startswith('standard')
-                  or bool(os.environ.get('K_SERVICE') or os.environ.get('CLOUD_RUN_JOB')))
-
-        if is_gcp:
-            db_socket_dir = os.environ.get("DB_SOCKET_DIR", "/cloudsql")
-            host = f"{db_socket_dir}/{db_credentials['connection_name']}"
-        else:
-            host = db_credentials['host']
-
-        # Budget: shared db-f1-micro (50 conns across all projects). app.yaml
-        # pins max_instances=1, so this pool is the ONLY kindness process — its
-        # maxconn is the hard ceiling kindness can ever hold. Bumped 3→8
-        # (2026-05-31) to give the cron fleet + web traffic headroom on the
-        # single F1 instance; the top-of-hour PoolError bursts were a maxconn=3
-        # pool starved by colliding crons (now also staggered in cron.yaml).
-        pool = psycopg2.pool.ThreadedConnectionPool(
-            minconn=1,
-            maxconn=2 if os.environ.get('KINDNESS_DB_TIER') == 'batch' else 4,
-            dbname=db_credentials['dbname'],
-            user=db_credentials['user'],
-            password=db_credentials['password'],
-            host=host,
-            connect_timeout=10,
-            options='-c statement_timeout=30000'
-        )
-        _connection_pools[GCP_PROJECT_ID] = pool
-        logger.info("Created kindness connection pool")
-        return pool
-
-
-class PooledConnection:
-    """Returns connection to pool on close() instead of closing it."""
-    def __init__(self, conn, pool):
-        self._conn = conn
-        self._pool = pool
-
-    def close(self):
-        if self._conn:
-            try:
-                # putconn rolls back open txns but does NOT reset autocommit —
-                # without this, a borrower who flipped it would leak an
-                # autocommit connection to the next borrower.
-                if self._conn.autocommit:
-                    self._conn.autocommit = False
-                self._pool.putconn(self._conn)
-            except Exception:
-                pass
-            self._conn = None
-
-    def __getattr__(self, name):
-        return getattr(self._conn, name)
-
-    def __setattr__(self, name, value):
-        # Delegate writes symmetrically with __getattr__ — without this,
-        # `conn.autocommit = True` lands on the wrapper and silently no-ops
-        # (pilgrims 2026-08: three sessions "applied" DDL that rolled back on putconn).
-        if name.startswith('_'):
-            object.__setattr__(self, name, value)
-        else:
-            setattr(self._conn, name, value)
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type:
-            self._conn.rollback()
-        self.close()
-        return False
+# The connection itself is kumori's canonical module, vendored on every deploy (deploy.json
+# shared_files -> utilities/kumori_db.py); never edit that copy. kindness's settings live in
+# app.yaml: KUMORI_DB_AUTH, DB_ROLE, DB_SECRET_PREFIX, DB_POOL_MAX.
+from utilities.kumori_db import get_db_connection as _kumori_db_connection  # noqa: E402
 
 
 def get_db_connection():
-    """Acquire a connection. Retries on PoolError with short backoff —
-    psycopg2's ThreadedConnectionPool fails fast (no internal wait) when
-    all maxconn slots are busy, but in practice most contention windows
-    are sub-second since queries are short. Blocking up to ~2s lets cron
-    + web traffic coexist on a tight maxconn=3 pool without spurious
-    'connection pool exhausted' errors. Beyond 2s the underlying problem
-    is real and deserves to surface.
-    """
-    import time as _time
-    pool = _get_connection_pool()
-    conn = None
-    deadline = _time.time() + 2.0
-    backoff = 0.05
-    while True:
-        try:
-            conn = pool.getconn()
-            break
-        except psycopg2.pool.PoolError:
-            if _time.time() >= deadline:
-                raise
-            _time.sleep(backoff)
-            backoff = min(backoff * 1.7, 0.4)
-    # Test if connection is alive — Cloud SQL kills idle connections
-    try:
-        conn.cursor().execute("SELECT 1")
-    except (psycopg2.OperationalError, psycopg2.InterfaceError):
-        logger.warning("Stale DB connection detected, reconnecting")
-        try:
-            pool.putconn(conn, close=True)
-        except Exception:
-            pass
-        _connection_pools.pop(GCP_PROJECT_ID, None)
-        pool = _get_connection_pool()
-        conn = pool.getconn()
-    # end the probe's implicit txn — hand the conn out clean, not
-    # idle-in-transaction (also lets callers set session flags like
-    # autocommit, which raise mid-transaction)
-    conn.rollback()
-    return PooledConnection(conn, pool)
+    return _kumori_db_connection(GCP_PROJECT_ID)
 
 
 # ── Runtime DB-speed instrumentation (tier-1, per db-speed-first) ────────────
