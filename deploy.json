@@ -1,7 +1,5 @@
 {
   "project_id": "kindness-io",
-  "max_versions": 210,
-  "skip_image_cleanup": true,
   "app_name": "Kindness Social",
   "github_repo": "kindness_social",
   "shared_files": [
