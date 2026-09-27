@@ -70,7 +70,7 @@ def _values(row):
     return list(row.values()) if isinstance(row, dict) else list(row)
 
 
-def _admit_with(cur, app, to, subject):
+def _admit_with(cur, app, to, subject, dedupe=True):
     """Decide and record in one transaction. Returns (ok, reason)."""
     if app == 'kumori':
         _ensure_ledger(cur)
@@ -83,19 +83,19 @@ def _admit_with(cur, app, to, subject):
         WHERE app = %s AND outcome = 'sent' AND created_at > now() - interval '1 day'
     """, (sig, DEDUPE_MINUTES, app))
     dup, hour, day = _values(cur.fetchone())
-    reason = ('duplicate' if dup else 'hourly_cap' if hour >= HOURLY_CAP
+    reason = ('duplicate' if dup and dedupe else 'hourly_cap' if hour >= HOURLY_CAP
               else 'daily_cap' if day >= DAILY_CAP else None)
     cur.execute("INSERT INTO kumori_ops.mail_ledger (app, to_addr, sig, subject, outcome) VALUES (%s, %s, %s, %s, %s)",
                 (app, to, sig, (subject or '')[:300], 'sent' if reason is None else f'suppressed_{reason}'))
     return reason is None, reason
 
 
-def _admit_local(app, to, subject):
+def _admit_local(app, to, subject, dedupe=True):
     now, sig = time.time(), _signature(app, to, subject)
     q = _local_sent.setdefault(app, deque())
     while q and q[0][0] < now - 86400:
         q.popleft()
-    if any(s == sig and t > now - DEDUPE_MINUTES * 60 for t, s in q):
+    if dedupe and any(s == sig and t > now - DEDUPE_MINUTES * 60 for t, s in q):
         return False, 'duplicate'
     if sum(1 for t, _ in q if t > now - 3600) >= HOURLY_CAP:
         return False, 'hourly_cap'
@@ -105,18 +105,20 @@ def _admit_local(app, to, subject):
     return True, None
 
 
-def admit(app, to, subject, db_cursor=None):
+def admit(app, to, subject, db_cursor=None, dedupe=True):
     """(ok, reason). Call before every send; on refusal, drop the message (it is logged here).
     db_cursor: the host's own context-manager cursor factory taking commit=; defaults to
-    utilities.postgres_utils.db_cursor (an app whose DB module lives elsewhere passes its own)."""
+    utilities.postgres_utils.db_cursor (an app whose DB module lives elsewhere passes its own).
+    dedupe=False is for a deliberate per-event alert that carries its own, lower cap (Reserve
+    paid hops, 2026-09-24): the repeat rule is skipped, the hourly and daily caps still apply."""
     try:
         if db_cursor is None:
             from utilities.postgres_utils import db_cursor
         with db_cursor(commit=True) as cur:
-            ok, reason = _admit_with(cur, app, to, subject)
+            ok, reason = _admit_with(cur, app, to, subject, dedupe)
     except Exception as e:
         logger.warning(f"mail_guard: ledger unavailable ({e}); applying per-process caps")
-        ok, reason = _admit_local(app, to, subject)
+        ok, reason = _admit_local(app, to, subject, dedupe)
     if not ok:
         logger.error(f"mail_guard: refused ({reason}) app={app} to={to} subject={subject!r}")
     return ok, reason

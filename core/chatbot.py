@@ -9,9 +9,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-MAX_CHATS_PER_DAY = 50  # global cap (not per-IP). Lower = safer Anthropic spend cap.
-                        # At 50/day, 1000 max_tokens out, claude-haiku-4-5 pricing
-                        # (~$1/M input, $5/M output): worst case ~$0.35/day = ~$10/month.
+MAX_CHATS_PER_DAY = 50  # Global cap for the site-help chatbot, separate from experimental agents.
 
 SYSTEM_PROMPT = """You are the Kindness Social experiment assistant. You ONLY answer questions about how this experiment works — the math, the scoring, the dopamine calculations, the statistical results, and the methodology.
 
@@ -235,20 +233,8 @@ def log_chat_message():
     log_cron_end(log_id, 'ok', 0, 'chat message')
 
 
-CHATBOT_MODEL = 'claude-haiku-4-5-20251001'  # canonical haiku ID per kumori MODEL_TIERS
-
-
 def chat(message, history=None):
-    """Send a message to the chatbot. Returns the response text.
-
-    Routes through anthropic_logger.logged_create which:
-      1. Calls check_killswitch('anthropic') first — raises KillswitchTripped
-         if MTD Anthropic spend across the kumori family is over its monthly cap
-      2. Logs every call's tokens + cost to kumori_api_usage so spend is
-         tracked alongside other kumori-family apps (was an uncapped spend
-         path before 2026-04-27)
-    """
-    # In-app daily cap (separate from the kumori-wide monthly killswitch)
+    """Site-help chatbot: shared free pool only; experimental agent routing is unchanged."""
     count = get_chat_count_today()
     if count >= MAX_CHATS_PER_DAY:
         return f"Daily chat limit reached ({MAX_CHATS_PER_DAY}/day). Come back tomorrow!"
@@ -263,37 +249,24 @@ def chat(message, history=None):
     messages.append({'role': 'user', 'content': message})
 
     try:
-        from utilities.anthropic_logger import logged_create
-        from utilities.killswitch import KillswitchTripped
+        from utilities.kumori_api_client import llm_chat_resilient
     except ImportError as e:
         logger.error(f"chatbot deps missing: {e}")
         return "Sorry, the chatbot is temporarily unavailable."
 
     try:
-        response = logged_create(
+        text, _backend, _attempts, _debug = llm_chat_resilient(
             app_name='kindness_social',
-            feature='chatbot',
-            model=CHATBOT_MODEL,
             max_tokens=1000,
             temperature=0.3,
             system=system,
             messages=messages,
+            min_quality_tier='medium', allow_degrade=True,
+            budget_ms=15000, min_chars=1, retry_on_5xx=False,
         )
-    except KillswitchTripped as e:
-        logger.warning(f"chatbot blocked by killswitch: {e}")
-        return ("The chatbot is temporarily disabled — we hit the monthly "
-                "Anthropic spend cap for the kumori experiment. Resets next month.")
-    except Exception as e:
+    except Exception:
         logger.exception("Chatbot error")
-        return f"Error: {str(e)[:200]}"
+        return "Sorry, the chatbot is temporarily unavailable. Please try again later."
 
     log_chat_message()
-    # Anthropic Message response: response.content is a list of blocks
-    text = ''
-    try:
-        for block in (response.content or []):
-            if getattr(block, 'type', None) == 'text':
-                text += block.text
-    except Exception:
-        text = str(response)
-    return text or "I couldn't generate a response. Try again."
+    return (text or '').strip() or "I couldn't generate a response. Try again."

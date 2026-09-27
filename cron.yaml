@@ -98,3 +98,8 @@ cron:
 
 # prune-snapshots cron removed 2026-09-21: snapshots are change-only now, and thinning
 # them would delete real change points.
+
+- description: "Daily agent mortality: an agent whose exact lane kumori reports retired for 7 days dies and leaves the rotation (paused lanes are silence, not death); agents born with no backend retire as never_assigned"
+  url: /api/cron/agent-mortality
+  schedule: every day 04:23
+  timezone: America/Los_Angeles

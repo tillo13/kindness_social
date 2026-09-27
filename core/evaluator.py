@@ -29,6 +29,12 @@ logger = logging.getLogger(__name__)
 _dead_pins = set()
 
 
+def lane_gone(backend):
+    """True when kumori said this exact lane no longer exists (404), as opposed to a rate
+    limit or outage. Feeds agent mortality: a lane gone for 7 days means the agent has died."""
+    return backend in _dead_pins
+
+
 def chat(backend, messages, max_tokens=500, temperature=0.3, system=None):
     """Kindness LLM seam for pinned-backend agent chat.
 

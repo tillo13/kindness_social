@@ -300,6 +300,33 @@ def cron_daily_digest():
         return jsonify({'error': str(e)[:200]}), 500
 
 
+@bp.route('/api/cron/agent-mortality')
+def cron_agent_mortality():
+    """Daily: agents whose exact lane kumori reports retired (or unknown) for 7 days die and
+    leave the rotation; agents created with no backend are retired as never_assigned. Paused
+    lanes are silence, not death. See core/agent_mortality.py. ?dry=1 reports only."""
+    if not is_cron_request():
+        return "Forbidden", 403
+
+    import time
+    from core.agent_mortality import sweep
+    dry = request.args.get('dry') == '1'
+    log_id = db_ops.log_cron_start('agent-mortality')
+    start = time.time()
+    try:
+        result = sweep(dry_run=dry)
+        ms = int((time.time() - start) * 1000)
+        summary = (f"died {result.get('died', 0)}, never_assigned {result.get('never_assigned', 0)}, "
+                   f"newly missing {result.get('newly_missing', 0)}, back {result.get('back', 0)}"
+                   if result.get('ok') else result.get('error', 'failed'))
+        db_ops.log_cron_end(log_id, 'ok' if result.get('ok') else 'error', ms, summary, result)
+        return jsonify(result), (200 if result.get('ok') else 503)
+    except Exception as e:
+        logger.exception("Cron agent-mortality failed")
+        db_ops.log_cron_end(log_id, 'error', int((time.time() - start) * 1000), str(e)[:200])
+        return jsonify({'ok': False, 'error': str(e)[:200]}), 500
+
+
 @bp.route('/api/cron/avatar-diversity')
 def cron_avatar_diversity():
     """Weekly cron: sample N avatars, embed via kumori embed-image, emit
