@@ -60,13 +60,13 @@
             <div class="flex justify-center gap-4">
                 <div>
                     <div class="text-lg font-bold font-mono" style="color: var(--kindness);">
-                        {% if t.avg_tox_change and t.avg_tox_change > 0 %}-{% endif %}{{ "%.1f"|format(t.avg_tox_change|float|abs) if t.avg_tox_change else "0.0" }}
+                        {{ "%+.1f"|format(-((t.avg_tox_change or 0)|float)) }}
                     </div>
                     <div class="text-[9px]" style="color: var(--kindness);">rewarded</div>
                 </div>
                 <div>
                     <div class="text-lg font-bold font-mono" style="color: var(--text-tertiary);">
-                        {% if c.avg_tox_change and c.avg_tox_change > 0 %}-{% endif %}{{ "%.1f"|format(c.avg_tox_change|float|abs) if c.avg_tox_change else "0.0" }}
+                        {{ "%+.1f"|format(-((c.avg_tox_change or 0)|float)) }}
                     </div>
                     <div class="text-[9px]" style="color: var(--text-quaternary);">control</div>
                 </div>
@@ -77,13 +77,13 @@
             <div class="flex justify-center gap-4">
                 <div>
                     <div class="text-lg font-bold font-mono" style="color: var(--kindness);">
-                        +{{ "%.1f"|format(t.avg_emp_change|float) if t.avg_emp_change else "0.0" }}
+                        {{ "%+.1f"|format((t.avg_emp_change or 0)|float) }}
                     </div>
                     <div class="text-[9px]" style="color: var(--kindness);">rewarded</div>
                 </div>
                 <div>
                     <div class="text-lg font-bold font-mono" style="color: var(--text-tertiary);">
-                        +{{ "%.1f"|format(c.avg_emp_change|float) if c.avg_emp_change else "0.0" }}
+                        {{ "%+.1f"|format((c.avg_emp_change or 0)|float) }}
                     </div>
                     <div class="text-[9px]" style="color: var(--text-quaternary);">control</div>
                 </div>

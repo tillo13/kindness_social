@@ -413,7 +413,13 @@ def llm_chat_resilient(backends=None, messages=None, max_tokens=500, temperature
     # retry_on_5xx=False for interactive chat: the router already cascaded every
     # eligible lane inside budget_ms, so a client-side second try just doubles the
     # user-facing stall (2manspades Marta 2026-09-05: 8 s budget became 20 s).
-    data = _request('POST', '/api/v1/llm/chat-resilient', body, timeout=(5, 120),
+    # Read-timeout follows the budget: the server clamps budget_ms to 55 s and
+    # answers inside it once the cascade starts, so anything past budget+15 s is
+    # the router stuck BEFORE the cascade, and waiting 120 s for it only outlives
+    # the caller's own gunicorn timeout (inroads /cron/health-deep 2026-09-28:
+    # 40 s budget, router took 106 s, worker aborted at 120 s with SystemExit).
+    read_s = 120 if budget_ms is None else min(120, int(budget_ms) / 1000 + 15)
+    data = _request('POST', '/api/v1/llm/chat-resilient', body, timeout=(5, read_s),
                     retry_on_5xx=retry_on_5xx)
     return data.get('text'), data.get('backend'), data.get('attempts', []), data.get('_debug')
 

@@ -70,5 +70,5 @@
       ]
     }
   ],
-  "pre_deploy_test": "/Users/at/Desktop/code/_local_infrastructure/anthropic_logger/check_violations.sh . && venv_kindness/bin/python -m unittest dev.tests.test_chatbot_routing dev.tests.test_evaluator_lane dev.tests.test_agent_mortality dev.tests.test_snapshot_changes"
+  "pre_deploy_test": "/Users/at/Desktop/code/_local_infrastructure/anthropic_logger/check_violations.sh . && venv_kindness/bin/python -m unittest dev.tests.test_chatbot_routing dev.tests.test_evaluator_lane dev.tests.test_agent_mortality dev.tests.test_snapshot_changes dev.tests.test_digest_signs"
 }

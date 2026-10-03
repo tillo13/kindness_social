@@ -215,13 +215,13 @@
                 <div class="flex justify-center gap-2 sm:gap-4">
                     <div>
                         <div class="text-base sm:text-lg font-bold font-mono" style="color: var(--kindness);">
-                            {% if is_negative and t_val and t_val > 0 %}-{% elif not is_negative and label.startswith('Empathy') %}+{% endif %}{{ "%.1f"|format(t_val|float|abs) if t_val else "0.0" }}
+                            {% if is_negative %}{{ "%+.1f"|format(-((t_val or 0)|float)) }}{% elif label.startswith('Empathy') %}{{ "%+.1f"|format((t_val or 0)|float) }}{% else %}{{ "%.1f"|format((t_val or 0)|float) }}{% endif %}
                         </div>
                         <div class="text-[8px] sm:text-[9px]" style="color: var(--kindness);">rewarded</div>
                     </div>
                     <div>
                         <div class="text-base sm:text-lg font-bold font-mono" style="color: var(--text-tertiary);">
-                            {% if is_negative and c_val and c_val > 0 %}-{% elif not is_negative and label.startswith('Empathy') %}+{% endif %}{{ "%.1f"|format(c_val|float|abs) if c_val else "0.0" }}
+                            {% if is_negative %}{{ "%+.1f"|format(-((c_val or 0)|float)) }}{% elif label.startswith('Empathy') %}{{ "%+.1f"|format((c_val or 0)|float) }}{% else %}{{ "%.1f"|format((c_val or 0)|float) }}{% endif %}
                         </div>
                         <div class="text-[8px] sm:text-[9px]" style="color: var(--text-quaternary);">control</div>
                     </div>

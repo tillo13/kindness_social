@@ -48,6 +48,10 @@ def _ensure_ledger(cur):
     global _ledger_ensured
     if _ledger_ensured:
         return
+    cur.execute("SELECT to_regclass('kumori_ops.mail_ledger')")
+    if _values(cur.fetchone())[0] is not None:
+        _ledger_ensured = True
+        return
     cur.execute("CREATE SCHEMA IF NOT EXISTS kumori_ops")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS kumori_ops.mail_ledger (

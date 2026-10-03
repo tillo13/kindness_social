@@ -110,8 +110,9 @@ def build_experiment_context():
 
     lines.append("")
     lines.append("TREATMENT VS CONTROL:")
-    lines.append(f"Treatment avg toxicity change: -{float(t.get('avg_tox_change', 0) or 0):.3f} (lower = better)")
-    lines.append(f"Control avg toxicity change: -{float(c.get('avg_tox_change', 0) or 0):.3f}")
+    # avg_tox_change is baseline - current; report current - baseline with its sign.
+    lines.append(f"Treatment avg toxicity change: {-float(t.get('avg_tox_change', 0) or 0):+.3f} (negative = less toxic)")
+    lines.append(f"Control avg toxicity change: {-float(c.get('avg_tox_change', 0) or 0):+.3f}")
     lines.append(f"Treatment avg empathy change: +{float(t.get('avg_emp_change', 0) or 0):.3f}")
     lines.append(f"Control avg empathy change: +{float(c.get('avg_emp_change', 0) or 0):.3f}")
     lines.append(f"Treatment avg kindness score: {float(t.get('avg_kindness_score', 0) or 0):.2f}")

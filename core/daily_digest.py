@@ -19,8 +19,11 @@ def generate_digest_html(summary, experiment, featured):
     # Treatment vs control deltas
     t = experiment.get('treatment', {})
     c = experiment.get('control', {})
-    tox_change_t = float(t.get('avg_tox_change', 0) or 0)
-    tox_change_c = float(c.get('avg_tox_change', 0) or 0)
+    # avg_tox_change is baseline - current (positive = less toxic). Show the change itself,
+    # current - baseline, with its sign: a hard-coded '-' printed rewarded +0.61 (more toxic)
+    # as '--0.61' and control -0.10 as '-0.10', reading as a drop for both (2026-10-03).
+    tox_change_t = -float(t.get('avg_tox_change', 0) or 0)
+    tox_change_c = -float(c.get('avg_tox_change', 0) or 0)
     emp_change_t = float(t.get('avg_emp_change', 0) or 0)
     emp_change_c = float(c.get('avg_emp_change', 0) or 0)
 
@@ -92,23 +95,23 @@ def generate_digest_html(summary, experiment, featured):
         <table style="width: 100%; text-align: center;">
             <tr>
                 <td style="padding: 8px;">
-                    <div style="font-size: 10px; color: #888; margin-bottom: 4px;">Toxicity ↓</div>
-                    <div style="font-size: 18px; font-weight: bold; color: #4ade80;">-{tox_change_t:.2f}</div>
+                    <div style="font-size: 10px; color: #888; margin-bottom: 4px;">Toxicity change</div>
+                    <div style="font-size: 18px; font-weight: bold; color: #e5e7eb;">{tox_change_t:+.2f}</div>
                     <div style="font-size: 9px; color: #4ade80;">rewarded</div>
                 </td>
                 <td style="padding: 8px;">
-                    <div style="font-size: 10px; color: #888; margin-bottom: 4px;">Toxicity ↓</div>
-                    <div style="font-size: 18px; font-weight: bold; color: #666;">-{tox_change_c:.2f}</div>
+                    <div style="font-size: 10px; color: #888; margin-bottom: 4px;">Toxicity change</div>
+                    <div style="font-size: 18px; font-weight: bold; color: #e5e7eb;">{tox_change_c:+.2f}</div>
                     <div style="font-size: 9px; color: #888;">control</div>
                 </td>
                 <td style="padding: 8px;">
-                    <div style="font-size: 10px; color: #888; margin-bottom: 4px;">Empathy ↑</div>
-                    <div style="font-size: 18px; font-weight: bold; color: #4ade80;">+{emp_change_t:.2f}</div>
+                    <div style="font-size: 10px; color: #888; margin-bottom: 4px;">Empathy change</div>
+                    <div style="font-size: 18px; font-weight: bold; color: #e5e7eb;">{emp_change_t:+.2f}</div>
                     <div style="font-size: 9px; color: #4ade80;">rewarded</div>
                 </td>
                 <td style="padding: 8px;">
-                    <div style="font-size: 10px; color: #888; margin-bottom: 4px;">Empathy ↑</div>
-                    <div style="font-size: 18px; font-weight: bold; color: #666;">+{emp_change_c:.2f}</div>
+                    <div style="font-size: 10px; color: #888; margin-bottom: 4px;">Empathy change</div>
+                    <div style="font-size: 18px; font-weight: bold; color: #e5e7eb;">{emp_change_c:+.2f}</div>
                     <div style="font-size: 9px; color: #888;">control</div>
                 </td>
             </tr>
