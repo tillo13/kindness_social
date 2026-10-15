@@ -4,7 +4,7 @@ This is the FAST layer that stops a tight loop (logged-in user OR no-login room
 guest) from hammering an endpoint faster than a human ever would. It is:
 
   - per-instance memory only (no DB, no network) -> near-zero cost, safe to call
-    on every request to the shared db-f1-micro fleet without adding DB load;
+    on every request to the fleet without adding load to the shared DB;
   - per-instance, so it resets on deploy/cold start and an attacker spread across
     many App Engine instances is capped per-instance, not globally. That is by
     design: this layer kills single-source runaways (the common case). The

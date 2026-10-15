@@ -899,7 +899,7 @@ def get_leaderboard(sort_by='kindness', limit=10000):
     all 1.9M kindness_reactions⨝comments rows per uncached render and started
     QueryCanceling on the 30s statement_timeout when the 2026-07-06
     vacuum/index churn evicted the buffer cache that had let it squeak by —
-    those 30s scans also held pooled connections (maxconn=8), starving / of
+    those 30s scans also held pooled connections (maxconn=8 then; 4 since 2026-09-24), starving / of
     connections entirely."""
     sort_map = {
         'kindness': 'avg_k DESC NULLS LAST',

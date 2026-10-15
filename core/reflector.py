@@ -90,7 +90,8 @@ def get_agent_social_standing(agent_db_id):
     Single query — was 4 separate cursor opens per agent, which under cron
     load multiplied to dozens of pool acquires per cycle and was a major
     contributor to "connection pool exhausted" errors on agent-reflect
-    (maxconn=3 is intentionally tight for the shared db-f1-micro).
+    (the pool is intentionally tight on the shared instance: max 4 via app.yaml
+    DB_POOL_MAX as of 2026-10-15; it was 3 here and 8 elsewhere before 2026-09-24).
     """
     with db_cursor(dict_cursor=True) as cur:
         cur.execute("""

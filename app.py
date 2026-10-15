@@ -258,7 +258,7 @@ def indexnow_key():
 def sitemap_xml():
     """Serve sitemap.xml — static routes + top agents only.
     Deliberately capped: listing all ~911 agents + 5000 threads invited Googlebot to
-    crawl the full footprint concurrently, exhausting the maxconn=8 pool on the single
+    crawl the full footprint concurrently, exhausting the pool (maxconn=8 then; 4 since 2026-09-24, app.yaml DB_POOL_MAX) on the single
     F1 instance → recurring GSC 'Server error (5xx)'. Threads were dropped entirely
     2026-07-20: the 300-most-recent rotated every ~45 min, churning the sitemap and
     triggering constant GSC 'not indexed' warnings (413 URLs listed, 15 indexed).
