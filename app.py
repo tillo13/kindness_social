@@ -25,6 +25,8 @@ app = Flask(__name__)
 # counters or a template run. Two scanners took this single-instance app down on 2026-09-17/18.
 from utilities.probe_guard import install as _install_probe_guard
 _install_probe_guard(app)
+from utilities.csrf_guard import install as install_csrf_guard
+install_csrf_guard(app)  # refuse cross-site POSTs; session cookie SameSite=Lax (audit 2026-10-14)
 
 @app.before_request
 def isolate_cron_service():

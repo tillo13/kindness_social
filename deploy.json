@@ -50,6 +50,10 @@
     {
       "src": "kumori/utilities/mail_guard.py",
       "dst": "utilities/mail_guard.py"
+    },
+    {
+      "src": "spam_control/csrf_guard.py",
+      "dst": "utilities/csrf_guard.py"
     }
   ],
   "custom_domain": "https://kindness.social",

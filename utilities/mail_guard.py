@@ -124,5 +124,9 @@ def admit(app, to, subject, db_cursor=None, dedupe=True):
         logger.warning(f"mail_guard: ledger unavailable ({e}); applying per-process caps")
         ok, reason = _admit_local(app, to, subject, dedupe)
     if not ok:
-        logger.error(f"mail_guard: refused ({reason}) app={app} to={to} subject={subject!r}")
+        # A repeat inside the dedupe window is the guard working, so it is a WARNING; a cap is a
+        # sending loop to go and fix, so it stays an ERROR. At ERROR the repeat was filed as a
+        # P2 defect by the findings ledger (#290, 2026-10-12).
+        log = logger.warning if reason == 'duplicate' else logger.error
+        log(f"mail_guard: refused ({reason}) app={app} to={to} subject={subject!r}")
     return ok, reason
