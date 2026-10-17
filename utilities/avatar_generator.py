@@ -7,17 +7,12 @@ fallback. Every avatar lives in GCS, resolved via `get_avatar_url(agent_id)`.
 
 import logging
 import os
-import time
-import requests
-from utilities.google_secret_utils import get_secret
 
 logger = logging.getLogger(__name__)
 
 GCS_BUCKET = 'kindness-io-avatars'
 GCS_PUBLIC_URL = f'https://storage.googleapis.com/{GCS_BUCKET}'
 
-REPLICATE_API = "https://api.replicate.com/v1"
-_api_token = None
 _gcs_client = None
 
 APP_NAME = 'kindness_social'
@@ -68,22 +63,6 @@ def _async_describe(img_bytes: bytes, agent_id: str, mime: str = 'image/jpeg'):
 
 def _is_appengine():
     return os.environ.get('GAE_ENV', '').startswith('standard')
-
-
-def _get_token():
-    global _api_token
-    if _api_token is None:
-        _api_token = get_secret('KUMORI_REPLICATE_API_KEY')
-        if not _api_token:
-            raise RuntimeError("KUMORI_REPLICATE_API_KEY not found")
-    return _api_token
-
-
-def _headers():
-    return {
-        "Authorization": f"Bearer {_get_token()}",
-        "Content-Type": "application/json",
-    }
 
 
 def _get_gcs_bucket():
@@ -206,9 +185,7 @@ def generate_avatar(agent, force=False):
     Returns the local file path, or None on failure.
     Skips if avatar already exists (unless force=True).
 
-    Re-enabled 2026-04-27. The original Replicate-paid path is preserved
-    below as `_generate_avatar_via_replicate()` for reference but is no
-    longer called.
+    Kumori free imggen since 2026-04-27; the Replicate path was removed 2026-10-17.
     """
     agent_id = agent.get('agent_id', 'unknown')
 
@@ -262,73 +239,6 @@ def generate_avatar(agent, force=False):
 
     url = _upload_to_gcs(agent_id, img_bytes)
     return url
-
-    # ── unreachable — preserved for the day Andy re-enables ─────────────────
-    prompt = build_prompt(agent)
-    logger.info(f"Generating avatar for {agent_id}: {prompt[:80]}...")
-
-    try:
-        # Create prediction via Replicate HTTP API (no SDK needed)
-        resp = requests.post(
-            f"{REPLICATE_API}/models/black-forest-labs/flux-schnell/predictions",
-            headers=_headers(),
-            json={
-                "input": {
-                    "prompt": prompt,
-                    "num_outputs": 1,
-                    "aspect_ratio": "1:1",
-                    "output_format": "png",
-                    "output_quality": 90,
-                }
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        prediction = resp.json()
-
-        # Poll for completion
-        poll_url = prediction.get('urls', {}).get('get', f"{REPLICATE_API}/predictions/{prediction['id']}")
-        for _ in range(60):  # Max 60 seconds
-            time.sleep(1)
-            poll_resp = requests.get(poll_url, headers=_headers(), timeout=10)
-            poll_data = poll_resp.json()
-            status = poll_data.get('status')
-
-            if status == 'succeeded':
-                output = poll_data.get('output', [])
-                if output:
-                    img_url = output[0] if isinstance(output, list) else output
-                    img_resp = requests.get(str(img_url), timeout=30)
-                    img_resp.raise_for_status()
-                    # Compress to 256x256 JPG for fast loading
-                    from PIL import Image
-                    from io import BytesIO
-                    img = Image.open(BytesIO(img_resp.content)).convert('RGB')
-                    img = img.resize((256, 256), Image.LANCZOS)
-                    buf = BytesIO()
-                    img.save(buf, 'JPEG', quality=80, optimize=True)
-                    img_bytes = buf.getvalue()
-
-                    # Save locally if possible, always upload to GCS
-                    try:
-                        with open(path, 'wb') as f:
-                            f.write(img_bytes)
-                        logger.info(f"Avatar saved locally: {path} ({len(img_bytes)} bytes)")
-                    except (OSError, IOError):
-                        logger.info(f"Local save failed (read-only fs), using GCS only")
-
-                    _upload_to_gcs(agent_id, img_bytes)
-                    return path
-                break
-            elif status == 'failed':
-                logger.error(f"Flux prediction failed for {agent_id}: {poll_data.get('error')}")
-                break
-
-        return None
-
-    except Exception as e:
-        logger.error(f"Avatar generation failed for {agent_id}: {e}")
-        return None
 
 
 def generate_all_avatars(agents, force=False):
