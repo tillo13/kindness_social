@@ -359,7 +359,7 @@ def _get_connection_pool(gcp_project_id: str) -> psycopg2.pool.ThreadedConnectio
         if not is_gcp:
             host, _port, _ssl = _local_host(host)
 
-        # Budget: 50 max_connections (pinned by flag) shared across ~20 apps on the
+        # Budget: 100 max_connections (by flag since 2026-10-15; 50 before) shared across ~20 apps on the
         # shared instance (db-custom-1-3840 since 2026-10-15; db-f1-micro before)
         # See kumori/docs/postgres_connections.md for allocation
         # kumori app's documented allotment is min=1 max=10. History: 3 -> 5 after

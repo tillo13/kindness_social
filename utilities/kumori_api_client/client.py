@@ -462,6 +462,24 @@ def llm_chat_eval(prompt, system=None, caller=None):
     return data.get('text'), data.get('backend')
 
 
+def research_company(name):
+    """Ask kumori for a company's shared dossier (#349). {'status': 'ready', 'dossier'} when every
+    section is fresh, else {'status': 'queued'|'running', 'job', 'status_url', 'dossier'}, where the
+    dossier is the stale copy or None. Poll research_job(job['id']) for the refresh."""
+    return _request('POST', '/api/v1/research/company', {'name': name}, timeout=(5, 30), accepted_ok=True)
+
+
+def research_job(job_id):
+    """A research job's status: queued, running, done or failed (unmetered)."""
+    return _request('GET', f'/api/v1/research/jobs/{int(job_id)}', timeout=(5, 15)).get('job')
+
+
+def research_dossier(name):
+    """A company's dossier as it stands, or None (unmetered)."""
+    from urllib.parse import quote
+    return _request('GET', f'/api/v1/research/company?name={quote(name)}', timeout=(5, 15)).get('dossier')
+
+
 def lane_status(names):
     """{name: kumori lifecycle status} for named lanes, retired ones included; 'unknown' when
     kumori has no such lane. For apps that pin lanes and must tell retired from paused."""
